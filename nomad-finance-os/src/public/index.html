@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nomad Finance OS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Sora:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="noise"></div>
+    <header class="topbar">
+      <div class="brand-block">
+        <p class="eyebrow">MVP · Web</p>
+        <h1>Nomad Finance OS</h1>
+        <p class="subtitle">Finance OS for multi-currency nomad life.</p>
+      </div>
+      <div class="controls">
+        <label>
+          User ID
+          <input id="userIdInput" type="number" min="1" value="1" />
+        </label>
+        <label>
+          Month
+          <input id="monthInput" type="month" />
+        </label>
+        <button id="reloadBtn" class="btn btn-solid">Reload</button>
+      </div>
+    </header>
+
+    <nav class="tabs" aria-label="Panels">
+      <button class="tab active" data-panel="dashboardPanel">Dashboard</button>
+      <button class="tab" data-panel="capturePanel">Capture</button>
+      <button class="tab" data-panel="transactionsPanel">Transactions</button>
+      <button class="tab" data-panel="budgetsPanel">Budgets</button>
+      <button class="tab" data-panel="fundsPanel">Funds</button>
+      <button class="tab" data-panel="accountsPanel">Accounts</button>
+      <button class="tab" data-panel="reviewPanel">Monthly Review</button>
+      <button class="tab" data-panel="categoriesPanel">Categories</button>
+      <button class="tab" data-panel="settingsPanel">Settings</button>
+    </nav>
+
+    <main class="layout">
+      <section id="dashboardPanel" class="panel active">
+        <h2>Dashboard</h2>
+        <div class="metrics" id="metricsGrid"></div>
+        <article class="card">
+          <h3>Risk Metrics</h3>
+          <div id="riskMetrics" class="list-block"></div>
+        </article>
+        <h3>Budget Status (L1 only)</h3>
+        <div id="budgetStatusList" class="list-block"></div>
+      </section>
+
+      <section id="capturePanel" class="panel">
+        <h2>Capture / AI Parse</h2>
+        <form id="captureTextForm" class="card">
+          <h3>Natural Language</h3>
+          <label>
+            Text
+            <textarea name="text" rows="4" placeholder="午饭 220 THB"></textarea>
+          </label>
+          <button class="btn btn-solid" type="submit">Parse Text</button>
+        </form>
+        <form id="captureImageForm" class="card">
+          <h3>Receipt / Screenshot OCR Text</h3>
+          <label>
+            OCR Text
+            <textarea name="ocr_text" rows="5" placeholder="7-Eleven 120 THB"></textarea>
+          </label>
+          <label>
+            Image Base64 / Data URL (optional)
+            <textarea
+              name="image_base64"
+              rows="4"
+              placeholder="data:image/png;base64,iVBORw0KGgo..."
+            ></textarea>
+          </label>
+          <button class="btn btn-solid" type="submit">Parse Image Text</button>
+        </form>
+        <article class="card">
+          <h3>Latest Extraction Draft</h3>
+          <pre id="extractionPreview" class="pre"></pre>
+          <button id="confirmExtractionBtn" class="btn btn-solid">Confirm Draft to Transaction</button>
+        </article>
+      </section>
+
+      <section id="transactionsPanel" class="panel">
+        <h2>Transactions</h2>
+        <form id="transactionForm" class="card form-grid">
+          <label>
+            Date
+            <input name="date" type="date" required />
+          </label>
+          <label>
+            Type
+            <select name="type" required>
+              <option value="expense">expense</option>
+              <option value="income">income</option>
+              <option value="transfer">transfer</option>
+            </select>
+          </label>
+          <label>
+            Amount
+            <input name="amount_original" type="number" step="0.00000001" required />
+          </label>
+          <label>
+            Currency
+            <input name="currency_original" type="text" minlength="3" maxlength="8" value="USD" required />
+          </label>
+          <label>
+            FX Rate (optional)
+            <input name="fx_rate" type="number" step="0.00000001" placeholder="Auto if empty" />
+          </label>
+          <label>
+            Note
+            <input name="note" type="text" maxlength="500" placeholder="optional" />
+          </label>
+
+          <label class="field-expense">
+            Category L1
+            <select name="category_l1"></select>
+          </label>
+          <label class="field-expense">
+            Category L2
+            <select name="category_l2"></select>
+          </label>
+          <label class="field-transfer hidden">
+            Transfer Reason
+            <select name="transfer_reason">
+              <option value="normal">normal</option>
+              <option value="deposit_lock">deposit_lock</option>
+              <option value="deposit_release">deposit_release</option>
+            </select>
+          </label>
+          <label>
+            Account From
+            <select name="account_from_id"></select>
+          </label>
+          <label>
+            Account To
+            <select name="account_to_id"></select>
+          </label>
+          <label class="grid-span">
+            Tags (comma separated)
+            <input name="tags" type="text" placeholder="client-a, bangkok, reimbursable" />
+          </label>
+          <div class="actions grid-span">
+            <button class="btn btn-solid" type="submit">Create Transaction</button>
+          </div>
+        </form>
+
+        <div class="card filter-row">
+          <label>
+            Filter Tag
+            <input id="transactionTagFilter" type="text" placeholder="food" />
+          </label>
+          <button id="applyTxFilterBtn" class="btn">Apply</button>
+        </div>
+        <div id="transactionList" class="list-block"></div>
+      </section>
+
+      <section id="budgetsPanel" class="panel">
+        <h2>Budgets</h2>
+        <div class="grid-two">
+          <form id="budgetForm" class="card form-grid">
+            <h3 class="grid-span">Monthly Budget</h3>
+            <label>
+              Month
+              <input name="month" type="month" required />
+            </label>
+            <label>
+              Category L1
+              <select name="category_l1"></select>
+            </label>
+            <label>
+              Total Amount
+              <input name="total_amount" type="number" step="0.01" required />
+            </label>
+            <div class="actions">
+              <button class="btn btn-solid" type="submit">Upsert</button>
+            </div>
+          </form>
+          <form id="yearlyBudgetForm" class="card form-grid">
+            <h3 class="grid-span">Yearly Budget</h3>
+            <label>
+              Year
+              <input name="year" type="number" min="2000" max="2100" required />
+            </label>
+            <label>
+              Category L1
+              <select name="category_l1"></select>
+            </label>
+            <label>
+              Total Amount
+              <input name="total_amount" type="number" step="0.01" required />
+            </label>
+            <div class="actions">
+              <button class="btn btn-solid" type="submit">Upsert</button>
+            </div>
+          </form>
+        </div>
+        <article class="card">
+          <h3>Monthly Budgets</h3>
+          <div id="budgetList" class="list-block"></div>
+        </article>
+        <article class="card">
+          <h3>Yearly Budgets</h3>
+          <div id="yearlyBudgetList" class="list-block"></div>
+        </article>
+      </section>
+
+      <section id="fundsPanel" class="panel">
+        <h2>Funds</h2>
+        <form id="fundForm" class="card form-grid">
+          <label>
+            Fund Name
+            <input name="name" type="text" required />
+          </label>
+          <label>
+            Balance
+            <input name="balance" type="number" step="0.01" value="0" />
+          </label>
+          <label>
+            Monthly Allocation
+            <input name="monthly_allocation" type="number" step="0.01" value="0" />
+          </label>
+          <div class="actions">
+            <button class="btn btn-solid" type="submit">Upsert Fund</button>
+          </div>
+        </form>
+        <form id="fundAllocateForm" class="card form-grid">
+          <label>
+            Fund
+            <select name="fund_id"></select>
+          </label>
+          <label>
+            Month
+            <input name="month" type="month" />
+          </label>
+          <label>
+            Amount
+            <input name="amount" type="number" step="0.01" required />
+          </label>
+          <label class="grid-span">
+            Note
+            <input name="note" type="text" />
+          </label>
+          <div class="actions">
+            <button class="btn btn-solid" type="submit">Allocate</button>
+          </div>
+        </form>
+        <div id="fundList" class="list-block"></div>
+      </section>
+
+      <section id="accountsPanel" class="panel">
+        <h2>Accounts</h2>
+        <form id="accountForm" class="card form-grid">
+          <label>
+            Name
+            <input name="name" type="text" required />
+          </label>
+          <label>
+            Type
+            <select name="type" required>
+              <option value="bank">bank</option>
+              <option value="cash">cash</option>
+              <option value="wise">wise</option>
+              <option value="crypto_wallet">crypto_wallet</option>
+              <option value="exchange">exchange</option>
+              <option value="alipay">alipay</option>
+              <option value="wechat">wechat</option>
+              <option value="restricted_cash">restricted_cash</option>
+            </select>
+          </label>
+          <label>
+            Currency
+            <input name="currency" type="text" minlength="3" maxlength="8" value="USD" required />
+          </label>
+          <label>
+            Opening Balance
+            <input name="balance" type="number" step="0.01" value="0" />
+          </label>
+          <div class="actions">
+            <button class="btn btn-solid" type="submit">Create Account</button>
+          </div>
+        </form>
+        <div id="accountList" class="list-block"></div>
+      </section>
+
+      <section id="reviewPanel" class="panel">
+        <h2>Monthly Review</h2>
+        <button id="generateReviewBtn" class="btn btn-solid">Generate Snapshot</button>
+        <article class="card">
+          <h3>Summary</h3>
+          <p id="reviewSummary"></p>
+        </article>
+        <article class="card">
+          <h3>Expense Structure L1</h3>
+          <div id="reviewL1"></div>
+        </article>
+        <article class="card">
+          <h3>Top 5 Expense Transactions</h3>
+          <div id="reviewTop"></div>
+        </article>
+      </section>
+
+      <section id="categoriesPanel" class="panel">
+        <h2>Categories</h2>
+        <div class="grid-two">
+          <form id="l1Form" class="card">
+            <h3>Add L1 Category</h3>
+            <label>
+              Name
+              <input name="name" type="text" required />
+            </label>
+            <button class="btn btn-solid" type="submit">Create L1</button>
+          </form>
+          <form id="l2Form" class="card">
+            <h3>Add L2 Category</h3>
+            <label>
+              L1
+              <select name="l1_name"></select>
+            </label>
+            <label>
+              L2 Name
+              <input name="name" type="text" required />
+            </label>
+            <button class="btn btn-solid" type="submit">Create L2</button>
+          </form>
+        </div>
+        <div id="categoryTree" class="list-block"></div>
+      </section>
+
+      <section id="settingsPanel" class="panel">
+        <h2>Settings & BYOK AI</h2>
+        <form id="settingsForm" class="card form-grid">
+          <label>
+            Base Currency
+            <input name="base_currency" type="text" value="USD" />
+          </label>
+          <label>
+            Timezone
+            <input name="timezone" type="text" value="UTC" />
+          </label>
+          <div class="actions">
+            <button class="btn btn-solid" type="submit">Save Settings</button>
+          </div>
+        </form>
+        <form id="providerForm" class="card form-grid">
+          <h3 class="grid-span">Add AI Provider</h3>
+          <label>
+            Display Name
+            <input name="display_name" type="text" placeholder="My OpenAI Gateway" required />
+          </label>
+          <label>
+            Base URL
+            <input name="base_url" type="url" placeholder="https://api.openai.com/v1" required />
+          </label>
+          <label>
+            Model
+            <input name="model" type="text" value="gpt-4.1-mini" required />
+          </label>
+          <label>
+            API Key
+            <input name="api_key" type="password" required />
+          </label>
+          <div class="actions">
+            <button class="btn btn-solid" type="submit">Create Provider</button>
+          </div>
+        </form>
+        <article class="card">
+          <h3>Providers</h3>
+          <div id="providerList" class="list-block"></div>
+        </article>
+      </section>
+    </main>
+
+    <div id="toast" class="toast hidden"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>

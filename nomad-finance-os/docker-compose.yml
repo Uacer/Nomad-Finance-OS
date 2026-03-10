@@ -1,0 +1,27 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nomad-finance-os
+    ports:
+      - "5001:5001"
+    environment:
+      - PORT=5001
+      - DB_PATH=/data/nomad-finance.db
+      - BACKUP_DIR=/backups
+      - CREDENTIAL_SECRET=change-me-in-production
+    volumes:
+      - nomad_data:/data
+      - nomad_backups:/backups
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:5001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  nomad_data:
+  nomad_backups:

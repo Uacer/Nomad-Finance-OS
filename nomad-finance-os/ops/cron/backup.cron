@@ -1,0 +1,5 @@
+# Run every day at 02:10 local time
+10 2 * * * cd /app && npm run backup:db >> /var/log/nomad-finance-backup.log 2>&1
+
+# Generate previous month review snapshot every month on day 1 at 09:00
+0 9 1 * * cd /app && npm run generate:monthly-review >> /var/log/nomad-finance-review.log 2>&1

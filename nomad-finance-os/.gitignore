@@ -1,0 +1,5 @@
+node_modules/
+nomad-finance.db
+backups/
+.env
+*.pre-restore-*

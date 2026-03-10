@@ -1,0 +1,96 @@
+# ===================================
+# AgentForUs - Git Ignore Rules
+# ===================================
+# CRITICAL: Never modify without approval
+# This file protects sensitive information
+
+# ===================================
+# 🔐 Secrets and Credentials
+# ===================================
+.env
+*.key
+*.pem
+*.p12
+*.pfx
+*secret*
+*credentials*
+*password*
+*token*
+
+# Exception: Allow .env.example
+!.env.example
+
+# ===================================
+# 🐍 Python
+# ===================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# ===================================
+# 📊 Logs and Databases
+# ===================================
+*.log
+*.jsonl
+logs/
+*.db
+*.sqlite
+*.sqlite3
+
+# ===================================
+# 🖥️ IDE and Editors
+# ===================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ===================================
+# 📦 Dependencies
+# ===================================
+node_modules/
+package-lock.json
+yarn.lock
+
+# ===================================
+# 🔄 Temporary Files
+# ===================================
+*.tmp
+*.temp
+*.cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ===================================
+# 🤖 Project-Specific
+# ===================================
+
+# Polymarket Bot
+projects/polymarket-bot/circuit_breaker_state.json
+projects/polymarket-bot/breaker_alert_sent_*.flag
+projects/polymarket-bot/tail_events.jsonl
+projects/polymarket-bot/nohup.out
+projects/polymarket-bot/*.log
+
+# Shared
+shared/data/
+shared/cache/
+
+# ===================================
+# 📄 OS Generated
+# ===================================
+Thumbs.db
+.DS_Store
+desktop.ini

@@ -1,0 +1,25 @@
+{
+  "name": "nomad-finance-os",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Nomad Finance OS MVP backend",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test",
+    "generate:monthly-review": "node src/review-job.js",
+    "backup:db": "node src/backup-db.js",
+    "restore:db": "node src/restore-db.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "express": "^4.21.2",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "supertest": "^7.0.0"
+  }
+}

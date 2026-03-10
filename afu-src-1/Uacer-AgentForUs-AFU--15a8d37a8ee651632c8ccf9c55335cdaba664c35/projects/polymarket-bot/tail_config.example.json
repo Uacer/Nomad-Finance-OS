@@ -1,0 +1,17 @@
+{
+  "poll_seconds": 5,
+  "entry_price_min": 0.80,
+  "entry_price_max": 0.95,
+  "stop_price": 0.49,
+  "enable_stop_loss": false,
+  "max_open_markets": 10,
+  "slippage_bps": 200,
+  "max_spread_bps": 300,
+  "end_within_seconds": 259200,
+  "min_liquidity": 1000,
+  "min_volume24h": 0,
+  "circuit_breaker_threshold": 0.20,
+  "min_bid_liquidity_ratio": 0.8,
+  "min_market_age_seconds": 600,
+  "max_same_category_markets": 2
+}

@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polymarket Bot Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: #0a0a0a;
+            color: #e5e5e5;
+            line-height: 1.6;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            margin-bottom: 40px;
+            border-bottom: 1px solid #222;
+            padding-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: #888;
+            font-size: 14px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: #111;
+            border: 1px solid #222;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .card-title {
+            font-size: 13px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+
+        .card-value {
+            font-size: 32px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+
+        .card-subtitle {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+
+        .status-running { background: #22c55e; }
+        .status-stopped { background: #ef4444; }
+        .status-warning { background: #f59e0b; }
+
+        .table-container {
+            background: #111;
+            border: 1px solid #222;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        
+        .table-wrapper {
+            overflow-x: auto;
+            overflow-y: visible;
+        }
+
+        .table-header {
+            padding: 20px;
+            border-bottom: 1px solid #222;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .table-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 900px; /* 确保表格不会太窄 */
+        }
+        
+        /* 链接样式 */
+        a {
+            color: #3b82f6;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        
+        a:hover {
+            color: #60a5fa;
+            text-decoration: underline;
+        }
+
+        th {
+            text-align: left;
+            padding: 12px 20px;
+            font-size: 12px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 500;
+            border-bottom: 1px solid #222;
+        }
+
+        th.sortable {
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        th.sortable:hover {
+            color: #3b82f6;
+        }
+
+        td {
+            padding: 12px 16px; /* 减小 padding */
+            font-size: 13px; /* 减小字体 */
+            border-bottom: 1px solid #1a1a1a;
+            white-space: nowrap; /* 防止换行 */
+        }
+
+        tr:hover {
+            background: #0f0f0f;
+        }
+
+        .positive { color: #22c55e; }
+        .negative { color: #ef4444; }
+        .neutral { color: #888; }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .badge-success { background: #22c55e20; color: #22c55e; }
+        .badge-error { background: #ef444420; color: #ef4444; }
+        .badge-warning { background: #f59e0b20; color: #f59e0b; }
+        .badge-info { background: #3b82f620; color: #3b82f6; }
+
+        .log-entry {
+            padding: 12px 20px;
+            border-bottom: 1px solid #1a1a1a;
+            font-size: 13px;
+            font-family: 'Monaco', 'Courier New', monospace;
+        }
+
+        .log-entry:hover {
+            background: #0f0f0f;
+        }
+
+        .log-time {
+            color: #666;
+            margin-right: 12px;
+        }
+
+        .log-type {
+            margin-right: 12px;
+        }
+
+        .log-message {
+            color: #e5e5e5;
+        }
+
+        .empty-state {
+            padding: 60px 20px;
+            text-align: center;
+            color: #666;
+        }
+
+        a {
+            color: #3b82f6;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .refresh-indicator {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .filter-tabs {
+            display: flex;
+            gap: 8px;
+        }
+
+        .filter-tab {
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            background: transparent;
+            border: 1px solid #333;
+            color: #888;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .filter-tab:hover {
+            border-color: #555;
+            color: #e5e5e5;
+        }
+
+        .filter-tab.active {
+            background: #3b82f620;
+            border-color: #3b82f6;
+            color: #3b82f6;
+        }
+
+        .alert-box {
+            background: #ef444420;
+            border: 1px solid #ef4444;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .alert-box.active {
+            display: block;
+        }
+
+        .alert-title {
+            font-weight: 600;
+            color: #ef4444;
+            margin-bottom: 4px;
+        }
+
+        .alert-message {
+            color: #e5e5e5;
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            
+            table {
+                font-size: 12px;
+            }
+            
+            th, td {
+                padding: 8px 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Polymarket Bot Dashboard</h1>
+            <div class="subtitle">Real-time monitoring · <span id="last-update">Loading...</span></div>
+        </header>
+
+        <!-- 警报区域 -->
+        <div id="alert-box" class="alert-box">
+            <div class="alert-title" id="alert-title"></div>
+            <div class="alert-message" id="alert-message"></div>
+        </div>
+
+        <!-- 资产概览 -->
+        <div class="grid">
+            <div class="card">
+                <div class="card-title">USDC Balance</div>
+                <div class="card-value" id="usdc-balance">-</div>
+                <div class="card-subtitle">Available Cash</div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Positions Value</div>
+                <div class="card-value" id="positions-value">-</div>
+                <div class="card-subtitle">Current Holdings</div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Total Value</div>
+                <div class="card-value" id="total-value">-</div>
+                <div class="card-subtitle" id="drawdown-info">-</div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">POL Balance</div>
+                <div class="card-value" id="pol-balance">-</div>
+                <div class="card-subtitle">Gas Reserve</div>
+            </div>
+        </div>
+
+        <!-- 机器人状态 -->
+        <div class="card" style="margin-bottom: 30px;">
+            <div class="card-title">Bot Status</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 16px;">
+                <div>
+                    <span class="status-indicator" id="status-entry"></span>
+                    <span style="color: #e5e5e5;">entry_bot.py</span>
+                </div>
+                <div>
+                    <span class="status-indicator" id="status-exit"></span>
+                    <span style="color: #e5e5e5;">exit_bot.py</span>
+                </div>
+                <div>
+                    <span class="status-indicator" id="status-notifier"></span>
+                    <span style="color: #e5e5e5;">notifier.py</span>
+                </div>
+                <div>
+                    <span class="status-indicator" id="status-status-loop"></span>
+                    <span style="color: #e5e5e5;">status_loop.py</span>
+                </div>
+                <div>
+                    <span class="status-indicator" id="status-breaker"></span>
+                    <span style="color: #e5e5e5;" id="breaker-text">Circuit Breaker</span>
+                </div>
+            </div>
+            <!-- 扫描状态 -->
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #333;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <span style="color: #888; font-size: 13px;">Last Scan:</span>
+                        <span id="last-scan-time" style="color: #3b82f6; font-weight: 500; margin-left: 8px;">-</span>
+                    </div>
+                    <div>
+                        <span style="color: #888; font-size: 13px;">Next Scan:</span>
+                        <span id="next-scan-countdown" style="color: #10b981; font-weight: 500; margin-left: 8px;">-</span>
+                    </div>
+                    <div>
+                        <span style="color: #888; font-size: 13px;">Markets Found:</span>
+                        <span id="markets-found" style="color: #e5e5e5; font-weight: 500; margin-left: 8px;">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 活跃持仓 -->
+        <div class="table-container">
+            <div class="table-header">
+                <div class="table-title">Active Positions</div>
+                <div style="text-align: right;">
+                    <div class="refresh-indicator" id="positions-count">-</div>
+                    <div class="refresh-indicator" id="metrics-summary" style="margin-top: 4px; font-size: 12px; opacity: 0.85;">-</div>
+                </div>
+            </div>
+            <div class="table-wrapper">
+                <div id="positions-table"></div>
+            </div>
+        </div>
+
+        <!-- 交易日志 -->
+        <div class="table-container">
+            <div class="table-header">
+                <div class="table-title">Event Log</div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <label for="event-limit" style="color: #888; font-size: 13px;">Show:</label>
+                    <select id="event-limit" onchange="changeEventLimit(this.value)" style="padding: 6px 12px; background: #0a0a0a; border: 1px solid #333; border-radius: 6px; color: #e5e5e5; font-size: 13px; cursor: pointer;">
+                        <option value="10">10 events</option>
+                        <option value="20">20 events</option>
+                        <option value="50">50 events</option>
+                        <option value="100">100 events</option>
+                        <option value="200">200 events</option>
+                    </select>
+                    <div class="filter-tabs">
+                        <button class="filter-tab active" onclick="filterEvents('all')">All</button>
+                        <button class="filter-tab" onclick="filterEvents('entry_buy')">Buys</button>
+                        <button class="filter-tab" onclick="filterEvents('sell')">Sells</button>
+                        <button class="filter-tab" onclick="filterEvents('error')">Errors</button>
+                        <button class="filter-tab" onclick="filterEvents('scan')">Scans</button>
+                        <button class="filter-tab" onclick="filterEvents('debug')">Debug</button>
+                    </div>
+                </div>
+            </div>
+            <div id="event-log"></div>
+        </div>
+
+        <!-- 已平仓交易 -->
+        <div class="table-container">
+            <div class="table-header">
+                <div class="table-title">Closed Positions</div>
+                <div class="refresh-indicator" id="closed-count">-</div>
+            </div>
+            <div class="table-wrapper">
+                <div id="closed-table"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentFilter = 'all';
+        let lastScanTime = null;
+        let scanInterval = 5; // 5秒扫描间隔（entry_bot poll_seconds）
+        let nextScanCountdown = null;
+        let eventsDisplayLimit = 10; // 默认显示10条
+        let allEvents = []; // 存储所有事件
+        
+        // 排序状态
+        let activeSortField = 'endDate';
+        let activeSortOrder = 'asc';
+
+        // 更新扫描倒计时
+        function updateScanCountdown() {
+            if (!lastScanTime) {
+                document.getElementById('next-scan-countdown').textContent = '-';
+                return;
+            }
+            const now = Math.floor(Date.now() / 1000);
+            const elapsed = now - lastScanTime;
+            const remaining = Math.max(0, scanInterval - elapsed);
+            
+            if (remaining === 0) {
+                document.getElementById('next-scan-countdown').textContent = 'scanning...';
+            } else {
+                document.getElementById('next-scan-countdown').textContent = remaining + 's';
+            }
+        }
+
+        // 每秒更新倒计时
+        setInterval(updateScanCountdown, 1000);
+
+        // 格式化时间
+        function formatTime(timestamp) {
+            if (!timestamp) return '-';
+            const date = new Date(timestamp * 1000);
+            return date.toLocaleString('zh-CN', { 
+                hour12: false,
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        // 格式化完整日期时间（GMT+8 北京时间）
+        function formatDateTime(dateString) {
+            if (!dateString) return '-';
+            try {
+                // 如果只是日期（YYYY-MM-DD），不转换时区
+                if (dateString.length === 10 && dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                    return dateString.replace(/-/g, '/');
+                }
+                
+                // 如果是完整的 ISO 时间戳，转换为 GMT+8
+                const date = new Date(dateString);
+                const utc = date.getTime() + (date.getTimezoneOffset() * 60000);
+                const beijingTime = new Date(utc + (3600000 * 8));
+                
+                return beijingTime.toLocaleString('zh-CN', {
+                    hour12: false,
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                }) + ' GMT+8';
+            } catch {
+                return dateString.substring(0, 16).replace('T', ' ');
+            }
+        }
+
+        // 格式化相对时间
+        function formatRelativeTime(timestamp) {
+            const now = Date.now() / 1000;
+            let diff = now - timestamp;
+            
+            // 防止负数（服务器时间稍快于浏览器）
+            if (diff < 0) diff = 0;
+            
+            if (diff < 3) return 'just now';
+            if (diff < 60) return `${Math.floor(diff)}s ago`;
+            if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+            if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+            return `${Math.floor(diff / 86400)}d ago`;
+        }
+
+        // 更新数据
+        async function updateDashboard() {
+            try {
+                const response = await fetch('/api/status');
+                if (response.status === 401) {
+                    window.location.reload();
+                    return;
+                }
+                const data = await response.json();
+
+                // 更新最后刷新时间
+                document.getElementById('last-update').textContent = 
+                    `Updated ${formatRelativeTime(data.timestamp)}`;
+
+                // 更新资产卡片
+                document.getElementById('usdc-balance').textContent = 
+                    `$${data.account.usdcBalance.toFixed(2)}`;
+                document.getElementById('positions-value').textContent = 
+                    `$${data.account.positionsValue.toFixed(2)}`;
+                document.getElementById('total-value').textContent = 
+                    `$${data.account.totalValue.toFixed(2)}`;
+                document.getElementById('pol-balance').textContent = 
+                    `${data.account.polBalance.toFixed(4)} POL`;
+
+                // 更新回撤信息
+                const ddValue = data.account.drawdown;
+                const displayDD = ddValue < 0 ? 0 : ddValue;
+                const drawdownClass = ddValue > 0 ? 'negative' : 'positive';
+                document.getElementById('drawdown-info').innerHTML = 
+                    `<span class="${drawdownClass}">Drawdown: ${displayDD.toFixed(2)}%</span>`;
+
+                // 更新机器人状态指示器（支持 split 架构）
+                const running = data.bot.running;
+                
+                // 优先显示 split 架构状态
+                if (running.entry_bot !== undefined) {
+                    document.getElementById('status-entry').className = 
+                        'status-indicator ' + (running.entry_bot ? 'status-running' : 'status-stopped');
+                    document.getElementById('status-exit').className = 
+                        'status-indicator ' + (running.exit_bot ? 'status-running' : 'status-stopped');
+                }
+                
+                document.getElementById('status-notifier').className = 
+                    'status-indicator ' + (running.notifier ? 'status-running' : 'status-stopped');
+                document.getElementById('status-status-loop').className = 
+                    'status-indicator ' + (running.status_loop ? 'status-running' : 'status-stopped');
+                
+                // 更新熔断器状态
+                if (data.bot.breakerActive) {
+                    document.getElementById('status-breaker').className = 'status-indicator status-warning';
+                    const thresholdText = (data.bot.breakerThreshold === null || data.bot.breakerThreshold === undefined)
+                        ? 'unknown'
+                        : `${data.bot.breakerThreshold}%`;
+                    document.getElementById('breaker-text').textContent = 
+                        `Circuit Breaker (${thresholdText} threshold)`;
+                    
+                    // 显示警报
+                    document.getElementById('alert-box').classList.add('active');
+                    document.getElementById('alert-title').textContent = '🚨 Circuit Breaker Active';
+                    document.getElementById('alert-message').textContent = 
+                        `Drawdown (${data.account.drawdown.toFixed(2)}%) exceeds threshold (${thresholdText}). No new positions will be opened.`;
+                } else {
+                    document.getElementById('status-breaker').className = 'status-indicator status-running';
+                    document.getElementById('breaker-text').textContent = 'Circuit Breaker';
+                    document.getElementById('alert-box').classList.remove('active');
+                }
+
+                // 更新持仓计数
+                document.getElementById('positions-count').textContent = 
+                    `${data.stats.openPositions} positions`;
+
+                // 更新高级指标（WinRate / Hold / MDD）
+                if (data.stats && data.stats.metrics) {
+                    const m = data.stats.metrics;
+                    const win = (m.winRatePct !== null && m.winRatePct !== undefined) ? `${m.winRatePct.toFixed(1)}%` : '-';
+                    const hold = (m.avgHoldMinutes !== null && m.avgHoldMinutes !== undefined) ? `${m.avgHoldMinutes.toFixed(0)}m` : '-';
+                    const mdd = (m.maxDrawdownPct !== null && m.maxDrawdownPct !== undefined) ? `${m.maxDrawdownPct.toFixed(1)}%` : '-';
+                    document.getElementById('metrics-summary').textContent = `Win ${win} · Hold ${hold} · MDD ${mdd}`;
+                } else {
+                    document.getElementById('metrics-summary').textContent = '-';
+                }
+
+                // 更新持仓表格
+                renderPositions(data.positions);
+
+            } catch (error) {
+                console.error('Error updating dashboard:', error);
+                document.getElementById('last-update').textContent = 'Update failed';
+            }
+        }
+
+        // 渲染持仓表格
+        function renderPositions(positions) {
+            const container = document.getElementById('positions-table');
+            
+            if (positions.length === 0) {
+                container.innerHTML = '<div class="empty-state">No active positions</div>';
+                return;
+            }
+
+            // 执行排序
+            positions.sort((a, b) => {
+                let valA = a[activeSortField];
+                let valB = b[activeSortField];
+                
+                // 处理日期排序
+                if (activeSortField === 'endDate') {
+                    valA = valA ? new Date(valA).getTime() : Infinity;
+                    valB = valB ? new Date(valB).getTime() : Infinity;
+                }
+                
+                if (valA < valB) return activeSortOrder === 'asc' ? -1 : 1;
+                if (valA > valB) return activeSortOrder === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 30px">#</th>
+                            <th style="max-width: 250px">Market</th>
+                            <th style="width: 80px">Outcome</th>
+                            <th style="width: 60px">Size</th>
+                            <th style="width: 130px">Entry → Current</th>
+                            <th style="width: 70px">Value</th>
+                            <th onclick="toggleSort('percentPnl')" class="sortable" style="width: 120px">P&L ${getSortIcon('percentPnl')}</th>
+                            <th onclick="toggleSort('endDate')" class="sortable" style="width: 150px">End Date ${getSortIcon('endDate')}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            positions.forEach((p, index) => {
+                const pnlClass = p.cashPnl >= 0 ? 'positive' : 'negative';
+                const pnlSign = p.cashPnl >= 0 ? '+' : '';
+                
+                html += `
+                    <tr>
+                        <td style="color: #666; font-size: 11px">${index + 1}</td>
+                        <td style="max-width: 250px; white-space: normal;"><a href="${p.marketUrl}" target="_blank" rel="noopener">${p.title || p.slug}</a></td>
+                        <td><span class="badge badge-info">${p.outcome}</span></td>
+                        <td>${p.size.toFixed(2)}</td>
+                        <td>${p.avgPrice.toFixed(3)} → ${p.curPrice.toFixed(3)}</td>
+                        <td>$${p.currentValue.toFixed(2)}</td>
+                        <td class="${pnlClass}">${pnlSign}$${p.cashPnl.toFixed(2)} (${pnlSign}${p.percentPnl.toFixed(1)}%)</td>
+                        <td>${p.endDate ? formatDateTime(p.endDate) : '-'}</td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        function toggleSort(field) {
+            if (activeSortField === field) {
+                activeSortOrder = activeSortOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                activeSortField = field;
+                activeSortOrder = field === 'percentPnl' ? 'desc' : 'asc';
+            }
+            updateDashboard(); // 重新渲染
+        }
+
+        function getSortIcon(field) {
+            if (activeSortField !== field) return '<span style="opacity: 0.3">↕</span>';
+            return activeSortOrder === 'asc' ? '↑' : '↓';
+        }
+
+        // 改变事件显示数量
+        function changeEventLimit(limit) {
+            eventsDisplayLimit = parseInt(limit);
+            renderEvents(allEvents.slice(0, eventsDisplayLimit));
+        }
+
+        // 更新事件日志
+        async function updateEvents() {
+            try {
+                const response = await fetch(`/api/events?limit=200&type=${currentFilter}`);
+                if (response.status === 401) {
+                    window.location.reload();
+                    return;
+                }
+                const data = await response.json();
+                allEvents = data.events || [];
+                renderEvents(allEvents.slice(0, eventsDisplayLimit));
+            } catch (error) {
+                console.error('Error updating events:', error);
+            }
+        }
+
+        function normalizeEventType(type) {
+            if (['takeprofit_sell', 'take_profit', 'early_exit_sell', 'early_exit'].includes(type)) {
+                return 'takeprofit_sell';
+            }
+            if (['stoploss_sell', 'stop_loss'].includes(type)) {
+                return 'stoploss_sell';
+            }
+            return type || 'unknown';
+        }
+
+        // 渲染事件日志
+        function renderEvents(events) {
+            const container = document.getElementById('event-log');
+            
+            if (events.length === 0) {
+                container.innerHTML = '<div class="empty-state">No events</div>';
+                return;
+            }
+
+            let html = '';
+            let scanProcessed = false; // Track if we've updated scan stats
+            
+            events.forEach((e, index) => {
+                const type = normalizeEventType(e.type);
+                
+                // 跳过熔断时的扫描事件（不显示在日志中，但仍更新统计）
+                if (type === 'scan' && e.breaker_active) {
+                    // 更新扫描统计但不渲染日志
+                    if (!scanProcessed) {
+                        scanProcessed = true;
+                        lastScanTime = e.t;
+                        document.getElementById('last-scan-time').textContent = formatTime(e.t);
+                        document.getElementById('markets-found').textContent = '-';
+                    }
+                    return; // 跳过渲染
+                }
+                
+                let badge = '';
+                let icon = '';
+
+                switch(type) {
+                    case 'entry_buy':
+                        badge = 'badge-success';
+                        icon = '🟢';
+                        break;
+                    case 'takeprofit_sell':
+                        badge = 'badge-warning';
+                        icon = '💰';
+                        break;
+                    case 'stoploss_sell':
+                        badge = 'badge-warning';
+                        icon = '🔴';
+                        break;
+                    case 'redeem':
+                        badge = 'badge-info';
+                        icon = '🟦';
+                        break;
+                    case 'scan':
+                        badge = 'badge-info';
+                        icon = '🔍';
+                        break;
+                    case 'debug':
+                        badge = 'badge-info';
+                        icon = '📊';
+                        break;
+                    case 'alert':
+                        badge = e.success ? 'badge-success' : 'badge-error';
+                        icon = e.success ? '✅' : '⚠️';
+                        break;
+                    default:
+                        badge = 'badge-info';
+                        icon = '📝';
+                }
+
+                const success = e.success !== false;
+                const statusBadge = success ? '' : '<span class="badge badge-error">Failed</span>';
+
+                let message = '';
+                if (type === 'entry_buy') {
+                    const size = e.buy_size || e.min_size || e.sz || 0;
+                    message = `Buy ${size.toFixed(2)} @ $${e.px?.toFixed(3) || '?'} · ${e.title || e.slug}`;
+                } else if (type === 'takeprofit_sell' || type === 'stoploss_sell') {
+                    message = `Sell ${e.sz?.toFixed(2) || '?'} @ $${e.px?.toFixed(3) || '?'} · ${e.title || e.slug}`;
+                } else if (type === 'redeem') {
+                    const tag = e.backfill ? ' (backfill)' : '';
+                    const target = (e.slug || e.title || e.cid || '').toString();
+                    const delta = (e.usdc_delta !== undefined && e.usdc_delta !== null) ? ` · Δ$${Number(e.usdc_delta).toFixed(2)}` : '';
+                    message = `Redeem${tag} · ${target}${delta}`;
+                } else if (type === 'scan') {
+                    // 正常扫描（breaker_active 的已在前面过滤）
+                    message = `Scanned ${e.total_markets || 0} markets, found ${e.valid_markets || 0} valid`;
+                    // Update scan stats only once with the newest scan event
+                    if (!scanProcessed) {
+                        scanProcessed = true;
+                        lastScanTime = e.t;
+                        document.getElementById('last-scan-time').textContent = formatTime(e.t);
+                        document.getElementById('markets-found').textContent = e.valid_markets || 0;
+                    }
+                } else if (type === 'debug') {
+                    message = e.msg || 'Debug info';
+                } else if (type === 'alert') {
+                    message = e.msg || 'Alert';
+                } else {
+                    message = JSON.stringify(e).substring(0, 100);
+                }
+
+                html += `
+                    <div class="log-entry">
+                        <span class="log-time">${formatTime(e.t)}</span>
+                        <span class="log-type"><span class="badge ${badge}">${icon} ${type}</span></span>
+                        ${statusBadge}
+                        <span class="log-message">${message}</span>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // 更新已平仓交易
+        async function updateClosedPositions() {
+            try {
+                const response = await fetch('/api/closed_positions?limit=30');
+                if (response.status === 401) {
+                    window.location.reload();
+                    return;
+                }
+                const data = await response.json();
+                renderClosedPositions(data.closedPositions);
+            } catch (error) {
+                console.error('Error updating closed positions:', error);
+            }
+        }
+
+        // 渲染已平仓交易
+        function renderClosedPositions(positions) {
+            const container = document.getElementById('closed-table');
+            document.getElementById('closed-count').textContent = 
+                `${positions.length} closed`;
+            
+            if (positions.length === 0) {
+                container.innerHTML = '<div class="empty-state">No closed positions</div>';
+                return;
+            }
+
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Type</th>
+                            <th>Market</th>
+                            <th>Size</th>
+                            <th>Entry → Exit</th>
+                            <th>P&L</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            positions.forEach(p => {
+                // 处理新旧格式的 type
+                let typeLabel, typeBadge;
+                if (p.type === 'early_exit' || p.type === 'early_exit_sell') {
+                    typeLabel = 'Early Exit';
+                    typeBadge = 'badge-success';
+                } else if (p.type === 'take_profit' || p.type === 'takeprofit_sell') {
+                    typeLabel = 'Take Profit';
+                    typeBadge = 'badge-success';
+                } else if (p.type === 'stop_loss' || p.type === 'stoploss_sell') {
+                    typeLabel = 'Stop Loss';
+                    typeBadge = 'badge-warning';
+                } else {
+                    typeLabel = p.type || 'Unknown';
+                    typeBadge = 'badge-info';
+                }
+                
+                const pnlClass = p.pnl >= 0 ? 'positive' : 'negative';
+                const pnlSign = p.pnl >= 0 ? '+' : '';
+                
+                const statusBadge = p.success !== false ? 
+                    '<span class="badge badge-success">✓</span>' : 
+                    '<span class="badge badge-error">Failed</span>';
+
+                html += `
+                    <tr>
+                        <td>${formatTime(p.timestamp)}</td>
+                        <td><span class="badge ${typeBadge}">${typeLabel}</span></td>
+                        <td>${p.market}</td>
+                        <td>${p.size.toFixed(2)}</td>
+                        <td>$${p.entryPrice.toFixed(3)} → $${p.exitPrice.toFixed(3)}</td>
+                        <td class="${pnlClass}">${pnlSign}$${p.pnl.toFixed(2)} (${pnlSign}${p.pnlPercent.toFixed(1)}%)</td>
+                        <td>${statusBadge}</td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        // 过滤事件
+        function filterEvents(type) {
+            currentFilter = type;
+            
+            // 更新按钮状态
+            document.querySelectorAll('.filter-tab').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            updateEvents();
+        }
+
+        // 初始化
+        updateDashboard();
+        updateEvents();
+        updateClosedPositions();
+
+        // 定时刷新
+        setInterval(updateDashboard, 5000);  // 5秒刷新状态
+        setInterval(updateEvents, 3000);     // 3秒刷新日志
+        setInterval(updateClosedPositions, 10000);  // 10秒刷新已平仓
+    </script>
+</body>
+</html>

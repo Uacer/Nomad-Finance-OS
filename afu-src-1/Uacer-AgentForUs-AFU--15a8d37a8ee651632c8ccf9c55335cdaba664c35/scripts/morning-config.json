@@ -1,0 +1,22 @@
+{
+  "location": "Zhuzhou,CN",
+  "importantAccounts": [
+    {"handle": "suji_yan", "label": "Firefly"},
+    {"handle": "VitalikButerin", "label": "ETH"},
+    {"handle": "Polymarket", "label": "Polymarket"},
+    {"handle": "ForrestOLAB", "label": "Opinion"},
+    {"handle": "dwr", "label": "Farcaster"},
+    {"handle": "v", "label": "Farcaster"},
+    {"handle": "nikitabier", "label": "X"}
+  ],
+  "queries": {
+    "prediction": "polymarket OR \"prediction market\"",
+    "farcaster": "\"farcaster\" OR \"warpcast\" OR \"warpcast.com\" OR @farcaster_xyz",
+    "lens": "\"lens protocol\" OR lensprotocol OR @LensProtocol",
+    "fireflyMentions": "@thefireflyapp OR @fireflyappcn"
+  },
+  "trendingFilter": {
+    "keywords": [],
+    "minPosts": 0
+  }
+}
