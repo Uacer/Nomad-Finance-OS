@@ -5,6 +5,8 @@ const state = {
   categories: {},
   settings: null,
   providers: [],
+  dashboard: null,
+  risk: null,
   txTagFilter: "",
   latestExtractionId: null,
   latestExtractionDraft: null
@@ -67,7 +69,7 @@ function bindUI() {
           method: "POST",
           body: "{}"
         });
-        showToast(result.fallback_used ? "Validated with fallback parser" : "Provider validated");
+        showToast(result.ok ? "Provider validated" : "Provider validation failed", !result.ok);
       } else if (action === "delete") {
         await api(`/api/v1/ai/providers/${id}`, { method: "DELETE" });
         showToast("Provider removed");
@@ -137,7 +139,8 @@ function showToast(message, isError = false) {
   const toast = $("#toast");
   toast.textContent = message;
   toast.classList.remove("hidden");
-  toast.style.background = isError ? "#5c1d1d" : "#20201e";
+  toast.style.background = isError ? "#3a1420" : "#13202f";
+  toast.style.borderColor = isError ? "#7a2d41" : "#2b3f5e";
   clearTimeout(showToast._timer);
   showToast._timer = setTimeout(() => toast.classList.add("hidden"), 2400);
 }
@@ -437,7 +440,7 @@ async function submitCaptureTextForm(event) {
       body: JSON.stringify({ text: fd.get("text") })
     });
     setLatestExtraction(payload);
-    showToast(payload.fallback_used ? "Parsed with fallback" : "Parsed with provider");
+    showToast("Parsed with provider");
   } catch (error) {
     showToast(error.message, true);
   }
@@ -455,7 +458,7 @@ async function submitCaptureImageForm(event) {
       })
     });
     setLatestExtraction(payload);
-    showToast(payload.fallback_used ? "OCR parsed with fallback" : "OCR parsed with provider");
+    showToast("OCR parsed with provider");
   } catch (error) {
     showToast(error.message, true);
   }
@@ -505,6 +508,7 @@ async function generateMonthlyReview() {
 
 async function loadDashboard() {
   const dashboard = await api(`/api/v1/dashboard?month=${state.month}`);
+  state.dashboard = dashboard;
   const baseCurrency = dashboard.base_currency || state.settings?.base_currency || "USD";
   const pairs = [
     [`Net Worth (${baseCurrency})`, dashboard.net_worth],
@@ -525,6 +529,7 @@ async function loadDashboard() {
       </article>`
     )
     .join("");
+  renderInfographics(dashboard);
   renderBudgetStatus(dashboard.budget_status || []);
 }
 
@@ -534,6 +539,7 @@ async function loadRisk() {
     income_volatility: 0,
     fixed_cost_ratio: 0
   };
+  state.risk = risk;
   $("#riskMetrics").innerHTML = `
     <article class="list-row"><div class="row-main"><strong>Crypto Exposure</strong><span>${
       (risk.crypto_exposure * 100).toFixed(2)
@@ -544,6 +550,84 @@ async function loadRisk() {
     <article class="list-row"><div class="row-main"><strong>Fixed Cost Ratio</strong><span>${
       (risk.fixed_cost_ratio * 100).toFixed(2)
     }%</span></div></article>
+  `;
+}
+
+function renderInfographics(dashboard) {
+  renderCashFlowBars(dashboard);
+  renderLiquiditySplit(dashboard);
+  renderRunwaySignal(dashboard);
+}
+
+function renderCashFlowBars(dashboard) {
+  const target = $("#cashFlowBars");
+  if (!target) return;
+  const base = dashboard.base_currency || state.settings?.base_currency || "USD";
+  const rows = [
+    { label: "Income", value: Number(dashboard.monthly_income || 0), tone: "income" },
+    { label: "Expense", value: Number(dashboard.monthly_expense || 0), tone: "expense" },
+    { label: "Burn", value: Number(dashboard.burn_rate || 0), tone: "burn" },
+    {
+      label: "Net",
+      value: Number(dashboard.net_cash_flow || 0),
+      tone: Number(dashboard.net_cash_flow || 0) >= 0 ? "net" : "expense"
+    }
+  ];
+  const maxAbs = Math.max(1, ...rows.map((row) => Math.abs(row.value)));
+  target.innerHTML = rows
+    .map((row) => {
+      const width = Math.max(2, (Math.abs(row.value) / maxAbs) * 100);
+      return `
+        <div class="mini-bar-row">
+          <span class="mini-bar-label">${row.label}</span>
+          <div class="mini-bar-track"><div class="mini-bar-fill ${row.tone}" style="width:${width}%"></div></div>
+          <span class="mini-bar-value">${formatSignedMoney(row.value)} ${base}</span>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function renderLiquiditySplit(dashboard) {
+  const ring = $("#liquidityRing");
+  const legend = $("#liquidityLegend");
+  if (!ring || !legend) return;
+  const base = dashboard.base_currency || state.settings?.base_currency || "USD";
+  const liquid = Math.max(0, Number(dashboard.liquid_cash || 0));
+  const restricted = Math.max(0, Number(dashboard.restricted_cash_total || 0));
+  const total = liquid + restricted;
+  const liquidPct = total > 0 ? (liquid / total) * 100 : 0;
+  const deg = Math.max(0, Math.min(360, liquidPct * 3.6));
+  ring.style.background = `conic-gradient(#4de2b7 0deg, #4de2b7 ${deg}deg, #6aa7ff ${deg}deg, #6aa7ff 360deg)`;
+  ring.innerHTML = `<span class="ring-center">${liquidPct.toFixed(0)}% liquid</span>`;
+  legend.innerHTML = `
+    <div class="compact-row"><span><span class="dot liquid"></span>Liquid</span><strong>${formatMoney(liquid)} ${base}</strong></div>
+    <div class="compact-row"><span><span class="dot restricted"></span>Restricted</span><strong>${formatMoney(restricted)} ${base}</strong></div>
+    <div class="compact-row"><span>Total</span><strong>${formatMoney(total)} ${base}</strong></div>
+  `;
+}
+
+function renderRunwaySignal(dashboard) {
+  const target = $("#runwayGauge");
+  if (!target) return;
+  const raw = dashboard.runway_months;
+  const runway = typeof raw === "number" ? raw : Number(raw);
+  const finite = Number.isFinite(runway);
+  const cap = 24;
+  const pct = finite ? Math.max(0, Math.min(100, (runway / cap) * 100)) : 100;
+  const fillColor = !finite
+    ? "linear-gradient(90deg, #4de2b7, #89ffde)"
+    : runway < 6
+      ? "linear-gradient(90deg, #ff5d7a, #ff8b9e)"
+      : runway < 12
+        ? "linear-gradient(90deg, #f8c36e, #ffd99a)"
+        : "linear-gradient(90deg, #4de2b7, #89ffde)";
+  target.innerHTML = `
+    <div class="runway-track"><div class="runway-fill" style="width:${pct}%;background:${fillColor};"></div></div>
+    <div class="runway-meta">
+      <span>${finite ? `${runway.toFixed(1)} months` : "Infinity"}</span>
+      <span>Scale: 0-${cap}m</span>
+    </div>
   `;
 }
 
@@ -594,7 +678,8 @@ function renderProviders() {
   const target = $("#providerList");
   const providers = Array.isArray(state.providers) ? state.providers.filter(Boolean) : [];
   if (!providers.length) {
-    target.innerHTML = '<div class="list-row muted">No provider configured. Parser will use fallback.</div>';
+    target.innerHTML =
+      '<div class="list-row muted">No provider configured. Capture parser is unavailable until provider is set.</div>';
     return;
   }
   target.innerHTML = providers
@@ -782,4 +867,10 @@ function parseOptionalInt(value) {
   if (value === null || value === undefined || value === "") return undefined;
   const parsed = Number(value);
   return Number.isInteger(parsed) ? parsed : undefined;
+}
+
+function formatSignedMoney(value) {
+  const num = Number(value || 0);
+  const sign = num > 0 ? "+" : num < 0 ? "-" : "";
+  return `${sign}${formatMoney(Math.abs(num))}`;
 }

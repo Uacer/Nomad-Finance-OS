@@ -87,7 +87,27 @@ async function parseWithProvider(provider, { text, imageBase64 }, { categories, 
   });
 
   if (!response.ok) {
-    throw new Error(`Provider call failed (${response.status}).`);
+    let detail = `Provider call failed (${response.status}).`;
+    try {
+      const payload = await response.json();
+      const message =
+        payload?.error?.message ||
+        payload?.message ||
+        (typeof payload?.error === "string" ? payload.error : "");
+      if (message) {
+        detail = `Provider call failed (${response.status}): ${String(message)}`;
+      }
+    } catch {
+      try {
+        const text = await response.text();
+        if (text && String(text).trim()) {
+          detail = `Provider call failed (${response.status}): ${String(text).slice(0, 240)}`;
+        }
+      } catch {
+        // ignore body parse errors; keep status-only message
+      }
+    }
+    throw new Error(detail);
   }
   const payload = await response.json();
   const content = payload?.choices?.[0]?.message?.content || "";
@@ -103,9 +123,15 @@ async function buildExtractionDraft({
   text,
   imageBase64,
   categories,
-  accounts
+  accounts,
+  mode = "hybrid"
 }) {
+  const strictProvider = mode === "provider_only";
+
   if ((!text || !String(text).trim()) && !imageBase64) {
+    if (strictProvider) {
+      throw new Error("No text or image payload provided for AI parsing.");
+    }
     return {
       draft: {
         type: "expense",
@@ -121,6 +147,9 @@ async function buildExtractionDraft({
   }
 
   if (!provider) {
+    if (strictProvider) {
+      throw new Error("No active AI provider configured.");
+    }
     if (!text || !String(text).trim()) {
       return {
         draft: {
@@ -154,6 +183,9 @@ async function buildExtractionDraft({
       error_message: ""
     };
   } catch (error) {
+    if (strictProvider) {
+      throw new Error(String(error.message || "Provider parsing failed."));
+    }
     return {
       draft: parseFinancialText(text, { categories, accounts }),
       fallback_used: true,

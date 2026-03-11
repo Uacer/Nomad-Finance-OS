@@ -365,17 +365,25 @@ function createApp(db) {
     }
     const categories = getCategoriesMap(db, req.userId);
     const accounts = getAccounts(db, req.userId);
-    const draft = await buildExtractionDraft({
-      provider,
-      text: "Lunch 12 USD at 7-Eleven",
-      categories,
-      accounts
-    });
-    res.json({
-      ok: true,
-      fallback_used: draft.fallback_used,
-      error_message: draft.error_message || ""
-    });
+    try {
+      await buildExtractionDraft({
+        provider,
+        text: "Lunch 12 USD at 7-Eleven",
+        categories,
+        accounts,
+        mode: "provider_only"
+      });
+      res.json({
+        ok: true,
+        fallback_used: false,
+        error_message: ""
+      });
+    } catch (error) {
+      res.status(502).json({
+        ok: false,
+        error: String(error.message || "Provider validation failed.")
+      });
+    }
   });
 
   app.post("/api/v1/ai/providers/:id/set-default", (req, res) => {
@@ -401,15 +409,28 @@ function createApp(db) {
     }
     const input = parsed.data;
     const provider = resolveProviderForUser(db, req.userId, input.provider_id);
+    if (!provider) {
+      return res.status(400).json({
+        error: "No active AI provider configured. Create and set a default provider first."
+      });
+    }
     const categories = getCategoriesMap(db, req.userId);
     const accounts = getAccounts(db, req.userId);
-    const extraction = await buildExtractionDraft({
-      provider,
-      text: input.text,
-      imageBase64: null,
-      categories,
-      accounts
-    });
+    let extraction;
+    try {
+      extraction = await buildExtractionDraft({
+        provider,
+        text: input.text,
+        imageBase64: null,
+        categories,
+        accounts,
+        mode: "provider_only"
+      });
+    } catch (error) {
+      return res.status(502).json({
+        error: String(error.message || "AI parsing failed.")
+      });
+    }
     const draft = await enrichDraftWithFx(db, req.userId, extraction.draft);
     const record = insertExtraction(db, req.userId, {
       source_type: "text",
@@ -441,17 +462,33 @@ function createApp(db) {
       return res.status(400).json({ error: parsed.error.flatten() });
     }
     const input = parsed.data;
+    if ((!input.ocr_text || !String(input.ocr_text).trim()) && !input.image_base64) {
+      return res.status(400).json({ error: "ocr_text or image_base64 is required." });
+    }
     const provider = resolveProviderForUser(db, req.userId, input.provider_id);
+    if (!provider) {
+      return res.status(400).json({
+        error: "No active AI provider configured. Create and set a default provider first."
+      });
+    }
     const categories = getCategoriesMap(db, req.userId);
     const accounts = getAccounts(db, req.userId);
     const text = input.ocr_text || "";
-    const extraction = await buildExtractionDraft({
-      provider,
-      text,
-      imageBase64: input.image_base64 || null,
-      categories,
-      accounts
-    });
+    let extraction;
+    try {
+      extraction = await buildExtractionDraft({
+        provider,
+        text,
+        imageBase64: input.image_base64 || null,
+        categories,
+        accounts,
+        mode: "provider_only"
+      });
+    } catch (error) {
+      return res.status(502).json({
+        error: String(error.message || "AI image parsing failed.")
+      });
+    }
     const draft = await enrichDraftWithFx(db, req.userId, extraction.draft);
     const record = insertExtraction(db, req.userId, {
       source_type: "image",
@@ -459,8 +496,7 @@ function createApp(db) {
       raw_image_base64: input.image_base64 || "",
       draft,
       provider_credential_id: provider ? provider.id : null,
-      error_message:
-        extraction.error_message || (!text ? "No OCR text provided, manual review needed." : "")
+      error_message: extraction.error_message || ""
     });
     logEvent(db, req.userId, "capture_image_parsed", {
       fallback_used: extraction.fallback_used

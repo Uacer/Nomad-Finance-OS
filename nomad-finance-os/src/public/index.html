@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Sora:wght@500;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/style.css" />
@@ -48,6 +48,23 @@
       <section id="dashboardPanel" class="panel active">
         <h2>Dashboard</h2>
         <div class="metrics" id="metricsGrid"></div>
+        <section class="infographic-grid">
+          <article class="card">
+            <h3>Cash Flow Pulse</h3>
+            <div id="cashFlowBars" class="mini-bars"></div>
+          </article>
+          <article class="card">
+            <h3>Liquidity Split</h3>
+            <div class="ring-layout">
+              <div id="liquidityRing" class="ring-chart"></div>
+              <div id="liquidityLegend" class="list-block compact-list"></div>
+            </div>
+          </article>
+          <article class="card">
+            <h3>Runway Signal</h3>
+            <div id="runwayGauge" class="runway-box"></div>
+          </article>
+        </section>
         <article class="card">
           <h3>Risk Metrics</h3>
           <div id="riskMetrics" class="list-block"></div>

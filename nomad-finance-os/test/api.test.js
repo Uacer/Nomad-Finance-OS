@@ -11,6 +11,20 @@ function createHarness() {
   return { db, api };
 }
 
+async function withMockedFetchJson(jsonPayload, fn) {
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => jsonPayload
+  });
+  try {
+    return await fn();
+  } finally {
+    global.fetch = originalFetch;
+  }
+}
+
 async function createAccount(api, payload) {
   const res = await api.post("/api/v1/accounts").send(payload);
   assert.equal(res.status, 201);
@@ -301,10 +315,29 @@ test("BYOK provider CRUD + parse-text extraction + confirm flow", async () => {
   assert.equal(providers.status, 200);
   assert.equal(providers.body.length, 1);
 
-  const parseRes = await api.post("/api/v1/transactions/parse-text").send({
-    text: "Lunch 20 USD",
-    provider_id: providerRes.body.id
-  });
+  const parseRes = await withMockedFetchJson(
+    {
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              type: "expense",
+              amount_original: 20,
+              currency_original: "USD",
+              category_l1: "Living",
+              category_l2: "Groceries",
+              confidence: 0.95
+            })
+          }
+        }
+      ]
+    },
+    async () =>
+      api.post("/api/v1/transactions/parse-text").send({
+        text: "Lunch 20 USD",
+        provider_id: providerRes.body.id
+      })
+  );
   assert.equal(parseRes.status, 201);
   assert.ok(parseRes.body.extraction_id > 0);
   assert.equal(parseRes.body.draft.type, "expense");
@@ -344,15 +377,13 @@ test("yearly budgets + monthly snapshot generation", async () => {
   assert.equal(snapshotRes.body.month, month);
 });
 
-test("parse-image without provider creates manual draft extraction", async () => {
+test("parse-image without provider is rejected (AI required)", async () => {
   const { api } = createHarness();
   const res = await api.post("/api/v1/transactions/parse-image").send({
     image_base64: "data:image/png;base64,AAA"
   });
-  assert.equal(res.status, 201);
-  assert.ok(res.body.extraction_id > 0);
-  assert.equal(res.body.fallback_used, true);
-  assert.match(res.body.error_message, /No provider configured/);
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /No active AI provider configured/i);
 });
 
 test("analytics summary returns key event counters", async () => {
@@ -464,9 +495,37 @@ test("parse-text handles baht alias and maps travel phrase to lifestyle", async 
   });
   assert.ok(account.id > 0);
 
-  const parseRes = await api.post("/api/v1/transactions/parse-text").send({
-    text: "旅游花了10000泰铢"
+  const providerRes = await api.post("/api/v1/ai/providers").send({
+    provider_type: "openai_compatible",
+    display_name: "Demo Provider",
+    base_url: "https://example.com/v1",
+    model: "gpt-4.1-mini",
+    api_key: "sk-demo-secret-5678"
   });
+  assert.equal(providerRes.status, 201);
+
+  const parseRes = await withMockedFetchJson(
+    {
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              type: "expense",
+              amount_original: 10000,
+              currency_original: "Baht",
+              category_l1: "Lifestyle",
+              category_l2: "Entertainment",
+              note: "旅游花了10000泰铢"
+            })
+          }
+        }
+      ]
+    },
+    async () =>
+      api.post("/api/v1/transactions/parse-text").send({
+        text: "旅游花了10000泰铢"
+      })
+  );
   assert.equal(parseRes.status, 201);
   assert.equal(parseRes.body.draft.amount_original, 10000);
   assert.equal(parseRes.body.draft.currency_original, "THB");
