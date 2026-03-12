@@ -617,10 +617,21 @@ function createApp(db) {
   });
 
   app.get("/api/v1/transactions", (req, res) => {
-    const month = normalizeMonth(req.query.month);
     const baseCurrency = getUserSettings(db, req.userId).base_currency;
-    const params = [req.userId, month];
-    const filters = ["t.user_id = ?", "substr(t.tx_date, 1, 7) = ?"];
+    const start = normalizeDate(req.query.start);
+    const end = normalizeDate(req.query.end);
+    const hasRange = Boolean(start || end);
+    const month = hasRange ? null : normalizeMonth(req.query.month);
+    const params = hasRange ? [req.userId] : [req.userId, month];
+    const filters = hasRange ? ["t.user_id = ?"] : ["t.user_id = ?", "substr(t.tx_date, 1, 7) = ?"];
+    if (start) {
+      filters.push("t.tx_date >= ?");
+      params.push(start);
+    }
+    if (end) {
+      filters.push("t.tx_date <= ?");
+      params.push(end);
+    }
     if (req.query.type) {
       filters.push("t.type = ?");
       params.push(req.query.type);
@@ -1302,11 +1313,12 @@ function logEvent(db, userId, eventName, payload = {}) {
 
 function buildDashboardPayload(db, userId, month, baseCurrency) {
   const accountRows = db
-    .prepare("SELECT balance, currency, type FROM accounts WHERE user_id = ?")
+    .prepare("SELECT id, name, balance, currency, type FROM accounts WHERE user_id = ?")
     .all(userId);
   let netWorth = 0;
   let liquidCash = 0;
   let restrictedCashTotal = 0;
+  const accountComposition = [];
   for (const account of accountRows) {
     const valueBase = convertCurrency(
       Number(account.balance),
@@ -1314,6 +1326,12 @@ function buildDashboardPayload(db, userId, month, baseCurrency) {
       baseCurrency
     );
     netWorth += valueBase;
+    accountComposition.push({
+      account_id: account.id,
+      name: account.name,
+      type: account.type,
+      amount_base: Number(valueBase.toFixed(2))
+    });
     if (account.type === "restricted_cash") {
       restrictedCashTotal += valueBase;
     } else {
@@ -1377,6 +1395,7 @@ function buildDashboardPayload(db, userId, month, baseCurrency) {
     net_worth: netWorth,
     liquid_cash: liquidCash,
     restricted_cash_total: restrictedCashTotal,
+    account_composition: accountComposition,
     monthly_income: monthlyIncome,
     monthly_expense: monthlyExpense,
     net_cash_flow: monthlyIncome - monthlyExpense,
@@ -1630,6 +1649,13 @@ function getTransactionWithTags(db, userId, txId) {
     amount_base: Number(row.amount_base),
     tags: row.tag_names ? row.tag_names.split("|") : []
   };
+}
+
+function normalizeDate(value) {
+  if (!value) return null;
+  const str = String(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(str)) return null;
+  return str;
 }
 
 function normalizeSupportedCurrency(currency, fieldName = "currency") {

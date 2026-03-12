@@ -177,6 +177,67 @@ textarea {
   border-color: var(--ink);
 }
 
+.trend-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.trend-chart {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #f6f0e6;
+  padding: 8px;
+}
+
+#trendChart {
+  width: 100%;
+  height: 180px;
+}
+
+.trend-line {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2.5;
+}
+
+.trend-area {
+  fill: rgba(26, 21, 16, 0.08);
+  stroke: none;
+}
+
+.trend-grid {
+  stroke: rgba(26, 21, 16, 0.1);
+  stroke-width: 1;
+}
+
+.toggle-grid {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px;
+  background: #f7f1e8;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.92rem;
+}
+
+.toggle input {
+  width: 36px;
+  height: 20px;
+}
+
+.advanced-section.hidden {
+  display: none;
+}
+
 .tabs {
   display: none;
 }
@@ -271,26 +332,39 @@ h3 {
   overflow: hidden;
   border: 1px solid #d9cfc1;
   background: #efe9df;
+  gap: 4px;
+  padding: 2px;
 }
 
 .hero-part {
   height: 100%;
+  border-radius: 999px;
 }
 
-.hero-part.liquid {
-  background: linear-gradient(90deg, #3f8059, #6ca47f);
-}
-
-.hero-part.restricted {
-  background: linear-gradient(90deg, #8c7558, #b19a7a);
+.hero-part.account {
+  background: var(--ink);
 }
 
 .hero-legend {
   display: flex;
-  justify-content: space-between;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 8px;
   font-size: 0.78rem;
   color: var(--ink-soft);
+}
+
+.hero-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hero-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
 }
 
 .hero-submetrics {
@@ -334,6 +408,21 @@ h3 {
 .budget-plan-row {
   display: grid;
   gap: 5px;
+}
+
+.budget-plan-name {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.budget-plan-period {
+  font-size: 0.78rem;
+}
+
+.warn {
+  color: #9a6b1a;
+  font-weight: 600;
 }
 
 .budget-plan-row .top {
@@ -544,6 +633,14 @@ h3 {
 .progress-fill {
   height: 100%;
   background: linear-gradient(90deg, #3f8059, #7ca072);
+}
+
+.progress-fill.warn {
+  background: linear-gradient(90deg, #d1a33a, #f2c361);
+}
+
+.progress-fill.overspend {
+  background: linear-gradient(90deg, #b34745, #d36b67);
 }
 
 .form-grid {

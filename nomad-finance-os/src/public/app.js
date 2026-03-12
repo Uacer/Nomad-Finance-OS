@@ -11,7 +11,18 @@ const state = {
   quickEntryType: "expense",
   txTagFilter: "",
   latestExtractionId: null,
-  latestExtractionDraft: null
+  latestExtractionDraft: null,
+  trend: {
+    start: "",
+    end: "",
+    mode: "expense",
+    points: []
+  },
+  ui: {
+    showCashFlow: false,
+    showTrend: false,
+    showRisk: false
+  }
 };
 
 const UI_CURRENCIES = new Set(["CNY", "EUR", "THB", "USD", "JPY", "KRW"]);
@@ -63,6 +74,8 @@ const I18N = {
     netWorthComposition: "Net Worth Composition",
     plannedBudget: "Planned Budget",
     budgetPlanSummary: "Planned {planned} · Spent {spent} · Remaining {remaining}",
+    periodMonthly: "month",
+    periodYearly: "yearly",
     editBudget: "Edit Budget",
     addExpense: "Add Expense",
     addIncome: "Add Income",
@@ -93,6 +106,15 @@ const I18N = {
     baseCurrency: "Base Currency",
     timezone: "Timezone",
     saveSettings: "Save Settings",
+    advancedInsights: "Advanced Insights",
+    showCashFlow: "Cash Flow Pulse",
+    showTrend: "Spending Curve",
+    showRisk: "Risk Metrics",
+    trendTitle: "Spending Curve",
+    trendModeExpense: "Daily Expense",
+    trendModeNetWorth: "Net Worth Change",
+    trendFrom: "From",
+    trendTo: "To",
     selectAccount: "Select account",
     advancedBudget: "Advanced Budget",
     accounts: "Accounts",
@@ -152,6 +174,8 @@ const I18N = {
     netWorthComposition: "净资产结构",
     plannedBudget: "预算计划",
     budgetPlanSummary: "计划 {planned} · 已花 {spent} · 剩余 {remaining}",
+    periodMonthly: "月",
+    periodYearly: "每年",
     editBudget: "编辑预算",
     addExpense: "新增支出",
     addIncome: "新增收入",
@@ -182,6 +206,15 @@ const I18N = {
     baseCurrency: "基准货币",
     timezone: "时区",
     saveSettings: "保存设置",
+    advancedInsights: "高级洞察",
+    showCashFlow: "现金流脉冲",
+    showTrend: "支出曲线",
+    showRisk: "风险指标",
+    trendTitle: "支出曲线",
+    trendModeExpense: "每日支出",
+    trendModeNetWorth: "净资产变化",
+    trendFrom: "开始",
+    trendTo: "结束",
     selectAccount: "选择账户",
     advancedBudget: "高级预算",
     accounts: "账户管理",
@@ -281,6 +314,54 @@ function bindUI() {
     });
   }
   $("#quickEntryForm").addEventListener("submit", submitQuickEntryForm);
+  const trendStart = $("#trendStart");
+  const trendEnd = $("#trendEnd");
+  const trendMode = $("#trendMode");
+  if (trendStart) {
+    trendStart.addEventListener("change", () => {
+      state.trend.start = trendStart.value || state.trend.start;
+      persistUiState();
+      void loadTrendData();
+    });
+  }
+  if (trendEnd) {
+    trendEnd.addEventListener("change", () => {
+      state.trend.end = trendEnd.value || state.trend.end;
+      persistUiState();
+      void loadTrendData();
+    });
+  }
+  if (trendMode) {
+    trendMode.addEventListener("change", () => {
+      state.trend.mode = trendMode.value || "expense";
+      persistUiState();
+      renderTrendChart();
+    });
+  }
+  const toggleCashFlow = $("#toggleCashFlow");
+  if (toggleCashFlow) {
+    toggleCashFlow.addEventListener("change", () => {
+      state.ui.showCashFlow = toggleCashFlow.checked;
+      persistUiState();
+      applyAdvancedVisibility();
+    });
+  }
+  const toggleTrend = $("#toggleTrend");
+  if (toggleTrend) {
+    toggleTrend.addEventListener("change", () => {
+      state.ui.showTrend = toggleTrend.checked;
+      persistUiState();
+      applyAdvancedVisibility();
+    });
+  }
+  const toggleRisk = $("#toggleRisk");
+  if (toggleRisk) {
+    toggleRisk.addEventListener("change", () => {
+      state.ui.showRisk = toggleRisk.checked;
+      persistUiState();
+      applyAdvancedVisibility();
+    });
+  }
   for (const btn of document.querySelectorAll("[data-quick-type]")) {
     btn.addEventListener("click", () => {
       const type = String(btn.getAttribute("data-quick-type") || "expense");
@@ -489,6 +570,7 @@ function showToast(message, isError = false) {
 async function loadAll() {
   try {
     syncControlState();
+    loadUiState();
     await Promise.all([loadSettings(), loadCategories(), loadAccounts(), loadProviders()]);
     await Promise.all([
       loadDashboard(),
@@ -498,6 +580,7 @@ async function loadAll() {
       loadReview(),
       loadRisk()
     ]);
+    await loadTrendData();
     showToast(t("loadedUser", { id: String(state.userId) }));
   } catch (error) {
     showToast(error.message, true);
@@ -522,6 +605,13 @@ async function loadSettings() {
   $("#quickSettingsForm [name=timezone]").value = state.settings.timezone || "UTC";
   $("#quickSettingsForm [name=user_id]").value = String(state.userId);
   $("#quickEntryForm [name=currency_original]").value = uiBase;
+  const toggleCashFlow = $("#toggleCashFlow");
+  const toggleRisk = $("#toggleRisk");
+  const toggleTrend = $("#toggleTrend");
+  if (toggleCashFlow) toggleCashFlow.checked = Boolean(state.ui.showCashFlow);
+  if (toggleRisk) toggleRisk.checked = Boolean(state.ui.showRisk);
+  if (toggleTrend) toggleTrend.checked = Boolean(state.ui.showTrend);
+  applyAdvancedVisibility();
   applyI18n();
 }
 
@@ -1247,28 +1337,117 @@ function renderCashFlowBars(dashboard) {
     .join("");
 }
 
+async function loadTrendData() {
+  const { start, end } = ensureTrendRange();
+  const rows = await api(`/api/v1/transactions?start=${start}&end=${end}`);
+  const points = buildDailySeries(start, end, rows || []);
+  state.trend.points = points;
+  renderTrendChart();
+}
+
+function ensureTrendRange() {
+  const today = new Date();
+  const fallbackEnd = today.toISOString().slice(0, 10);
+  const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+  const start = state.trend.start || firstOfMonth;
+  const end = state.trend.end || fallbackEnd;
+  state.trend.start = start;
+  state.trend.end = end;
+  const startInput = $("#trendStart");
+  const endInput = $("#trendEnd");
+  if (startInput) startInput.value = start;
+  if (endInput) endInput.value = end;
+  const modeInput = $("#trendMode");
+  if (modeInput) modeInput.value = state.trend.mode || "expense";
+  return { start, end };
+}
+
+function buildDailySeries(start, end, rows) {
+  const dayMillis = 24 * 60 * 60 * 1000;
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return [];
+  const days = Math.max(1, Math.floor((endDate - startDate) / dayMillis) + 1);
+  const cappedDays = Math.min(days, 180);
+  const dailyExpense = new Array(cappedDays).fill(0);
+  const dailyNet = new Array(cappedDays).fill(0);
+  for (const tx of rows) {
+    const idx = Math.floor((new Date(tx.tx_date) - startDate) / dayMillis);
+    if (idx < 0 || idx >= cappedDays) continue;
+    const amount = Number(tx.amount_base || 0);
+    if (tx.type === "expense") {
+      dailyExpense[idx] += amount;
+      dailyNet[idx] -= amount;
+    } else if (tx.type === "income") {
+      dailyNet[idx] += amount;
+    }
+  }
+  const cumulative = [];
+  let running = 0;
+  for (let i = 0; i < cappedDays; i += 1) {
+    running += dailyNet[i];
+    cumulative.push(running);
+  }
+  const dates = [];
+  for (let i = 0; i < cappedDays; i += 1) {
+    const d = new Date(startDate.getTime() + i * dayMillis);
+    dates.push(d.toISOString().slice(0, 10));
+  }
+  return dates.map((date, index) => ({
+    date,
+    expense: Number(dailyExpense[index].toFixed(2)),
+    networth: Number(cumulative[index].toFixed(2))
+  }));
+}
+
+function renderTrendChart() {
+  const svg = $("#trendChart");
+  const legend = $("#trendLegend");
+  if (!svg) return;
+  const points = state.trend.points || [];
+  const mode = state.trend.mode || "expense";
+  const series = points.map((p) => (mode === "networth" ? p.networth : p.expense));
+  const width = 600;
+  const height = 180;
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  if (!points.length) {
+    svg.innerHTML = "";
+    if (legend) legend.textContent = "";
+    return;
+  }
+  const min = Math.min(...series, 0);
+  const max = Math.max(...series, 1);
+  const span = max - min || 1;
+  const stepX = width / Math.max(1, points.length - 1);
+  const coords = series.map((value, index) => {
+    const x = index * stepX;
+    const y = height - ((value - min) / span) * (height - 20) - 10;
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  });
+  const areaPoints = `0,${height} ${coords.join(" ")} ${width},${height}`;
+  svg.innerHTML = `
+    <polyline class="trend-grid" points="0,${height - 30} ${width},${height - 30}"></polyline>
+    <polyline class="trend-area" points="${areaPoints}"></polyline>
+    <polyline class="trend-line" points="${coords.join(" ")}"></polyline>
+  `;
+  if (legend) {
+    const base = state.dashboard?.base_currency || state.settings?.base_currency || "USD";
+    const last = series[series.length - 1] || 0;
+    legend.textContent =
+      mode === "networth"
+        ? `${t("trendModeNetWorth")}: ${formatSignedMoney(last)} ${base}`
+        : `${t("trendModeExpense")}: ${formatMoney(last)} ${base}`;
+  }
+}
+
 function renderHeroSummary(dashboard) {
   const base = dashboard.base_currency || state.settings?.base_currency || "USD";
   const netWorth = Number(dashboard.net_worth || 0);
-  const liquid = Math.max(0, Number(dashboard.liquid_cash || 0));
-  const restricted = Math.max(0, Number(dashboard.restricted_cash_total || 0));
-  const hasRestricted = restricted > 0.0001;
-  const compositionBase = Math.max(0.01, liquid + restricted);
-  const liquidPct = hasRestricted ? Math.max(0, Math.min(100, (liquid / compositionBase) * 100)) : 100;
-  const restrictedPct = hasRestricted ? Math.max(0, Math.min(100, 100 - liquidPct)) : 0;
   const runway = dashboard.runway_months;
   const runwayLabel = Number.isFinite(Number(runway)) ? `${Number(runway).toFixed(1)}m` : "∞";
 
   setText("heroNetWorthValue", `${formatMoney(netWorth)} ${base}`);
-  const liquidPart = $("#heroLiquidPart");
-  const restrictedPart = $("#heroRestrictedPart");
-  const restrictedLegend = $("#heroRestrictedLegend");
-  if (liquidPart) liquidPart.style.width = `${liquidPct}%`;
-  if (restrictedPart) {
-    restrictedPart.style.width = `${restrictedPct}%`;
-    restrictedPart.classList.toggle("hidden", !hasRestricted);
-  }
-  if (restrictedLegend) restrictedLegend.classList.toggle("hidden", !hasRestricted);
+  renderAccountComposition(dashboard);
 
   $("#heroSubMetrics").innerHTML = `
     <div class="hero-subcard"><div class="k">${t("metricMonthlyIncome")}</div><div class="v">${formatMoney(dashboard.monthly_income)} ${base}</div></div>
@@ -1276,6 +1455,52 @@ function renderHeroSummary(dashboard) {
     <div class="hero-subcard"><div class="k">${t("metricNetCashFlow")}</div><div class="v">${formatSignedMoney(dashboard.net_cash_flow)} ${base}</div></div>
     <div class="hero-subcard secondary"><div class="k">${t("metricRunwayMonths")}</div><div class="v">${runwayLabel}</div></div>
   `;
+}
+
+function renderAccountComposition(dashboard) {
+  const bar = $("#heroCompositionBar");
+  const legend = $("#heroCompositionLegend");
+  if (!bar || !legend) return;
+  const accounts = Array.isArray(dashboard.account_composition) ? dashboard.account_composition : [];
+  const positive = accounts
+    .map((row) => ({
+      ...row,
+      amount_base: Math.max(0, Number(row.amount_base || 0))
+    }))
+    .filter((row) => row.amount_base > 0.01)
+    .sort((a, b) => b.amount_base - a.amount_base);
+  const total = positive.reduce((sum, row) => sum + row.amount_base, 0);
+  if (!positive.length || total <= 0) {
+    bar.innerHTML = "";
+    legend.innerHTML = "";
+    return;
+  }
+  const palette = ["#1f1b16", "#3a2d1f", "#7c5c3c", "#c8a26a", "#e7c97a", "#8d6b4b", "#4c3b2a"];
+  const maxSegments = 5;
+  const top = positive.slice(0, maxSegments);
+  const remainder = positive.slice(maxSegments);
+  const otherSum = remainder.reduce((sum, row) => sum + row.amount_base, 0);
+  const segments = [...top];
+  if (otherSum > 0.01) {
+    segments.push({ account_id: "other", name: "Other", amount_base: otherSum });
+  }
+  bar.innerHTML = segments
+    .map((row, index) => {
+      const pct = Math.max(2, (row.amount_base / total) * 100);
+      const color = palette[index % palette.length];
+      return `<div class="hero-part account" style="width:${pct}%; background:${color};"></div>`;
+    })
+    .join("");
+  legend.innerHTML = segments
+    .map((row, index) => {
+      const color = palette[index % palette.length];
+      const label = row.name || row.type || "Account";
+      const pct = ((row.amount_base / total) * 100).toFixed(1);
+      return `<span class="hero-legend-item"><span class="hero-legend-dot" style="background:${color};"></span>${escapeHtml(
+        label
+      )} · ${pct}%</span>`;
+    })
+    .join("");
 }
 
 function renderPlannedBudgetCard(dashboard) {
@@ -1307,13 +1532,20 @@ function renderPlannedBudgetCard(dashboard) {
       const total = Number(row.total_amount || 0);
       const used = Number(row.spent_amount || 0);
       const pct = total > 0 ? Math.min(100, (used / total) * 100) : 0;
+      const ratio = total > 0 ? used / total : 0;
+      const tone = ratio >= 1 ? "overspend" : ratio >= 0.8 ? "warn" : "normal";
       return `
         <article class="budget-plan-row">
           <div class="top">
-            <strong>${escapeHtml(withL1Emoji(row.category_l1))}</strong>
-            <span class="${row.overspend ? "overspend" : "muted"}">${formatMoney(used)} / ${formatMoney(total)}</span>
+            <div class="budget-plan-name">
+              <strong>${escapeHtml(withL1Emoji(row.category_l1))}</strong>
+              <span class="budget-plan-period muted">/ ${escapeHtml(t("periodMonthly"))}</span>
+            </div>
+            <span class="${row.overspend ? "overspend" : ratio >= 0.8 ? "warn" : "muted"}">${formatMoney(
+        used
+      )} / ${formatMoney(total)}</span>
           </div>
-          <div class="progress-wrap"><div class="progress-fill" style="width:${pct}%"></div></div>
+          <div class="progress-wrap"><div class="progress-fill ${tone}" style="width:${pct}%"></div></div>
         </article>
       `;
     })
@@ -1590,6 +1822,9 @@ function applyI18n() {
   setText("heroLiquidLegend", t("labelLiquid"));
   setText("heroRestrictedLegend", t("labelRestricted"));
   setText("budgetPlanTitle", t("plannedBudget"));
+  setText("trendTitle", t("trendTitle"));
+  setText("trendFromLabel", t("trendFrom"));
+  setText("trendToLabel", t("trendTo"));
   setText("cashFlowTitle", t("cashFlowPulse"));
   setText("riskTitle", t("riskMetrics"));
   setText(
@@ -1634,6 +1869,10 @@ function applyI18n() {
   setText("quickSettingsLangLabel", t("language"));
   setText("quickSettingsBaseLabel", t("baseCurrency"));
   setText("quickSettingsTimezoneLabel", t("timezone"));
+  setText("quickSettingsAdvancedLabel", t("advancedInsights"));
+  setText("toggleCashFlowLabel", t("showCashFlow"));
+  setText("toggleTrendLabel", t("showTrend"));
+  setText("toggleRiskLabel", t("showRisk"));
   setText("quickSettingsSaveBtn", t("saveSettings"));
   setText("settingsLinkBudget", t("advancedBudget"));
   setText("settingsLinkAccounts", t("accounts"));
@@ -1650,10 +1889,64 @@ function applyI18n() {
   }
   const quickCurrency = $("#quickEntryForm [name=currency_original]")?.value || "USD";
   applyQuickEntryMax(state.quickEntryMax, quickCurrency);
+  const trendMode = $("#trendMode");
+  if (trendMode) {
+    const optionExpense = trendMode.querySelector('option[value="expense"]');
+    const optionNetworth = trendMode.querySelector('option[value="networth"]');
+    if (optionExpense) optionExpense.textContent = t("trendModeExpense");
+    if (optionNetworth) optionNetworth.textContent = t("trendModeNetWorth");
+  }
   for (const button of document.querySelectorAll("[data-close-sheet]")) {
     if (button instanceof HTMLButtonElement) {
       button.textContent = t("close");
     }
+  }
+}
+
+function applyAdvancedVisibility() {
+  const cashFlow = $("#cashFlowCard");
+  const trendCard = $("#trendCard");
+  const riskCard = $("#riskCard");
+  if (cashFlow) cashFlow.classList.toggle("hidden", !state.ui.showCashFlow);
+  if (trendCard) trendCard.classList.toggle("hidden", !state.ui.showTrend);
+  if (riskCard) riskCard.classList.toggle("hidden", !state.ui.showRisk);
+}
+
+function loadUiState() {
+  try {
+    const raw = localStorage.getItem("nfos_ui_state");
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    state.ui.showCashFlow = Boolean(parsed.showCashFlow);
+    state.ui.showTrend = Boolean(parsed.showTrend);
+    state.ui.showRisk = Boolean(parsed.showRisk);
+    if (parsed.trend) {
+      state.trend.start = parsed.trend.start || state.trend.start;
+      state.trend.end = parsed.trend.end || state.trend.end;
+      state.trend.mode = parsed.trend.mode || state.trend.mode;
+    }
+  } catch {
+    // ignore localStorage errors
+  }
+}
+
+function persistUiState() {
+  try {
+    localStorage.setItem(
+      "nfos_ui_state",
+      JSON.stringify({
+        showCashFlow: state.ui.showCashFlow,
+        showTrend: state.ui.showTrend,
+        showRisk: state.ui.showRisk,
+        trend: {
+          start: state.trend.start,
+          end: state.trend.end,
+          mode: state.trend.mode
+        }
+      })
+    );
+  } catch {
+    // ignore localStorage errors
   }
 }
 

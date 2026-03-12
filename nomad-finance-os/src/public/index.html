@@ -53,14 +53,8 @@
             </div>
           </div>
           <div class="hero-label muted" id="heroCompositionLabel">Net Worth Composition</div>
-          <div class="hero-bar">
-            <div id="heroLiquidPart" class="hero-part liquid" style="width:0%"></div>
-            <div id="heroRestrictedPart" class="hero-part restricted" style="width:0%"></div>
-          </div>
-          <div class="hero-legend">
-            <span id="heroLiquidLegend">Liquid</span>
-            <span id="heroRestrictedLegend">Restricted</span>
-          </div>
+          <div class="hero-bar" id="heroCompositionBar"></div>
+          <div class="hero-legend" id="heroCompositionLegend"></div>
           <div id="heroSubMetrics" class="hero-submetrics"></div>
         </article>
         <section class="infographic-grid">
@@ -69,12 +63,35 @@
             <div id="budgetPlanSummary" class="muted"></div>
             <div id="budgetPlanList" class="list-block compact-list"></div>
           </article>
-          <article class="card">
+          <article class="card advanced-section" id="cashFlowCard">
             <h3 id="cashFlowTitle">Cash Flow Pulse</h3>
             <div id="cashFlowBars" class="mini-bars"></div>
           </article>
         </section>
-        <article class="card">
+        <article class="card advanced-section" id="trendCard">
+          <div class="section-head">
+            <h3 id="trendTitle">Spending Curve</h3>
+            <select id="trendMode" class="btn btn-ghost">
+              <option value="expense">Daily Expense</option>
+              <option value="networth">Net Worth Change</option>
+            </select>
+          </div>
+          <div class="trend-controls">
+            <label>
+              <span id="trendFromLabel">From</span>
+              <input id="trendStart" type="date" />
+            </label>
+            <label>
+              <span id="trendToLabel">To</span>
+              <input id="trendEnd" type="date" />
+            </label>
+          </div>
+          <div class="trend-chart">
+            <svg id="trendChart" viewBox="0 0 600 180" preserveAspectRatio="none"></svg>
+          </div>
+          <div id="trendLegend" class="muted"></div>
+        </article>
+        <article class="card advanced-section" id="riskCard">
           <h3 id="riskTitle">Risk Metrics</h3>
           <div id="riskMetrics" class="list-block"></div>
         </article>
@@ -544,6 +561,21 @@
             <span id="quickSettingsTimezoneLabel">Timezone</span>
             <input name="timezone" type="text" value="UTC" />
           </label>
+          <div class="toggle-grid">
+            <span id="quickSettingsAdvancedLabel">Advanced Insights</span>
+            <label class="toggle">
+              <input id="toggleCashFlow" type="checkbox" />
+              <span id="toggleCashFlowLabel">Cash Flow Pulse</span>
+            </label>
+            <label class="toggle">
+              <input id="toggleTrend" type="checkbox" />
+              <span id="toggleTrendLabel">Spending Curve</span>
+            </label>
+            <label class="toggle">
+              <input id="toggleRisk" type="checkbox" />
+              <span id="toggleRiskLabel">Risk Metrics</span>
+            </label>
+          </div>
           <button class="btn btn-solid" id="quickSettingsSaveBtn" type="submit">Save Settings</button>
         </form>
         <div class="secondary-links">
