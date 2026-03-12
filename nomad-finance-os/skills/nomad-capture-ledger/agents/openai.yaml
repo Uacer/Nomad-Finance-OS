@@ -1,0 +1,4 @@
+interface:
+  display_name: "Nomad Capture Ledger"
+  short_description: "Draft-and-confirm ledger capture for Nomad Finance."
+  default_prompt: "Capture text or OCR bookkeeping input into parse drafts, return bilingual summaries, require explicit confirmation, and post with confirm-extraction only after user approval."
