@@ -99,6 +99,7 @@ const I18N = {
     categoryL1: "Category L1",
     categoryL2: "Category L2",
     account: "Account",
+    accountType: "Account Type",
     accountTo: "Account To",
     currency: "Currency",
     amount: "Amount",
@@ -225,6 +226,7 @@ const I18N = {
     categoryL1: "一级分类",
     categoryL2: "二级分类",
     account: "账户",
+    accountType: "账户类型",
     accountTo: "入账账户",
     currency: "币种",
     amount: "金额",
@@ -2018,6 +2020,7 @@ function openAccountEditSheet(accountId) {
   if (!(form instanceof HTMLFormElement)) return;
   form.elements.account_id.value = String(account.id);
   form.elements.account_name.value = `${account.name} · ${account.currency}`;
+  form.elements.type.value = String(account.type || "bank");
   form.elements.balance.value = String(Number(account.balance || 0));
   openSheet("accountEditSheet", { preserveUtility: true });
 }
@@ -2028,15 +2031,16 @@ async function submitAccountEditForm(event) {
   if (!(form instanceof HTMLFormElement)) return;
   const fd = new FormData(form);
   const accountId = Number(fd.get("account_id"));
+  const type = String(fd.get("type") || "").trim();
   const balance = Number(fd.get("balance"));
-  if (!Number.isInteger(accountId) || accountId <= 0 || !Number.isFinite(balance)) {
+  if (!Number.isInteger(accountId) || accountId <= 0 || !type || !Number.isFinite(balance)) {
     showToast(t("invalidAmount"), true);
     return;
   }
   try {
     await api(`/api/v1/accounts/${accountId}`, {
       method: "PATCH",
-      body: JSON.stringify({ balance })
+      body: JSON.stringify({ type, balance })
     });
     showToast(t("accountUpdated"));
     try {
@@ -2426,6 +2430,7 @@ function applyI18n() {
   setText("settingsLinkAi", t("aiProviders"));
   setText("accountEditTitle", t("editAccount"));
   setText("accountEditNameLabel", t("account"));
+  setText("accountEditTypeLabel", t("accountType"));
   setText("accountEditBalanceLabel", t("amount"));
   setText("accountEditSaveBtn", t("saveAccount"));
   setText("accountDeleteBtn", t("deleteAccount"));

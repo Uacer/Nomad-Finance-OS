@@ -269,14 +269,15 @@ function createApp(db) {
       return res.status(400).json({ error: "Invalid account id." });
     }
     const schema = z.object({
-      balance: z.number().finite()
+      balance: z.number().finite(),
+      type: z.enum(ACCOUNT_TYPES).optional()
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.flatten() });
     }
     const account = db
-      .prepare("SELECT id, currency FROM accounts WHERE user_id = ? AND id = ?")
+      .prepare("SELECT id, currency, type FROM accounts WHERE user_id = ? AND id = ?")
       .get(req.userId, accountId);
     if (!account) {
       return res.status(404).json({ error: "Account not found." });
@@ -286,14 +287,15 @@ function createApp(db) {
     const txDelta = computeAccountTxDelta(db, req.userId, accountId, accountCurrency);
     const nextBalance = Number(parsed.data.balance);
     const nextOpening = Number((nextBalance - txDelta).toFixed(8));
+    const nextType = parsed.data.type || account.type;
 
     db.prepare(
       `
         UPDATE accounts
-        SET opening_balance = ?, balance = ?
+        SET type = ?, opening_balance = ?, balance = ?
         WHERE user_id = ? AND id = ?
       `
-    ).run(nextOpening, nextBalance, req.userId, accountId);
+    ).run(nextType, nextOpening, nextBalance, req.userId, accountId);
 
     const updated = db
       .prepare("SELECT * FROM accounts WHERE user_id = ? AND id = ?")

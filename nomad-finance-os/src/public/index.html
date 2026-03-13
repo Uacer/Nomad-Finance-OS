@@ -634,6 +634,19 @@
             <input name="account_name" type="text" readonly />
           </label>
           <label>
+            <span id="accountEditTypeLabel">Type</span>
+            <select name="type" required>
+              <option value="bank">bank</option>
+              <option value="cash">cash</option>
+              <option value="wise">wise</option>
+              <option value="crypto_wallet">crypto_wallet</option>
+              <option value="exchange">exchange</option>
+              <option value="alipay">alipay</option>
+              <option value="wechat">wechat</option>
+              <option value="restricted_cash">restricted_cash</option>
+            </select>
+          </label>
+          <label>
             <span id="accountEditBalanceLabel">Balance</span>
             <input name="balance" type="number" step="0.01" required />
           </label>

@@ -502,6 +502,31 @@ test("account balances are updated in account currency, dashboard unified in bas
   assert.ok(dashboardRes.body.net_worth > 99 && dashboardRes.body.net_worth < 101);
 });
 
+test("account edit supports changing account type and balance together", async () => {
+  const { api } = createHarness();
+  const account = await createAccount(api, {
+    name: "Wallet To Edit",
+    type: "bank",
+    currency: "USD",
+    balance: 100
+  });
+
+  const patchRes = await api.patch(`/api/v1/accounts/${account.id}`).send({
+    type: "crypto_wallet",
+    balance: 250
+  });
+  assert.equal(patchRes.status, 200);
+  assert.equal(patchRes.body.type, "crypto_wallet");
+  assert.equal(Number(patchRes.body.balance), 250);
+
+  const accountsRes = await api.get("/api/v1/accounts").send();
+  assert.equal(accountsRes.status, 200);
+  const updated = accountsRes.body.find((row) => row.id === account.id);
+  assert.ok(updated);
+  assert.equal(updated.type, "crypto_wallet");
+  assert.equal(Number(updated.balance), 250);
+});
+
 test("admin rebuild-balances recalculates account balances from opening balance + ledger", async () => {
   const { db, api } = createHarness();
   const cnyAccount = await createAccount(api, {
