@@ -97,6 +97,7 @@ const I18N = {
     addTransfer: "🔁 Add Transfer",
     close: "Close",
     date: "Date",
+    type: "Type",
     stepL1Title: "Step 1 · 🗂️ Choose Category L1",
     stepL2Title: "Step 2 · 🏷️ Choose Category L2",
     stepSpendTitle: "Step 3 · 💳 Account & Currency",
@@ -107,9 +108,11 @@ const I18N = {
     accountType: "Account Type",
     accountTo: "Account To",
     currency: "Currency",
+    fxRateOptional: "FX Rate (optional)",
     amount: "Amount",
     amountWheel: "Amount Wheel",
     note: "Note",
+    tagsLabel: "Tags",
     saveExpense: "Save Expense",
     saveIncome: "Save Income",
     saveTransfer: "Save Transfer",
@@ -235,6 +238,7 @@ const I18N = {
     addTransfer: "🔁 新增转账",
     close: "关闭",
     date: "日期",
+    type: "类型",
     stepL1Title: "第 1 步 · 🗂️ 选择一级分类",
     stepL2Title: "第 2 步 · 🏷️ 选择二级分类",
     stepSpendTitle: "第 3 步 · 💳 选择账户与币种",
@@ -245,9 +249,11 @@ const I18N = {
     accountType: "账户类型",
     accountTo: "入账账户",
     currency: "币种",
+    fxRateOptional: "汇率（可选）",
     amount: "金额",
     amountWheel: "金额滚轮",
     note: "备注",
+    tagsLabel: "标签",
     saveExpense: "保存支出",
     saveIncome: "保存收入",
     saveTransfer: "保存转账",
@@ -392,6 +398,7 @@ function bindUI() {
   $("#generateReviewBtn").addEventListener("click", generateMonthlyReview);
   $("#transactionForm [name=type]").addEventListener("change", handleTxTypeChange);
   $("#transactionForm [name=category_l1]").addEventListener("change", populateL2Select);
+  $("#transactionEditForm [name=category_l1]").addEventListener("change", populateTransactionEditL2Select);
   $("#openQuickAddBtn").addEventListener("click", () => openSheet("quickEntrySheet"));
   $("#openSettingsBtn").addEventListener("click", () => openSheet("settingsSheet"));
   const budgetBtn = $("#openBudgetSheetBtn");
@@ -460,6 +467,14 @@ function bindUI() {
       renderDebugPanel();
     });
   }
+  const toggleRecent = $("#toggleRecentExpenses");
+  if (toggleRecent) {
+    toggleRecent.addEventListener("change", () => {
+      state.ui.showRecentExpenses = toggleRecent.checked;
+      persistUiState();
+      applyAdvancedVisibility();
+    });
+  }
   for (const btn of document.querySelectorAll("[data-quick-type]")) {
     btn.addEventListener("click", () => {
       const type = String(btn.getAttribute("data-quick-type") || "expense");
@@ -484,11 +499,19 @@ function bindUI() {
   $("#quickBudgetForm").addEventListener("submit", submitQuickBudgetForm);
   $("#quickSettingsForm").addEventListener("submit", submitQuickSettingsForm);
   $("#accountEditForm").addEventListener("submit", submitAccountEditForm);
+  $("#transactionEditForm").addEventListener("submit", submitTransactionEditForm);
   $("#accountDeleteBtn").addEventListener("click", deleteCurrentAccount);
   $("#accountForceDeleteBtn").addEventListener("click", forceDeleteCurrentAccount);
-  const recentExpensesBtn = $("#recentExpensesViewAllBtn");
-  if (recentExpensesBtn) {
-    recentExpensesBtn.addEventListener("click", () => {
+  $("#transactionDeleteBtn").addEventListener("click", deleteCurrentTransaction);
+  const recentExpensesCard = $("#recentExpensesCard");
+  if (recentExpensesCard) {
+    recentExpensesCard.addEventListener("click", () => {
+      void openExpenseRecordsPanel();
+    });
+    recentExpensesCard.addEventListener("keydown", (event) => {
+      if (!(event instanceof KeyboardEvent)) return;
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
       void openExpenseRecordsPanel();
     });
   }
@@ -499,6 +522,14 @@ function bindUI() {
     const id = Number(editBtn.getAttribute("data-id"));
     if (!Number.isInteger(id) || id <= 0) return;
     openAccountEditSheet(id);
+  });
+  $("#transactionList").addEventListener("click", (event) => {
+    if (!(event.target instanceof Element)) return;
+    const row = event.target.closest("article[data-tx-id]");
+    if (!row) return;
+    const id = Number(row.getAttribute("data-tx-id"));
+    if (!Number.isInteger(id) || id <= 0) return;
+    openTransactionEditSheet(id);
   });
   const debugOnlyFailed = $("#debugOnlyFailed");
   if (debugOnlyFailed) {
@@ -549,6 +580,7 @@ function bindUI() {
   txDate.value = new Date().toISOString().slice(0, 10);
   $("#yearlyBudgetForm [name=year]").value = new Date().getFullYear();
   handleTxTypeChange();
+  closeTransactionRecordsOnlyMode();
 
   $("#providerList").addEventListener("click", async (event) => {
     if (!(event.target instanceof Element)) return;
@@ -617,6 +649,9 @@ function initializeQuickEntryDefaults() {
 }
 
 function switchPanel(id) {
+  if (id !== "transactionsPanel") {
+    closeTransactionRecordsOnlyMode();
+  }
   for (const tab of document.querySelectorAll(".tab")) {
     tab.classList.toggle("active", tab.dataset.panel === id);
   }
@@ -625,10 +660,26 @@ function switchPanel(id) {
   }
 }
 
+function setTransactionRecordsOnlyMode(enabled) {
+  const panel = $("#transactionsPanel");
+  if (!panel) return;
+  panel.classList.toggle("records-only", Boolean(enabled));
+}
+
+function isTransactionRecordsOnlyMode() {
+  const panel = $("#transactionsPanel");
+  return Boolean(panel && panel.classList.contains("records-only"));
+}
+
+function closeTransactionRecordsOnlyMode() {
+  setTransactionRecordsOnlyMode(false);
+}
+
 async function openExpenseRecordsPanel() {
   state.txTagFilter = "";
   const tagInput = $("#transactionTagFilter");
   if (tagInput) tagInput.value = "";
+  setTransactionRecordsOnlyMode(true);
   openUtilityPanel("transactionsPanel");
   try {
     await loadTransactions({ expenseOnly: true });
@@ -694,6 +745,9 @@ function openUtilityPanel(panelId) {
   closeAllSheets();
   const panel = document.getElementById(panelId);
   if (!panel) return;
+  if (panelId !== "transactionsPanel") {
+    closeTransactionRecordsOnlyMode();
+  }
   document.body.classList.add("utility-mode");
   for (const p of document.querySelectorAll(".panel")) {
     p.classList.remove("utility-open");
@@ -713,6 +767,7 @@ function closeUtilityPanel() {
   const closeBtn = $("#closeUtilityBtn");
   if (closeBtn) closeBtn.classList.add("hidden");
   state.utilityReturnSheet = "";
+  closeTransactionRecordsOnlyMode();
 }
 
 function syncControlState() {
@@ -1007,12 +1062,14 @@ async function loadSettings() {
   const toggleRisk = $("#toggleRisk");
   const toggleTrend = $("#toggleTrend");
   const toggleDebug = $("#toggleDebug");
+  const toggleRecentExpenses = $("#toggleRecentExpenses");
   const debugOnlyFailed = $("#debugOnlyFailed");
   const debugFilterInput = $("#debugFilterInput");
   if (toggleCashFlow) toggleCashFlow.checked = Boolean(state.ui.showCashFlow);
   if (toggleRisk) toggleRisk.checked = Boolean(state.ui.showRisk);
   if (toggleTrend) toggleTrend.checked = Boolean(state.ui.showTrend);
   if (toggleDebug) toggleDebug.checked = Boolean(state.ui.showDebug);
+  if (toggleRecentExpenses) toggleRecentExpenses.checked = Boolean(state.ui.showRecentExpenses);
   if (debugOnlyFailed) debugOnlyFailed.checked = Boolean(state.debug.onlyFailed);
   if (debugFilterInput) debugFilterInput.value = state.debug.filter || "";
   applyAdvancedVisibility();
@@ -1024,6 +1081,8 @@ async function loadCategories() {
   state.categories = (await api("/api/v1/categories")) || {};
   renderCategoryTree();
   populateL1Selects();
+  populateTransactionEditL1Select();
+  populateTransactionEditL2Select();
   populateQuickEntryL1();
   populateQuickBudgetL1();
 }
@@ -1032,6 +1091,7 @@ async function loadAccounts() {
   state.accounts = (await api("/api/v1/accounts")) || [];
   renderAccounts();
   populateAccountSelects();
+  populateTransactionEditAccountSelects();
   populateQuickEntryAccounts();
 }
 
@@ -1074,6 +1134,44 @@ function populateAccountSelects() {
   const from = $("#transactionForm [name=account_from_id]");
   const to = $("#transactionForm [name=account_to_id]");
   for (const select of [from, to]) {
+    select.innerHTML = '<option value="">-- none --</option>';
+    for (const account of state.accounts || []) {
+      const label = `${account.name} · ${account.type} · ${formatMoney(account.balance)} ${account.currency}`;
+      select.appendChild(new Option(label, String(account.id)));
+    }
+  }
+}
+
+function populateTransactionEditL1Select() {
+  const select = $("#transactionEditForm [name=category_l1]");
+  if (!select) return;
+  const activeL1 = Object.entries(state.categories || {})
+    .filter(([, cfg]) => cfg.active)
+    .map(([name]) => name);
+  select.innerHTML = '<option value="">-- none --</option>';
+  for (const name of activeL1) {
+    select.appendChild(new Option(withL1Emoji(name), name));
+  }
+}
+
+function populateTransactionEditL2Select() {
+  const l1Select = $("#transactionEditForm [name=category_l1]");
+  const target = $("#transactionEditForm [name=category_l2]");
+  if (!l1Select || !target) return;
+  const l1 = l1Select.value;
+  target.innerHTML = '<option value="">-- none --</option>';
+  const rows = state.categories?.[l1]?.l2 || [];
+  for (const row of rows) {
+    if (!row.active) continue;
+    target.appendChild(new Option(withL2Emoji(row.name), row.name));
+  }
+}
+
+function populateTransactionEditAccountSelects() {
+  const from = $("#transactionEditForm [name=account_from_id]");
+  const to = $("#transactionEditForm [name=account_to_id]");
+  for (const select of [from, to]) {
+    if (!select) continue;
     select.innerHTML = '<option value="">-- none --</option>';
     for (const account of state.accounts || []) {
       const label = `${account.name} · ${account.type} · ${formatMoney(account.balance)} ${account.currency}`;
@@ -1366,32 +1464,7 @@ async function submitTransactionForm(event) {
   const form = event.currentTarget;
   if (!(form instanceof HTMLFormElement)) return;
   const fd = new FormData(form);
-  const type = fd.get("type");
-  const fxRaw = String(fd.get("fx_rate") || "").trim();
-  const payload = {
-    date: fd.get("date"),
-    type,
-    amount_original: Number(fd.get("amount_original")),
-    currency_original: String(fd.get("currency_original")).toUpperCase(),
-    note: fd.get("note") || "",
-    tags: String(fd.get("tags") || "")
-      .split(",")
-      .map((x) => x.trim())
-      .filter(Boolean)
-  };
-  if (fxRaw) payload.fx_rate = Number(fxRaw);
-
-  if (type === "expense") {
-    payload.category_l1 = fd.get("category_l1");
-    payload.category_l2 = fd.get("category_l2");
-    payload.account_from_id = parseOptionalInt(fd.get("account_from_id"));
-  } else if (type === "income") {
-    payload.account_to_id = parseOptionalInt(fd.get("account_to_id"));
-  } else {
-    payload.account_from_id = parseOptionalInt(fd.get("account_from_id"));
-    payload.account_to_id = parseOptionalInt(fd.get("account_to_id"));
-    payload.transfer_reason = fd.get("transfer_reason");
-  }
+  const payload = buildTransactionPayloadFromForm(fd);
 
   try {
     await api("/api/v1/transactions", { method: "POST", body: JSON.stringify(payload) });
@@ -2015,12 +2088,10 @@ function renderPlannedBudgetCard(dashboard) {
                 <strong>${escapeHtml(withL1Emoji(row.category_l1))}</strong>
                 <span class="budget-plan-period muted">/ ${escapeHtml(periodLabel)}</span>
               </div>
-              <span class="${row.overspend ? "overspend" : ratio >= 0.8 ? "warn" : "muted"}">${formatMoney(
-          used
-        )} / ${formatMoney(total)}</span>
-            </div>
-            <div class="budget-plan-meta">
-              <span class="${remainClass}">${escapeHtml(t("remaining"))}: ${remainText}</span>
+              <span class="${row.overspend ? "overspend" : ratio >= 0.8 ? "warn" : "muted"}">
+                ${formatMoney(used)} / ${formatMoney(total)}
+                <span class="${remainClass}"> · ${escapeHtml(t("remaining"))}: ${remainText}</span>
+              </span>
             </div>
             <div class="progress-wrap"><div class="progress-fill ${tone}" style="width:${pct}%"></div></div>
           </article>
@@ -2165,6 +2236,111 @@ async function getLinkedTransactionCount(accountId) {
   }
 }
 
+function openTransactionEditSheet(transactionId) {
+  const tx = (state.transactions || []).find((row) => row.id === transactionId);
+  if (!tx) {
+    showToast("Transaction not found", true);
+    return;
+  }
+  state.editingTransactionId = transactionId;
+  const form = $("#transactionEditForm");
+  if (!(form instanceof HTMLFormElement)) return;
+  populateTransactionEditL1Select();
+  populateTransactionEditAccountSelects();
+  form.elements.transaction_id.value = String(tx.id);
+  form.elements.type.value = String(tx.type || "expense");
+  form.elements.date.value = String(tx.tx_date || new Date().toISOString().slice(0, 10));
+  form.elements.amount_original.value = String(Number(tx.amount_original || 0));
+  form.elements.currency_original.value = ensureUICurrency(tx.currency_original || "USD");
+  form.elements.fx_rate.value = Number(tx.fx_rate || 0) > 0 ? String(Number(tx.fx_rate)) : "";
+  form.elements.category_l1.value = tx.category_l1 || "";
+  populateTransactionEditL2Select();
+  form.elements.category_l2.value = tx.category_l2 || "";
+  form.elements.account_from_id.value = tx.account_from_id ? String(tx.account_from_id) : "";
+  form.elements.account_to_id.value = tx.account_to_id ? String(tx.account_to_id) : "";
+  form.elements.transfer_reason.value = tx.transfer_reason || "normal";
+  form.elements.note.value = tx.note || "";
+  form.elements.tags.value = Array.isArray(tx.tags) ? tx.tags.join(", ") : "";
+  openSheet("transactionEditSheet", { preserveUtility: true });
+}
+
+function buildTransactionPayloadFromForm(formData) {
+  const type = String(formData.get("type") || "");
+  const fxRaw = String(formData.get("fx_rate") || "").trim();
+  const payload = {
+    date: String(formData.get("date") || ""),
+    type,
+    amount_original: Number(formData.get("amount_original")),
+    currency_original: ensureUICurrency(String(formData.get("currency_original") || "USD")),
+    note: formData.get("note") || "",
+    tags: String(formData.get("tags") || "")
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean)
+  };
+  if (fxRaw) payload.fx_rate = Number(fxRaw);
+  if (type === "expense") {
+    payload.category_l1 = String(formData.get("category_l1") || "");
+    payload.category_l2 = String(formData.get("category_l2") || "");
+    payload.account_from_id = parseOptionalInt(formData.get("account_from_id"));
+  } else if (type === "income") {
+    payload.account_to_id = parseOptionalInt(formData.get("account_to_id"));
+  } else if (type === "transfer") {
+    payload.account_from_id = parseOptionalInt(formData.get("account_from_id"));
+    payload.account_to_id = parseOptionalInt(formData.get("account_to_id"));
+    payload.transfer_reason = String(formData.get("transfer_reason") || "normal");
+  }
+  return payload;
+}
+
+async function submitTransactionEditForm(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  if (!(form instanceof HTMLFormElement)) return;
+  const fd = new FormData(form);
+  const txId = Number(fd.get("transaction_id"));
+  if (!Number.isInteger(txId) || txId <= 0) {
+    showToast("Invalid transaction id", true);
+    return;
+  }
+  const payload = buildTransactionPayloadFromForm(fd);
+  try {
+    await api(`/api/v1/transactions/${txId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload)
+    });
+    showToast(t("transactionUpdated"));
+    try {
+      await refreshAfterLedgerChange();
+      closeSheet("transactionEditSheet");
+      state.editingTransactionId = null;
+    } catch (error) {
+      showRefreshFailureToast(error);
+    }
+  } catch (error) {
+    showErrorToast(error);
+  }
+}
+
+async function deleteCurrentTransaction() {
+  const txId = Number(state.editingTransactionId || 0);
+  if (!Number.isInteger(txId) || txId <= 0) return;
+  if (!window.confirm(t("transactionDeleteConfirm"))) return;
+  try {
+    await api(`/api/v1/transactions/${txId}`, { method: "DELETE" });
+    showToast(t("transactionDeleted"));
+    state.editingTransactionId = null;
+    closeSheet("transactionEditSheet");
+    try {
+      await refreshAfterLedgerChange();
+    } catch (error) {
+      showRefreshFailureToast(error);
+    }
+  } catch (error) {
+    showErrorToast(error);
+  }
+}
+
 function renderProviders() {
   const target = $("#providerList");
   const providers = Array.isArray(state.providers) ? state.providers.filter(Boolean) : [];
@@ -2200,7 +2376,8 @@ async function loadTransactions(options = {}) {
 }
 
 async function loadTransactionsWithOptions(options = {}) {
-  const expenseOnly = Boolean(options.expenseOnly);
+  const expenseOnly =
+    typeof options.expenseOnly === "boolean" ? options.expenseOnly : isTransactionRecordsOnlyMode();
   let path = `/api/v1/transactions?month=${state.month}`;
   if (state.txTagFilter) {
     path += `&tag=${encodeURIComponent(state.txTagFilter)}`;
@@ -2233,7 +2410,7 @@ function renderTransactionList(rows, options = {}) {
               .join("")}</div>`
           : "";
       return `
-        <article class="list-row">
+        <article class="list-row clickable" data-tx-id="${row.id}">
           <div class="row-main">
             <strong>${txTypeLabel(row.type)} · ${formatMoney(row.amount_base)} ${
         state.settings?.base_currency || "USD"
@@ -2266,7 +2443,7 @@ function renderRecentExpensesCard(rows) {
   target.innerHTML = expenseRows
     .map(
       (row) => `
-      <article class="list-row">
+      <article class="list-row recent-expense-row">
         <div class="row-main">
           <strong>${escapeHtml(formatCategoryPair(row.category_l1, row.category_l2))}</strong>
           <span class="mono">${formatMoney(row.amount_base)} ${escapeHtml(base)}</span>
@@ -2460,7 +2637,6 @@ function applyI18n() {
   setText("heroRestrictedLegend", t("labelRestricted"));
   setText("budgetPlanTitle", t("plannedBudget"));
   setText("recentExpensesTitle", t("recentExpenses"));
-  setText("recentExpensesViewAllBtn", t("viewAllExpenses"));
   setText("trendTitle", t("trendTitle"));
   setText("trendFromLabel", t("trendFrom"));
   setText("trendToLabel", t("trendTo"));
@@ -2513,6 +2689,7 @@ function applyI18n() {
   setText("toggleTrendLabel", t("showTrend"));
   setText("toggleRiskLabel", t("showRisk"));
   setText("toggleDebugLabel", t("showDebug"));
+  setText("toggleRecentExpensesLabel", t("showRecentExpenses"));
   setText("debugPanelTitle", t("debugPanel"));
   setText("debugOnlyFailedLabel", t("debugOnlyFailed"));
   setText("debugFilterLabel", t("debugFilter"));
@@ -2533,6 +2710,21 @@ function applyI18n() {
   setText("accountEditSaveBtn", t("saveAccount"));
   setText("accountDeleteBtn", t("deleteAccount"));
   setText("accountForceDeleteBtn", t("forceDeleteAccount"));
+  setText("transactionEditTitle", t("editTransaction"));
+  setText("transactionEditTypeLabel", t("type"));
+  setText("transactionEditDateLabel", t("date"));
+  setText("transactionEditAmountLabel", t("amount"));
+  setText("transactionEditCurrencyLabel", t("currency"));
+  setText("transactionEditFxLabel", t("fxRateOptional"));
+  setText("transactionEditL1Label", t("categoryL1"));
+  setText("transactionEditL2Label", t("categoryL2"));
+  setText("transactionEditFromLabel", t("account"));
+  setText("transactionEditToLabel", t("accountTo"));
+  setText("transactionEditReasonLabel", t("reason"));
+  setText("transactionEditTagsLabel", t("tagsLabel"));
+  setText("transactionEditNoteLabel", t("note"));
+  setText("transactionEditSaveBtn", t("saveTransaction"));
+  setText("transactionDeleteBtn", t("deleteTransaction"));
   setText("closeUtilityBtn", "←");
   const utilityBtn = $("#closeUtilityBtn");
   if (utilityBtn) utilityBtn.setAttribute("aria-label", t("back"));
@@ -2569,10 +2761,12 @@ function applyAdvancedVisibility() {
   const cashFlow = $("#cashFlowCard");
   const trendCard = $("#trendCard");
   const riskCard = $("#riskCard");
+  const recentExpensesCard = $("#recentExpensesCard");
   const debugPanel = $("#debugPanel");
   if (cashFlow) cashFlow.classList.toggle("hidden", !state.ui.showCashFlow);
   if (trendCard) trendCard.classList.toggle("hidden", !state.ui.showTrend);
   if (riskCard) riskCard.classList.toggle("hidden", !state.ui.showRisk);
+  if (recentExpensesCard) recentExpensesCard.classList.toggle("hidden", !state.ui.showRecentExpenses);
   if (debugPanel) debugPanel.classList.toggle("hidden", !state.ui.showDebug);
 }
 
@@ -2584,6 +2778,7 @@ function loadUiState() {
     state.ui.showCashFlow = Boolean(parsed.showCashFlow);
     state.ui.showTrend = Boolean(parsed.showTrend);
     state.ui.showRisk = Boolean(parsed.showRisk);
+    state.ui.showRecentExpenses = parsed.showRecentExpenses !== false;
     state.ui.showDebug = Boolean(parsed.showDebug);
     if (parsed.debug) {
       state.debug.onlyFailed = Boolean(parsed.debug.onlyFailed);
@@ -2607,6 +2802,7 @@ function persistUiState() {
         showCashFlow: state.ui.showCashFlow,
         showTrend: state.ui.showTrend,
         showRisk: state.ui.showRisk,
+        showRecentExpenses: state.ui.showRecentExpenses,
         showDebug: state.ui.showDebug,
         trend: {
           start: state.trend.start,

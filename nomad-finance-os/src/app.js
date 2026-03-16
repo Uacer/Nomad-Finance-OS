@@ -819,6 +819,78 @@ function createApp(db) {
     res.json(rows);
   });
 
+  app.patch("/api/v1/transactions/:id", async (req, res) => {
+    const txId = Number.parseInt(String(req.params.id), 10);
+    if (!Number.isInteger(txId) || txId <= 0) {
+      return res.status(400).json({ error: "Invalid transaction id." });
+    }
+    const schema = z.object({
+      date: z.string().min(10).max(10),
+      type: z.enum(TRANSACTION_TYPES),
+      amount_original: z.number().positive(),
+      currency_original: z.string().min(3).max(8),
+      fx_rate: z.number().positive().optional(),
+      amount_base: z.number().positive().optional(),
+      category_l1: z.string().min(1).max(64).optional(),
+      category_l2: z.string().min(1).max(64).optional(),
+      account_from_id: z.number().int().positive().optional(),
+      account_to_id: z.number().int().positive().optional(),
+      transfer_reason: z.enum(TRANSFER_REASONS).optional(),
+      note: z.string().max(500).optional(),
+      tags: z.array(z.string().min(1).max(64)).max(20).optional()
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.flatten() });
+    }
+    const existing = db
+      .prepare("SELECT id FROM transactions WHERE user_id = ? AND id = ?")
+      .get(req.userId, txId);
+    if (!existing) {
+      return res.status(404).json({ error: "Transaction not found." });
+    }
+    let txInput = parsed.data;
+    try {
+      txInput = {
+        ...parsed.data,
+        currency_original: normalizeSupportedCurrency(parsed.data.currency_original, "currency_original")
+      };
+    } catch (error) {
+      return res.status(400).json({ error: String(error.message || "Invalid currency_original.") });
+    }
+    const enriched = await enrichDraftWithFx(db, req.userId, txInput);
+    let tx;
+    try {
+      tx = updateTransactionRecord(db, req.userId, txId, enriched);
+    } catch (error) {
+      return res.status(400).json({ error: String(error.message || "Invalid transaction.") });
+    }
+    logEvent(db, req.userId, "transaction_updated", {
+      transaction_id: txId,
+      type: tx.type
+    });
+    res.json(tx);
+  });
+
+  app.delete("/api/v1/transactions/:id", (req, res) => {
+    const txId = Number.parseInt(String(req.params.id), 10);
+    if (!Number.isInteger(txId) || txId <= 0) {
+      return res.status(400).json({ error: "Invalid transaction id." });
+    }
+    const existing = db
+      .prepare("SELECT id, type FROM transactions WHERE user_id = ? AND id = ?")
+      .get(req.userId, txId);
+    if (!existing) {
+      return res.status(404).json({ error: "Transaction not found." });
+    }
+    deleteTransactionRecord(db, req.userId, txId);
+    logEvent(db, req.userId, "transaction_deleted", {
+      transaction_id: txId,
+      type: existing.type
+    });
+    res.json({ ok: true, deleted_transaction_id: txId });
+  });
+
   app.post("/api/v1/budgets", (req, res) => {
     const schema = z.object({
       month: z.string().min(7).max(7),
@@ -1278,6 +1350,84 @@ async function enrichDraftWithFx(db, userId, payload) {
 }
 
 function createTransactionRecord(db, userId, payload) {
+  const prepared = prepareTransactionForWrite(db, userId, payload);
+  const insertTx = db.prepare(
+    `
+      INSERT INTO transactions (
+        user_id, tx_date, type, amount_original, currency_original, fx_rate, amount_base,
+        category_l1, category_l2, account_from_id, account_to_id, transfer_reason, note
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `
+  );
+  const updateBalance = db.prepare(
+    "UPDATE accounts SET balance = balance + ? WHERE id = ? AND user_id = ?"
+  );
+  const insertTag = db.prepare(
+    "INSERT INTO tags (user_id, name) VALUES (?, ?) ON CONFLICT(user_id, name) DO NOTHING"
+  );
+  const getTag = db.prepare("SELECT id FROM tags WHERE user_id = ? AND name = ?");
+  const attachTag = db.prepare(
+    "INSERT OR IGNORE INTO transaction_tags (transaction_id, tag_id) VALUES (?, ?)"
+  );
+
+  const txn = db.transaction(() => {
+    const result = insertTx.run(
+      userId,
+      prepared.date,
+      prepared.type,
+      prepared.amountOriginal,
+      prepared.sourceCurrency,
+      prepared.fxRate,
+      prepared.amountBase,
+      prepared.type === "expense" ? prepared.categoryL1 : null,
+      prepared.type === "expense" ? prepared.categoryL2 : null,
+      prepared.from ? prepared.from.id : null,
+      prepared.to ? prepared.to.id : null,
+      prepared.type === "transfer" ? prepared.transferReason : null,
+      prepared.note
+    );
+    const txId = Number(result.lastInsertRowid);
+    if (prepared.type === "expense") {
+      const deltaFrom = convertCurrency(
+        prepared.amountOriginal,
+        prepared.sourceCurrency,
+        normalizeCurrency(prepared.from.currency)
+      );
+      updateBalance.run(-deltaFrom, prepared.from.id, userId);
+    } else if (prepared.type === "income") {
+      const deltaTo = convertCurrency(
+        prepared.amountOriginal,
+        prepared.sourceCurrency,
+        normalizeCurrency(prepared.to.currency)
+      );
+      updateBalance.run(deltaTo, prepared.to.id, userId);
+    } else if (prepared.type === "transfer") {
+      const deltaFrom = convertCurrency(
+        prepared.amountOriginal,
+        prepared.sourceCurrency,
+        normalizeCurrency(prepared.from.currency)
+      );
+      const deltaTo = convertCurrency(
+        prepared.amountOriginal,
+        prepared.sourceCurrency,
+        normalizeCurrency(prepared.to.currency)
+      );
+      updateBalance.run(-deltaFrom, prepared.from.id, userId);
+      updateBalance.run(deltaTo, prepared.to.id, userId);
+    }
+    for (const tag of prepared.tags) {
+      insertTag.run(userId, tag);
+      const tagRow = getTag.get(userId, tag);
+      attachTag.run(txId, tagRow.id);
+    }
+    return txId;
+  });
+
+  const txId = txn();
+  return getTransactionWithTags(db, userId, txId);
+}
+
+function prepareTransactionForWrite(db, userId, payload) {
   const type = payload.type;
   if (!TRANSACTION_TYPES.includes(type)) {
     throw new Error("Unsupported transaction type.");
@@ -1361,17 +1511,45 @@ function createTransactionRecord(db, userId, payload) {
   }
 
   const tags = [...new Set((payload.tags || []).map((x) => String(x).trim()).filter(Boolean))];
-  const insertTx = db.prepare(
+  return {
+    type,
+    date: payload.date,
+    amountOriginal,
+    fxRate,
+    amountBase,
+    sourceCurrency,
+    from,
+    to,
+    transferReason,
+    categoryL1: payload.category_l1 || null,
+    categoryL2: payload.category_l2 || null,
+    note: payload.note || "",
+    tags
+  };
+}
+
+function updateTransactionRecord(db, userId, txId, payload) {
+  const prepared = prepareTransactionForWrite(db, userId, payload);
+  const updateTx = db.prepare(
     `
-      INSERT INTO transactions (
-        user_id, tx_date, type, amount_original, currency_original, fx_rate, amount_base,
-        category_l1, category_l2, account_from_id, account_to_id, transfer_reason, note
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      UPDATE transactions
+      SET
+        tx_date = ?,
+        type = ?,
+        amount_original = ?,
+        currency_original = ?,
+        fx_rate = ?,
+        amount_base = ?,
+        category_l1 = ?,
+        category_l2 = ?,
+        account_from_id = ?,
+        account_to_id = ?,
+        transfer_reason = ?,
+        note = ?
+      WHERE id = ? AND user_id = ?
     `
   );
-  const updateBalance = db.prepare(
-    "UPDATE accounts SET balance = balance + ? WHERE id = ? AND user_id = ?"
-  );
+  const clearTags = db.prepare("DELETE FROM transaction_tags WHERE transaction_id = ?");
   const insertTag = db.prepare(
     "INSERT INTO tags (user_id, name) VALUES (?, ?) ON CONFLICT(user_id, name) DO NOTHING"
   );
@@ -1381,60 +1559,47 @@ function createTransactionRecord(db, userId, payload) {
   );
 
   const txn = db.transaction(() => {
-    const result = insertTx.run(
-      userId,
-      payload.date,
-      type,
-      amountOriginal,
-      sourceCurrency,
-      fxRate,
-      amountBase,
-      type === "expense" ? payload.category_l1 : null,
-      type === "expense" ? payload.category_l2 : null,
-      from ? from.id : null,
-      to ? to.id : null,
-      type === "transfer" ? transferReason : null,
-      payload.note || ""
+    const result = updateTx.run(
+      prepared.date,
+      prepared.type,
+      prepared.amountOriginal,
+      prepared.sourceCurrency,
+      prepared.fxRate,
+      prepared.amountBase,
+      prepared.type === "expense" ? prepared.categoryL1 : null,
+      prepared.type === "expense" ? prepared.categoryL2 : null,
+      prepared.from ? prepared.from.id : null,
+      prepared.to ? prepared.to.id : null,
+      prepared.type === "transfer" ? prepared.transferReason : null,
+      prepared.note,
+      txId,
+      userId
     );
-    const txId = Number(result.lastInsertRowid);
-    if (type === "expense") {
-      const deltaFrom = convertCurrency(
-        amountOriginal,
-        sourceCurrency,
-        normalizeCurrency(from.currency)
-      );
-      updateBalance.run(-deltaFrom, from.id, userId);
-    } else if (type === "income") {
-      const deltaTo = convertCurrency(
-        amountOriginal,
-        sourceCurrency,
-        normalizeCurrency(to.currency)
-      );
-      updateBalance.run(deltaTo, to.id, userId);
-    } else if (type === "transfer") {
-      const deltaFrom = convertCurrency(
-        amountOriginal,
-        sourceCurrency,
-        normalizeCurrency(from.currency)
-      );
-      const deltaTo = convertCurrency(
-        amountOriginal,
-        sourceCurrency,
-        normalizeCurrency(to.currency)
-      );
-      updateBalance.run(-deltaFrom, from.id, userId);
-      updateBalance.run(deltaTo, to.id, userId);
+    if (Number(result.changes || 0) !== 1) {
+      throw new Error("Transaction not found.");
     }
-    for (const tag of tags) {
+    clearTags.run(txId);
+    for (const tag of prepared.tags) {
       insertTag.run(userId, tag);
       const tagRow = getTag.get(userId, tag);
       attachTag.run(txId, tagRow.id);
     }
-    return txId;
   });
-
-  const txId = txn();
+  txn();
+  rebuildUserBalances(db, userId);
   return getTransactionWithTags(db, userId, txId);
+}
+
+function deleteTransactionRecord(db, userId, txId) {
+  const removeTx = db.prepare("DELETE FROM transactions WHERE id = ? AND user_id = ?");
+  const txn = db.transaction(() => {
+    const result = removeTx.run(txId, userId);
+    if (Number(result.changes || 0) !== 1) {
+      throw new Error("Transaction not found.");
+    }
+  });
+  txn();
+  rebuildUserBalances(db, userId);
 }
 
 function insertExtraction(db, userId, payload) {

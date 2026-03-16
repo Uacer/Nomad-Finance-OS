@@ -527,6 +527,55 @@ test("account edit supports changing account type and balance together", async (
   assert.equal(Number(updated.balance), 250);
 });
 
+test("transaction supports update and delete with balance rebuild", async () => {
+  const { api } = createHarness();
+  const from = await createAccount(api, {
+    name: "Main Wallet",
+    type: "cash",
+    currency: "USD",
+    balance: 200
+  });
+
+  const createRes = await api.post("/api/v1/transactions").send({
+    date: "2026-03-13",
+    type: "expense",
+    amount_original: 50,
+    currency_original: "USD",
+    category_l1: "Lifestyle",
+    category_l2: "Dining",
+    account_from_id: from.id,
+    note: "dinner"
+  });
+  assert.equal(createRes.status, 201);
+  const txId = createRes.body.id;
+
+  const patchRes = await api.patch(`/api/v1/transactions/${txId}`).send({
+    date: "2026-03-13",
+    type: "expense",
+    amount_original: 20,
+    currency_original: "USD",
+    category_l1: "Lifestyle",
+    category_l2: "Dining",
+    account_from_id: from.id,
+    note: "light dinner",
+    tags: ["food"]
+  });
+  assert.equal(patchRes.status, 200);
+  assert.equal(Number(patchRes.body.amount_original), 20);
+  assert.equal(patchRes.body.note, "light dinner");
+
+  const accountAfterPatch = (await api.get("/api/v1/accounts").send()).body.find((row) => row.id === from.id);
+  assert.ok(accountAfterPatch);
+  assert.equal(Number(accountAfterPatch.balance), 180);
+
+  const deleteRes = await api.delete(`/api/v1/transactions/${txId}`).send();
+  assert.equal(deleteRes.status, 200);
+
+  const accountAfterDelete = (await api.get("/api/v1/accounts").send()).body.find((row) => row.id === from.id);
+  assert.ok(accountAfterDelete);
+  assert.equal(Number(accountAfterDelete.balance), 200);
+});
+
 test("admin rebuild-balances recalculates account balances from opening balance + ledger", async () => {
   const { db, api } = createHarness();
   const cnyAccount = await createAccount(api, {

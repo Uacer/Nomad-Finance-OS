@@ -354,6 +354,19 @@ h3 {
   box-shadow: 0 3px 12px rgba(56, 44, 33, 0.05);
 }
 
+.clickable-card {
+  cursor: pointer;
+}
+
+.clickable-card:hover {
+  border-color: color-mix(in oklab, var(--accent), white 55%);
+}
+
+.clickable-card:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(47, 106, 74, 0.16);
+}
+
 .hero-card {
   display: grid;
   gap: 10px;
@@ -484,10 +497,12 @@ h3 {
   font-size: 0.8rem;
 }
 
-.budget-plan-meta {
-  display: flex;
-  justify-content: flex-end;
-  font-size: 0.76rem;
+.recent-expense-row {
+  font-size: 0.8rem;
+}
+
+.recent-expense-row strong {
+  font-size: 0.8rem;
 }
 
 .mini-bars {
