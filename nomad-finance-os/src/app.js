@@ -11,9 +11,21 @@ const {
   TRANSACTION_TYPES
 } = require("./constants");
 const { ensureUserAndSeedDefaults, normalizeMonth } = require("./db");
-const { fallbackFxRate, fetchFxRate, normalizeCurrency } = require("./fx");
+const { fetchFxRate, normalizeCurrency, peekRecentRate } = require("./fx");
 const { encryptText } = require("./security");
 const { buildExtractionDraft } = require("./ai");
+
+const FX_RATE_CACHE_TTL_MS = Math.max(
+  60 * 60 * 1000,
+  Number.parseInt(String(process.env.FX_RATE_CACHE_TTL_MS || `${24 * 60 * 60 * 1000}`), 10) ||
+    24 * 60 * 60 * 1000
+);
+const FX_RATE_CACHE = new Map();
+const FX_CONVERT_MAX_AGE_MS = Math.max(
+  60 * 60 * 1000,
+  Number.parseInt(String(process.env.FX_CONVERT_MAX_AGE_MS || `${36 * 60 * 60 * 1000}`), 10) ||
+    36 * 60 * 60 * 1000
+);
 
 function createApp(db) {
   const app = express();
@@ -125,13 +137,21 @@ function createApp(db) {
     } catch (error) {
       return res.status(400).json({ error: String(error.message || "Invalid currency.") });
     }
-    const fx = await fetchFxRate(from, to);
+    let fx;
+    try {
+      fx = await fetchFxRate(from, to);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
     res.json({
       from,
       to,
       rate: fx.rate,
       source: fx.source,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      as_of: fx.as_of || null,
+      age_ms: Number.isFinite(Number(fx.age_ms)) ? Number(fx.age_ms) : null,
+      is_stale: Boolean(fx.is_stale)
     });
   });
 
@@ -303,7 +323,7 @@ function createApp(db) {
     res.json(updated);
   });
 
-  app.delete("/api/v1/accounts/:id", (req, res) => {
+  app.delete("/api/v1/accounts/:id", async (req, res) => {
     const accountId = Number.parseInt(String(req.params.id), 10);
     if (!Number.isInteger(accountId) || accountId <= 0) {
       return res.status(400).json({ error: "Invalid account id." });
@@ -341,6 +361,11 @@ function createApp(db) {
         return Number(txResult.changes || 0);
       });
       const deletedTransactions = runForcedDelete();
+      try {
+        await ensureRebuildFxCoverage(db, req.userId);
+      } catch (error) {
+        return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+      }
       rebuildUserBalances(db, req.userId);
       return res.json({ ok: true, forced: true, deleted_transactions: deletedTransactions });
     }
@@ -349,7 +374,12 @@ function createApp(db) {
     res.json({ ok: true, forced: false, deleted_transactions: 0 });
   });
 
-  app.post("/api/v1/admin/rebuild-balances", (req, res) => {
+  app.post("/api/v1/admin/rebuild-balances", async (req, res) => {
+    try {
+      await ensureRebuildFxCoverage(db, req.userId);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
     const result = rebuildUserBalances(db, req.userId);
     res.status(201).json(result);
   });
@@ -593,7 +623,12 @@ function createApp(db) {
         error: String(error.message || "AI parsing failed.")
       });
     }
-    const draft = await enrichDraftWithFx(db, req.userId, extraction.draft);
+    let draft;
+    try {
+      draft = await enrichDraftWithFx(db, req.userId, extraction.draft);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
     const record = insertExtraction(db, req.userId, {
       source_type: "text",
       raw_text: input.text,
@@ -651,7 +686,12 @@ function createApp(db) {
         error: String(error.message || "AI image parsing failed.")
       });
     }
-    const draft = await enrichDraftWithFx(db, req.userId, extraction.draft);
+    let draft;
+    try {
+      draft = await enrichDraftWithFx(db, req.userId, extraction.draft);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
     const record = insertExtraction(db, req.userId, {
       source_type: "image",
       raw_text: text,
@@ -695,7 +735,18 @@ function createApp(db) {
         .map((x) => x.trim())
         .filter(Boolean);
     }
-    const payload = await enrichDraftWithFx(db, req.userId, merged);
+    let payload;
+    try {
+      payload = await enrichDraftWithFx(db, req.userId, merged);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
+    try {
+      await ensurePayloadFxCoverage(db, req.userId, payload);
+      await ensureRebuildFxCoverage(db, req.userId);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
     let transaction;
     try {
       transaction = createTransactionRecord(db, req.userId, payload);
@@ -745,7 +796,18 @@ function createApp(db) {
     } catch (error) {
       return res.status(400).json({ error: String(error.message || "Invalid currency_original.") });
     }
-    const enriched = await enrichDraftWithFx(db, req.userId, txInput);
+    let enriched;
+    try {
+      enriched = await enrichDraftWithFx(db, req.userId, txInput);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
+    try {
+      await ensurePayloadFxCoverage(db, req.userId, enriched);
+      await ensureRebuildFxCoverage(db, req.userId);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
     let tx;
     try {
       tx = createTransactionRecord(db, req.userId, enriched);
@@ -759,7 +821,7 @@ function createApp(db) {
     res.status(201).json(tx);
   });
 
-  app.get("/api/v1/transactions", (req, res) => {
+  app.get("/api/v1/transactions", async (req, res) => {
     const baseCurrency = getUserSettings(db, req.userId).base_currency;
     const start = normalizeDate(req.query.start);
     const end = normalizeDate(req.query.end);
@@ -805,18 +867,53 @@ function createApp(db) {
       GROUP BY t.id
       ORDER BY t.tx_date DESC, t.id DESC
     `;
-    const rows = db.prepare(sql).all(...params).map((row) => ({
-      ...row,
-      amount_base_snapshot: Number(row.amount_base),
-      amount_base: convertCurrency(
-        Number(row.amount_original || 0),
-        normalizeCurrency(row.currency_original || baseCurrency),
-        baseCurrency
-      ),
-      base_currency: baseCurrency,
-      tags: row.tag_names ? row.tag_names.split("|") : []
-    }));
-    res.json(rows);
+    const rawRows = db.prepare(sql).all(...params);
+    const ratesByPair = new Map();
+    const uniquePairs = new Set();
+    for (const row of rawRows) {
+      const from = normalizeCurrency(row.currency_original || baseCurrency);
+      if (from !== baseCurrency) uniquePairs.add(`${from}->${baseCurrency}`);
+    }
+    try {
+      await Promise.all(
+        Array.from(uniquePairs).map(async (pair) => {
+          const [from, to] = pair.split("->");
+          const rate = await getCachedFxRate(from, to);
+          ratesByPair.set(pair, rate);
+        })
+      );
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
+    let rows;
+    try {
+      rows = rawRows.map((row) => {
+        const from = normalizeCurrency(row.currency_original || baseCurrency);
+        const amountOriginal = Number(row.amount_original || 0);
+        const pairKey = `${from}->${baseCurrency}`;
+        const effectiveRate = from === baseCurrency ? 1 : Number(ratesByPair.get(pairKey));
+        if (!Number.isFinite(effectiveRate) || effectiveRate <= 0) {
+          const fxError = new Error(`FX quote unavailable for ${pairKey}.`);
+          fxError.code = "FX_QUOTE_UNAVAILABLE";
+          throw fxError;
+        }
+        return {
+          ...row,
+          amount_base_snapshot: Number(row.amount_base),
+          amount_base: Number((amountOriginal * effectiveRate).toFixed(8)),
+          base_currency: baseCurrency,
+          effective_fx_rate: effectiveRate,
+          tags: row.tag_names ? row.tag_names.split("|") : []
+        };
+      });
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
+    try {
+      res.json(rows);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
   });
 
   app.patch("/api/v1/transactions/:id", async (req, res) => {
@@ -858,7 +955,18 @@ function createApp(db) {
     } catch (error) {
       return res.status(400).json({ error: String(error.message || "Invalid currency_original.") });
     }
-    const enriched = await enrichDraftWithFx(db, req.userId, txInput);
+    let enriched;
+    try {
+      enriched = await enrichDraftWithFx(db, req.userId, txInput);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
+    try {
+      await ensurePayloadFxCoverage(db, req.userId, enriched);
+      await ensureRebuildFxCoverage(db, req.userId);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
     let tx;
     try {
       tx = updateTransactionRecord(db, req.userId, txId, enriched);
@@ -872,7 +980,7 @@ function createApp(db) {
     res.json(tx);
   });
 
-  app.delete("/api/v1/transactions/:id", (req, res) => {
+  app.delete("/api/v1/transactions/:id", async (req, res) => {
     const txId = Number.parseInt(String(req.params.id), 10);
     if (!Number.isInteger(txId) || txId <= 0) {
       return res.status(400).json({ error: "Invalid transaction id." });
@@ -882,6 +990,11 @@ function createApp(db) {
       .get(req.userId, txId);
     if (!existing) {
       return res.status(404).json({ error: "Transaction not found." });
+    }
+    try {
+      await ensureRebuildFxCoverage(db, req.userId);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
     }
     deleteTransactionRecord(db, req.userId, txId);
     logEvent(db, req.userId, "transaction_deleted", {
@@ -921,9 +1034,14 @@ function createApp(db) {
     res.status(201).json(payload);
   });
 
-  app.get("/api/v1/budgets", (req, res) => {
+  app.get("/api/v1/budgets", async (req, res) => {
     const month = normalizeMonth(req.query.month);
     const baseCurrency = getUserSettings(db, req.userId).base_currency;
+    try {
+      await ensureBaseFxCoverage(db, req.userId, baseCurrency);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
     const expenses = db
       .prepare(
         `
@@ -966,7 +1084,11 @@ function createApp(db) {
           spent_amount: Number(spentByCategory.get(row.category_l1) || 0)
         });
       });
-    res.json(rows);
+    try {
+      res.json(rows);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
   });
 
   app.post("/api/v1/budgets/yearly", (req, res) => {
@@ -999,10 +1121,15 @@ function createApp(db) {
     res.status(201).json(payload);
   });
 
-  app.get("/api/v1/budgets/yearly", (req, res) => {
+  app.get("/api/v1/budgets/yearly", async (req, res) => {
     const year =
       Number.parseInt(req.query.year, 10) || Number.parseInt(new Date().toISOString().slice(0, 4), 10);
     const baseCurrency = getUserSettings(db, req.userId).base_currency;
+    try {
+      await ensureBaseFxCoverage(db, req.userId, baseCurrency);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
     const expenses = db
       .prepare(
         `
@@ -1044,19 +1171,44 @@ function createApp(db) {
           spent_amount: Number(spentByCategory.get(row.category_l1) || 0)
         })
       }));
-    res.json(rows);
+    try {
+      res.json(rows);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
   });
 
-  app.get("/api/v1/dashboard", (req, res) => {
+  app.get("/api/v1/dashboard", async (req, res) => {
     const month = normalizeMonth(req.query.month);
     const settings = getUserSettings(db, req.userId);
-    const dashboard = buildDashboardPayload(db, req.userId, month, settings.base_currency);
+    try {
+      await ensureBaseFxCoverage(db, req.userId, settings.base_currency);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
+    let dashboard;
+    try {
+      dashboard = buildDashboardPayload(db, req.userId, month, settings.base_currency);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
     res.json(dashboard);
   });
 
-  app.get("/api/v1/metrics/runway", (req, res) => {
+  app.get("/api/v1/metrics/runway", async (req, res) => {
     const month = normalizeMonth(req.query.month);
-    const dashboard = buildDashboardPayload(db, req.userId, month, getUserSettings(db, req.userId).base_currency);
+    const baseCurrency = getUserSettings(db, req.userId).base_currency;
+    try {
+      await ensureBaseFxCoverage(db, req.userId, baseCurrency);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
+    let dashboard;
+    try {
+      dashboard = buildDashboardPayload(db, req.userId, month, baseCurrency);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
     res.json({
       month,
       liquid_cash: dashboard.liquid_cash,
@@ -1065,12 +1217,22 @@ function createApp(db) {
     });
   });
 
-  app.get("/api/v1/metrics/risk", (req, res) => {
+  app.get("/api/v1/metrics/risk", async (req, res) => {
     const month = normalizeMonth(req.query.month);
-    res.json(buildRiskPayload(db, req.userId, month));
+    const baseCurrency = getUserSettings(db, req.userId).base_currency;
+    try {
+      await ensureBaseFxCoverage(db, req.userId, baseCurrency);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
+    try {
+      res.json(buildRiskPayload(db, req.userId, month));
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
   });
 
-  app.get("/api/v1/reviews/monthly", (req, res) => {
+  app.get("/api/v1/reviews/monthly", async (req, res) => {
     const month = normalizeMonth(req.query.month);
     const currentBase = getUserSettings(db, req.userId).base_currency;
     logEvent(db, req.userId, "monthly_review_opened", { month });
@@ -1090,23 +1252,39 @@ function createApp(db) {
         });
       }
     }
-    const payload = buildMonthlyReviewPayload(db, req.userId, month, currentBase);
+    try {
+      await ensureBaseFxCoverage(db, req.userId, currentBase);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
+    let payload;
+    try {
+      payload = buildMonthlyReviewPayload(db, req.userId, month, currentBase);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
     return res.json({ ...payload, source: "live" });
   });
 
-  app.post("/api/v1/reviews/monthly/generate", (req, res) => {
+  app.post("/api/v1/reviews/monthly/generate", async (req, res) => {
     const schema = z.object({ month: z.string().min(7).max(7).optional() });
     const parsed = schema.safeParse(req.body || {});
     if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.flatten() });
     }
     const month = normalizeMonth(parsed.data.month);
-    const payload = buildMonthlyReviewPayload(
-      db,
-      req.userId,
-      month,
-      getUserSettings(db, req.userId).base_currency
-    );
+    const baseCurrency = getUserSettings(db, req.userId).base_currency;
+    try {
+      await ensureBaseFxCoverage(db, req.userId, baseCurrency);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
+    let payload;
+    try {
+      payload = buildMonthlyReviewPayload(db, req.userId, month, baseCurrency);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
     db.prepare(
       `
         INSERT INTO monthly_review_snapshots (user_id, month, payload_json, summary)
@@ -1187,6 +1365,10 @@ function createApp(db) {
 
   app.use((error, _req, res, _next) => {
     console.error(error);
+    const status = resolveFxErrorStatus(error);
+    if (status !== 500) {
+      return res.status(status).json({ error: formatFxError(error) });
+    }
     res.status(500).json({ error: "Internal server error." });
   });
 
@@ -2053,6 +2235,19 @@ function summarizeErrorForLog(error) {
   }
 }
 
+function resolveFxErrorStatus(error) {
+  return String(error?.code || "") === "FX_QUOTE_UNAVAILABLE" ? 503 : 500;
+}
+
+function formatFxError(error) {
+  const baseMessage = String(error?.message || "FX quote unavailable.");
+  const providerErrors = Array.isArray(error?.provider_errors)
+    ? error.provider_errors.filter(Boolean).slice(0, 2)
+    : [];
+  if (!providerErrors.length) return baseMessage;
+  return `${baseMessage} Providers: ${providerErrors.join(" | ")}`;
+}
+
 function normalizeSupportedCurrency(currency, fieldName = "currency") {
   const normalized = normalizeCurrency(currency || "USD");
   if (SUPPORTED_CURRENCIES.includes(normalized)) {
@@ -2067,7 +2262,121 @@ function convertCurrency(amount, fromCurrency, toCurrency) {
   if (!Number.isFinite(Number(amount))) return 0;
   const numeric = Number(amount);
   if (from === to) return numeric;
-  return Number((numeric * fallbackFxRate(from, to)).toFixed(8));
+  const rate = peekRecentRate(from, to, FX_CONVERT_MAX_AGE_MS);
+  if (!Number.isFinite(Number(rate)) || Number(rate) <= 0) {
+    const error = new Error(`FX quote unavailable for ${from}->${to}.`);
+    error.code = "FX_QUOTE_UNAVAILABLE";
+    throw error;
+  }
+  return Number((numeric * Number(rate)).toFixed(8));
+}
+
+async function getCachedFxRate(fromCurrency, toCurrency) {
+  const from = normalizeCurrency(fromCurrency || "USD");
+  const to = normalizeCurrency(toCurrency || "USD");
+  if (from === to) return 1;
+  const key = `${from}->${to}`;
+  const now = Date.now();
+  const cached = FX_RATE_CACHE.get(key);
+  if (cached && cached.expiresAt > now) {
+    return cached.rate;
+  }
+  const quote = await fetchFxRate(from, to);
+  const rate = Number(quote?.rate);
+  if (!Number.isFinite(rate) || rate <= 0) {
+    const error = new Error(`Invalid FX quote for ${from}->${to}.`);
+    error.code = "FX_QUOTE_UNAVAILABLE";
+    throw error;
+  }
+  const safeRate = Number(rate);
+  FX_RATE_CACHE.set(key, { rate: safeRate, expiresAt: now + FX_RATE_CACHE_TTL_MS });
+  const inverse = 1 / safeRate;
+  if (Number.isFinite(inverse) && inverse > 0) {
+    FX_RATE_CACHE.set(`${to}->${from}`, {
+      rate: Number(inverse.toFixed(8)),
+      expiresAt: now + FX_RATE_CACHE_TTL_MS
+    });
+  }
+  return safeRate;
+}
+
+async function ensureFxPairsLoaded(pairs) {
+  const deduped = new Set();
+  for (const pair of pairs || []) {
+    if (!Array.isArray(pair) || pair.length !== 2) continue;
+    const from = normalizeCurrency(pair[0] || "USD");
+    const to = normalizeCurrency(pair[1] || "USD");
+    if (from === to) continue;
+    deduped.add(`${from}->${to}`);
+  }
+  await Promise.all(
+    Array.from(deduped).map(async (pair) => {
+      const [from, to] = pair.split("->");
+      await getCachedFxRate(from, to);
+    })
+  );
+}
+
+function collectAllUserCurrencies(db, userId) {
+  const currencies = new Set();
+  for (const row of db.prepare("SELECT DISTINCT currency FROM accounts WHERE user_id = ?").all(userId)) {
+    currencies.add(normalizeCurrency(row.currency || "USD"));
+  }
+  for (const row of db.prepare("SELECT DISTINCT currency_original FROM transactions WHERE user_id = ?").all(userId)) {
+    currencies.add(normalizeCurrency(row.currency_original || "USD"));
+  }
+  for (const row of db.prepare("SELECT DISTINCT budget_currency FROM budgets WHERE user_id = ?").all(userId)) {
+    currencies.add(normalizeCurrency(row.budget_currency || "USD"));
+  }
+  for (const row of db.prepare("SELECT DISTINCT budget_currency FROM yearly_budgets WHERE user_id = ?").all(userId)) {
+    currencies.add(normalizeCurrency(row.budget_currency || "USD"));
+  }
+  currencies.add("USD");
+  return currencies;
+}
+
+async function ensureBaseFxCoverage(db, userId, baseCurrency) {
+  const base = normalizeCurrency(baseCurrency || "USD");
+  const currencies = collectAllUserCurrencies(db, userId);
+  const pairs = [];
+  for (const currency of currencies) {
+    if (!currency || currency === base) continue;
+    pairs.push([currency, base]);
+  }
+  await ensureFxPairsLoaded(pairs);
+}
+
+async function ensureRebuildFxCoverage(db, userId) {
+  const accountRows = db.prepare("SELECT DISTINCT currency FROM accounts WHERE user_id = ?").all(userId);
+  const txRows = db
+    .prepare("SELECT DISTINCT currency_original FROM transactions WHERE user_id = ?")
+    .all(userId);
+  const accountCurrencies = new Set(accountRows.map((row) => normalizeCurrency(row.currency || "USD")));
+  const txCurrencies = new Set(txRows.map((row) => normalizeCurrency(row.currency_original || "USD")));
+  const pairs = [];
+  for (const source of txCurrencies) {
+    for (const target of accountCurrencies) {
+      if (source === target) continue;
+      pairs.push([source, target]);
+    }
+  }
+  await ensureFxPairsLoaded(pairs);
+}
+
+async function ensurePayloadFxCoverage(db, userId, payload) {
+  const source = normalizeCurrency(payload?.currency_original || "USD");
+  const pairs = [];
+  const fromId = Number(payload?.account_from_id || 0);
+  const toId = Number(payload?.account_to_id || 0);
+  if (Number.isInteger(fromId) && fromId > 0) {
+    const from = db.prepare("SELECT currency FROM accounts WHERE user_id = ? AND id = ?").get(userId, fromId);
+    if (from?.currency) pairs.push([source, normalizeCurrency(from.currency)]);
+  }
+  if (Number.isInteger(toId) && toId > 0) {
+    const to = db.prepare("SELECT currency FROM accounts WHERE user_id = ? AND id = ?").get(userId, toId);
+    if (to?.currency) pairs.push([source, normalizeCurrency(to.currency)]);
+  }
+  await ensureFxPairsLoaded(pairs);
 }
 
 function computeAccountTxDelta(db, userId, accountId, accountCurrency) {

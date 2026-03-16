@@ -25,6 +25,56 @@ async function withMockedFetchJson(jsonPayload, fn) {
   }
 }
 
+async function withMockedFxRate(rateByPair, fn) {
+  const originalFetch = global.fetch;
+  global.fetch = async (url) => {
+    const href = String(url || "");
+    const parsed = new URL(href, "http://localhost");
+    const base = String(parsed.searchParams.get("base") || parsed.searchParams.get("source") || "USD").toUpperCase();
+    let symbol =
+      String(parsed.searchParams.get("symbols") || parsed.searchParams.get("currencies") || "")
+        .split(",")
+        .map((x) => x.trim().toUpperCase())
+        .filter(Boolean)[0] || "USD";
+    if (!symbol && parsed.searchParams.get("currencies")) symbol = "USD";
+    const key = `${base}->${symbol}`;
+    const direct = Number(rateByPair?.[key]);
+    if (!Number.isFinite(direct) || direct <= 0) {
+      return {
+        ok: false,
+        status: 503,
+        json: async () => ({})
+      };
+    }
+    if (href.includes("/live?")) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          quotes: {
+            [`${base}${symbol}`]: direct
+          }
+        })
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        rates: {
+          [symbol]: direct
+        }
+      })
+    };
+  };
+  try {
+    return await fn();
+  } finally {
+    global.fetch = originalFetch;
+  }
+}
+
 async function createAccount(api, payload) {
   const res = await api.post("/api/v1/accounts").send(payload);
   assert.equal(res.status, 201);
@@ -240,58 +290,60 @@ test("serves web UI shell", async () => {
 });
 
 test("settings + auto FX conversion + runway/risk metrics", async () => {
-  const { api } = createHarness();
-  const month = "2026-03";
-  const date = "2026-03-10";
-  const cash = await createAccount(api, {
-    name: "Cash USD",
-    type: "cash",
-    currency: "USD",
-    balance: 1000
+  await withMockedFxRate({ "THB->USD": 0.02816901 }, async () => {
+    const { api } = createHarness();
+    const month = "2026-03";
+    const date = "2026-03-10";
+    const cash = await createAccount(api, {
+      name: "Cash USD",
+      type: "cash",
+      currency: "USD",
+      balance: 1000
+    });
+
+    const settingsRes = await api.put("/api/v1/settings").send({
+      base_currency: "USD",
+      timezone: "Asia/Bangkok"
+    });
+    assert.equal(settingsRes.status, 200);
+    assert.equal(settingsRes.body.base_currency, "USD");
+
+    const expenseRes = await api.post("/api/v1/transactions").send({
+      date,
+      type: "expense",
+      amount_original: 355,
+      currency_original: "THB",
+      category_l1: "Living",
+      category_l2: "Groceries",
+      account_from_id: cash.id
+    });
+    assert.equal(expenseRes.status, 201);
+    const fxRate = Number(expenseRes.body.fx_rate);
+    const amountBase = Number(expenseRes.body.amount_base);
+    assert.ok(Number.isFinite(fxRate) && fxRate > 0);
+    assert.ok(Number.isFinite(amountBase) && amountBase > 0);
+    assert.ok(Math.abs(amountBase - Number((355 * fxRate).toFixed(8))) < 0.000001);
+
+    const incomeRes = await api.post("/api/v1/transactions").send({
+      date,
+      type: "income",
+      amount_original: 100,
+      currency_original: "USD",
+      account_to_id: cash.id
+    });
+    assert.equal(incomeRes.status, 201);
+
+    const runwayRes = await api.get(`/api/v1/metrics/runway?month=${month}`).send();
+    assert.equal(runwayRes.status, 200);
+    assert.ok("burn_rate" in runwayRes.body);
+    assert.ok("runway_months" in runwayRes.body);
+
+    const riskRes = await api.get(`/api/v1/metrics/risk?month=${month}`).send();
+    assert.equal(riskRes.status, 200);
+    assert.ok("crypto_exposure" in riskRes.body);
+    assert.ok("income_volatility" in riskRes.body);
+    assert.ok("fixed_cost_ratio" in riskRes.body);
   });
-
-  const settingsRes = await api.put("/api/v1/settings").send({
-    base_currency: "USD",
-    timezone: "Asia/Bangkok"
-  });
-  assert.equal(settingsRes.status, 200);
-  assert.equal(settingsRes.body.base_currency, "USD");
-
-  const expenseRes = await api.post("/api/v1/transactions").send({
-    date,
-    type: "expense",
-    amount_original: 355,
-    currency_original: "THB",
-    category_l1: "Living",
-    category_l2: "Groceries",
-    account_from_id: cash.id
-  });
-  assert.equal(expenseRes.status, 201);
-  const fxRate = Number(expenseRes.body.fx_rate);
-  const amountBase = Number(expenseRes.body.amount_base);
-  assert.ok(Number.isFinite(fxRate) && fxRate > 0);
-  assert.ok(Number.isFinite(amountBase) && amountBase > 0);
-  assert.ok(Math.abs(amountBase - Number((355 * fxRate).toFixed(8))) < 0.000001);
-
-  const incomeRes = await api.post("/api/v1/transactions").send({
-    date,
-    type: "income",
-    amount_original: 100,
-    currency_original: "USD",
-    account_to_id: cash.id
-  });
-  assert.equal(incomeRes.status, 201);
-
-  const runwayRes = await api.get(`/api/v1/metrics/runway?month=${month}`).send();
-  assert.equal(runwayRes.status, 200);
-  assert.ok("burn_rate" in runwayRes.body);
-  assert.ok("runway_months" in runwayRes.body);
-
-  const riskRes = await api.get(`/api/v1/metrics/risk?month=${month}`).send();
-  assert.equal(riskRes.status, 200);
-  assert.ok("crypto_exposure" in riskRes.body);
-  assert.ok("income_volatility" in riskRes.body);
-  assert.ok("fixed_cost_ratio" in riskRes.body);
 });
 
 test("rejects unsupported currencies for settings and accounts", async () => {
@@ -462,44 +514,46 @@ test("analytics summary returns key event counters", async () => {
 });
 
 test("account balances are updated in account currency, dashboard unified in base currency", async () => {
-  const { api } = createHarness();
-  const month = "2026-03";
+  await withMockedFxRate({ "USD->CNY": 7.2 }, async () => {
+    const { api } = createHarness();
+    const month = "2026-03";
 
-  await api.put("/api/v1/settings").send({
-    base_currency: "USD",
-    timezone: "UTC"
+    await api.put("/api/v1/settings").send({
+      base_currency: "USD",
+      timezone: "UTC"
+    });
+
+    const cnyAccount = await createAccount(api, {
+      name: "CNY Wallet",
+      type: "cash",
+      currency: "CNY",
+      balance: 0
+    });
+
+    const incomeRes = await api.post("/api/v1/transactions").send({
+      date: "2026-03-12",
+      type: "income",
+      amount_original: 100,
+      currency_original: "USD",
+      fx_rate: 1,
+      account_to_id: cnyAccount.id,
+      note: "salary"
+    });
+    assert.equal(incomeRes.status, 201);
+    assert.equal(incomeRes.body.amount_base, 100);
+
+    const accountsRes = await api.get("/api/v1/accounts").send();
+    assert.equal(accountsRes.status, 200);
+    const cnyAfter = accountsRes.body.find((x) => x.id === cnyAccount.id);
+    assert.ok(cnyAfter);
+    assert.equal(Number(cnyAfter.opening_balance), 0);
+    assert.ok(Number(cnyAfter.balance) > 719 && Number(cnyAfter.balance) < 721);
+
+    const dashboardRes = await api.get(`/api/v1/dashboard?month=${month}`).send();
+    assert.equal(dashboardRes.status, 200);
+    assert.ok(dashboardRes.body.monthly_income > 99 && dashboardRes.body.monthly_income < 101);
+    assert.ok(dashboardRes.body.net_worth > 99 && dashboardRes.body.net_worth < 101);
   });
-
-  const cnyAccount = await createAccount(api, {
-    name: "CNY Wallet",
-    type: "cash",
-    currency: "CNY",
-    balance: 0
-  });
-
-  const incomeRes = await api.post("/api/v1/transactions").send({
-    date: "2026-03-12",
-    type: "income",
-    amount_original: 100,
-    currency_original: "USD",
-    fx_rate: 1,
-    account_to_id: cnyAccount.id,
-    note: "salary"
-  });
-  assert.equal(incomeRes.status, 201);
-  assert.equal(incomeRes.body.amount_base, 100);
-
-  const accountsRes = await api.get("/api/v1/accounts").send();
-  assert.equal(accountsRes.status, 200);
-  const cnyAfter = accountsRes.body.find((x) => x.id === cnyAccount.id);
-  assert.ok(cnyAfter);
-  assert.equal(Number(cnyAfter.opening_balance), 0);
-  assert.ok(Number(cnyAfter.balance) > 719 && Number(cnyAfter.balance) < 721);
-
-  const dashboardRes = await api.get(`/api/v1/dashboard?month=${month}`).send();
-  assert.equal(dashboardRes.status, 200);
-  assert.ok(dashboardRes.body.monthly_income > 99 && dashboardRes.body.monthly_income < 101);
-  assert.ok(dashboardRes.body.net_worth > 99 && dashboardRes.body.net_worth < 101);
 });
 
 test("account edit supports changing account type and balance together", async () => {
@@ -577,30 +631,32 @@ test("transaction supports update and delete with balance rebuild", async () => 
 });
 
 test("admin rebuild-balances recalculates account balances from opening balance + ledger", async () => {
-  const { db, api } = createHarness();
-  const cnyAccount = await createAccount(api, {
-    name: "CNY Wallet",
-    type: "cash",
-    currency: "CNY",
-    balance: 0
-  });
+  await withMockedFxRate({ "USD->CNY": 7.2 }, async () => {
+    const { db, api } = createHarness();
+    const cnyAccount = await createAccount(api, {
+      name: "CNY Wallet",
+      type: "cash",
+      currency: "CNY",
+      balance: 0
+    });
 
-  const incomeRes = await api.post("/api/v1/transactions").send({
-    date: "2026-03-12",
-    type: "income",
-    amount_original: 100,
-    currency_original: "USD",
-    account_to_id: cnyAccount.id
-  });
-  assert.equal(incomeRes.status, 201);
+    const incomeRes = await api.post("/api/v1/transactions").send({
+      date: "2026-03-12",
+      type: "income",
+      amount_original: 100,
+      currency_original: "USD",
+      account_to_id: cnyAccount.id
+    });
+    assert.equal(incomeRes.status, 201);
 
-  db.prepare("UPDATE accounts SET balance = 1 WHERE id = ?").run(cnyAccount.id);
-  const rebuildRes = await api.post("/api/v1/admin/rebuild-balances").send({});
-  assert.equal(rebuildRes.status, 201);
-  const row = rebuildRes.body.accounts.find((x) => x.id === cnyAccount.id);
-  assert.ok(row);
-  assert.equal(Number(row.previous_balance), 1);
-  assert.ok(Number(row.recalculated_balance) > 719 && Number(row.recalculated_balance) < 721);
+    db.prepare("UPDATE accounts SET balance = 1 WHERE id = ?").run(cnyAccount.id);
+    const rebuildRes = await api.post("/api/v1/admin/rebuild-balances").send({});
+    assert.equal(rebuildRes.status, 201);
+    const row = rebuildRes.body.accounts.find((x) => x.id === cnyAccount.id);
+    assert.ok(row);
+    assert.equal(Number(row.previous_balance), 1);
+    assert.ok(Number(row.recalculated_balance) > 719 && Number(row.recalculated_balance) < 721);
+  });
 });
 
 test("force delete account removes linked transactions and rebuilds remaining account balances", async () => {
@@ -670,28 +726,59 @@ test("parse-text handles baht alias and maps travel phrase to lifestyle", async 
   });
   assert.equal(providerRes.status, 201);
 
-  const parseRes = await withMockedFetchJson(
-    {
-      choices: [
-        {
-          message: {
-            content: JSON.stringify({
-              type: "expense",
-              amount_original: 10000,
-              currency_original: "Baht",
-              category_l1: "Lifestyle",
-              category_l2: "Entertainment",
-              note: "旅游花了10000泰铢"
-            })
-          }
-        }
-      ]
-    },
-    async () =>
-      api.post("/api/v1/transactions/parse-text").send({
-        text: "旅游花了10000泰铢"
-      })
-  );
+  const originalFetch = global.fetch;
+  let parseRes;
+  global.fetch = async (url) => {
+    const href = String(url || "");
+    if (href.includes("example.com")) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  type: "expense",
+                  amount_original: 10000,
+                  currency_original: "Baht",
+                  category_l1: "Lifestyle",
+                  category_l2: "Entertainment",
+                  note: "旅游花了10000泰铢"
+                })
+              }
+            }
+          ]
+        })
+      };
+    }
+    const parsed = new URL(href, "http://localhost");
+    const base = String(parsed.searchParams.get("base") || parsed.searchParams.get("source") || "USD").toUpperCase();
+    const symbol =
+      String(parsed.searchParams.get("symbols") || parsed.searchParams.get("currencies") || "")
+        .split(",")
+        .map((x) => x.trim().toUpperCase())
+        .filter(Boolean)[0] || "USD";
+    if (base === "THB" && symbol === "USD") {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ rates: { USD: 0.02816901 } })
+      };
+    }
+    return {
+      ok: false,
+      status: 503,
+      json: async () => ({})
+    };
+  };
+  try {
+    parseRes = await api.post("/api/v1/transactions/parse-text").send({
+      text: "旅游花了10000泰铢"
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
   assert.equal(parseRes.status, 201);
   assert.equal(parseRes.body.draft.amount_original, 10000);
   assert.equal(parseRes.body.draft.currency_original, "THB");
@@ -701,95 +788,99 @@ test("parse-text handles baht alias and maps travel phrase to lifestyle", async 
 });
 
 test("changing base currency changes monthly income/expense display values", async () => {
-  const { api } = createHarness();
-  const month = "2026-03";
-  const account = await createAccount(api, {
-    name: "USD Wallet",
-    type: "cash",
-    currency: "USD",
-    balance: 0
+  await withMockedFxRate({ "USD->CNY": 7.2 }, async () => {
+    const { api } = createHarness();
+    const month = "2026-03";
+    const account = await createAccount(api, {
+      name: "USD Wallet",
+      type: "cash",
+      currency: "USD",
+      balance: 0
+    });
+
+    const txRes = await api.post("/api/v1/transactions").send({
+      date: "2026-03-18",
+      type: "income",
+      amount_original: 100,
+      currency_original: "USD",
+      account_to_id: account.id
+    });
+    assert.equal(txRes.status, 201);
+    const expenseRes = await api.post("/api/v1/transactions").send({
+      date: "2026-03-18",
+      type: "expense",
+      amount_original: 10,
+      currency_original: "USD",
+      category_l1: "Lifestyle",
+      category_l2: "Dining",
+      account_from_id: account.id
+    });
+    assert.equal(expenseRes.status, 201);
+
+    const before = await api.get(`/api/v1/dashboard?month=${month}`).send();
+    assert.equal(before.status, 200);
+    assert.ok(before.body.monthly_income > 99 && before.body.monthly_income < 101);
+    assert.ok(before.body.monthly_expense > 9 && before.body.monthly_expense < 11);
+
+    const settingRes = await api.put("/api/v1/settings").send({ base_currency: "CNY" });
+    assert.equal(settingRes.status, 200);
+    assert.equal(settingRes.body.base_currency, "CNY");
+
+    const after = await api.get(`/api/v1/dashboard?month=${month}`).send();
+    assert.equal(after.status, 200);
+    assert.ok(after.body.monthly_income > 719 && after.body.monthly_income < 721);
+    assert.ok(after.body.monthly_expense > 71 && after.body.monthly_expense < 73);
   });
-
-  const txRes = await api.post("/api/v1/transactions").send({
-    date: "2026-03-18",
-    type: "income",
-    amount_original: 100,
-    currency_original: "USD",
-    account_to_id: account.id
-  });
-  assert.equal(txRes.status, 201);
-  const expenseRes = await api.post("/api/v1/transactions").send({
-    date: "2026-03-18",
-    type: "expense",
-    amount_original: 10,
-    currency_original: "USD",
-    category_l1: "Lifestyle",
-    category_l2: "Dining",
-    account_from_id: account.id
-  });
-  assert.equal(expenseRes.status, 201);
-
-  const before = await api.get(`/api/v1/dashboard?month=${month}`).send();
-  assert.equal(before.status, 200);
-  assert.ok(before.body.monthly_income > 99 && before.body.monthly_income < 101);
-  assert.ok(before.body.monthly_expense > 9 && before.body.monthly_expense < 11);
-
-  const settingRes = await api.put("/api/v1/settings").send({ base_currency: "CNY" });
-  assert.equal(settingRes.status, 200);
-  assert.equal(settingRes.body.base_currency, "CNY");
-
-  const after = await api.get(`/api/v1/dashboard?month=${month}`).send();
-  assert.equal(after.status, 200);
-  assert.ok(after.body.monthly_income > 719 && after.body.monthly_income < 721);
-  assert.ok(after.body.monthly_expense > 71 && after.body.monthly_expense < 73);
 });
 
 test("changing base currency also converts monthly/yearly budget totals", async () => {
-  const { api } = createHarness();
-  const month = "2026-03";
-  const year = 2026;
+  await withMockedFxRate({ "USD->CNY": 7.2 }, async () => {
+    const { api } = createHarness();
+    const month = "2026-03";
+    const year = 2026;
 
-  const monthlyUpsert = await api.post("/api/v1/budgets").send({
-    month,
-    category_l1: "Lifestyle",
-    total_amount: 100
+    const monthlyUpsert = await api.post("/api/v1/budgets").send({
+      month,
+      category_l1: "Lifestyle",
+      total_amount: 100
+    });
+    assert.equal(monthlyUpsert.status, 201);
+
+    const yearlyUpsert = await api.post("/api/v1/budgets/yearly").send({
+      year,
+      category_l1: "Travel",
+      total_amount: 1200
+    });
+    assert.equal(yearlyUpsert.status, 201);
+
+    const beforeMonthly = await api.get(`/api/v1/budgets?month=${month}`).send();
+    assert.equal(beforeMonthly.status, 200);
+    assert.equal(beforeMonthly.body.length, 1);
+    assert.ok(beforeMonthly.body[0].total_amount > 99 && beforeMonthly.body[0].total_amount < 101);
+
+    const beforeYearly = await api.get(`/api/v1/budgets/yearly?year=${year}`).send();
+    assert.equal(beforeYearly.status, 200);
+    assert.equal(beforeYearly.body.length, 1);
+    assert.ok(beforeYearly.body[0].total_amount > 1199 && beforeYearly.body[0].total_amount < 1201);
+
+    const settingRes = await api.put("/api/v1/settings").send({ base_currency: "CNY" });
+    assert.equal(settingRes.status, 200);
+    assert.equal(settingRes.body.base_currency, "CNY");
+
+    const afterMonthly = await api.get(`/api/v1/budgets?month=${month}`).send();
+    assert.equal(afterMonthly.status, 200);
+    assert.ok(afterMonthly.body[0].total_amount > 719 && afterMonthly.body[0].total_amount < 721);
+
+    const afterYearly = await api.get(`/api/v1/budgets/yearly?year=${year}`).send();
+    assert.equal(afterYearly.status, 200);
+    assert.ok(afterYearly.body[0].total_amount > 8639 && afterYearly.body[0].total_amount < 8641);
+
+    const dashboard = await api.get(`/api/v1/dashboard?month=${month}`).send();
+    assert.equal(dashboard.status, 200);
+    const lifestyleBudget = (dashboard.body.budget_status || []).find((row) => row.category_l1 === "Lifestyle");
+    assert.ok(lifestyleBudget);
+    assert.ok(lifestyleBudget.total_amount > 719 && lifestyleBudget.total_amount < 721);
   });
-  assert.equal(monthlyUpsert.status, 201);
-
-  const yearlyUpsert = await api.post("/api/v1/budgets/yearly").send({
-    year,
-    category_l1: "Travel",
-    total_amount: 1200
-  });
-  assert.equal(yearlyUpsert.status, 201);
-
-  const beforeMonthly = await api.get(`/api/v1/budgets?month=${month}`).send();
-  assert.equal(beforeMonthly.status, 200);
-  assert.equal(beforeMonthly.body.length, 1);
-  assert.ok(beforeMonthly.body[0].total_amount > 99 && beforeMonthly.body[0].total_amount < 101);
-
-  const beforeYearly = await api.get(`/api/v1/budgets/yearly?year=${year}`).send();
-  assert.equal(beforeYearly.status, 200);
-  assert.equal(beforeYearly.body.length, 1);
-  assert.ok(beforeYearly.body[0].total_amount > 1199 && beforeYearly.body[0].total_amount < 1201);
-
-  const settingRes = await api.put("/api/v1/settings").send({ base_currency: "CNY" });
-  assert.equal(settingRes.status, 200);
-  assert.equal(settingRes.body.base_currency, "CNY");
-
-  const afterMonthly = await api.get(`/api/v1/budgets?month=${month}`).send();
-  assert.equal(afterMonthly.status, 200);
-  assert.ok(afterMonthly.body[0].total_amount > 719 && afterMonthly.body[0].total_amount < 721);
-
-  const afterYearly = await api.get(`/api/v1/budgets/yearly?year=${year}`).send();
-  assert.equal(afterYearly.status, 200);
-  assert.ok(afterYearly.body[0].total_amount > 8639 && afterYearly.body[0].total_amount < 8641);
-
-  const dashboard = await api.get(`/api/v1/dashboard?month=${month}`).send();
-  assert.equal(dashboard.status, 200);
-  const lifestyleBudget = (dashboard.body.budget_status || []).find((row) => row.category_l1 === "Lifestyle");
-  assert.ok(lifestyleBudget);
-  assert.ok(lifestyleBudget.total_amount > 719 && lifestyleBudget.total_amount < 721);
 });
 
 test("crypto exposure never negative even when net worth is negative", async () => {

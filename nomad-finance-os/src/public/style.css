@@ -1243,6 +1243,7 @@ body.utility-mode .sheet {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
+  user-select: none;
 }
 
 .quick-keypad-btn {
@@ -1253,6 +1254,8 @@ body.utility-mode .sheet {
   min-height: 46px;
   cursor: pointer;
   font-size: 1.2rem;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .quick-keypad-save {
@@ -1260,6 +1263,14 @@ body.utility-mode .sheet {
   color: #fff7ef;
   font-weight: 700;
   font-size: 1.1rem;
+}
+
+#quickAmountInput[readonly] {
+  caret-color: transparent;
+}
+
+body.sheet-open .topbar {
+  backdrop-filter: none;
 }
 
 #settingsSheet .sheet-backdrop {

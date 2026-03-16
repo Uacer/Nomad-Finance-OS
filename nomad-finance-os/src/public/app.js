@@ -102,7 +102,7 @@ const I18N = {
     budgetStatus: "Budget Status (L1 only)",
     netWorthComposition: "🧩 Net Worth Composition",
     plannedBudget: "📋 Planned Budget",
-    recentExpenses: "🧾 Recent Expenses",
+    recentExpenses: "🧾 Recent Transactions",
     viewAllExpenses: "View All",
     budgetPlanSummary: "Planned {planned} · Spent {spent} · Remaining {remaining}",
     budgetViewToggleToPie: "Show pie view",
@@ -152,7 +152,7 @@ const I18N = {
     showCashFlow: "Cash Flow Pulse",
     showTrend: "Spending Curve",
     showRisk: "Risk Metrics",
-    showRecentExpenses: "Recent Expenses Card",
+    showRecentExpenses: "Recent Transactions Card",
     showDebug: "Debug Panel",
     debugPanel: "Debug Panel",
     debugOnlyFailed: "Only Failed",
@@ -219,7 +219,7 @@ const I18N = {
     emptyNoBudgetMonth: "No budget configured for this month.",
     emptyNoTxMonth: "No transactions for this month.",
     emptyNoExpenseMonth: "No expense records for this month.",
-    emptyNoRecentExpense: "No expense records yet.",
+    emptyNoRecentExpense: "No transactions yet.",
     emptyNoMonthlyBudget: "No monthly budgets.",
     emptyNoYearlyBudget: "No yearly budgets.",
     emptyNoQuickBudget: "No budgets yet.",
@@ -253,7 +253,7 @@ const I18N = {
     budgetStatus: "预算进度（仅一级分类）",
     netWorthComposition: "🧩 净资产结构",
     plannedBudget: "📋 预算计划",
-    recentExpenses: "🧾 最近消费",
+    recentExpenses: "🧾 最近交易",
     viewAllExpenses: "查看全部",
     budgetPlanSummary: "计划 {planned} · 已花 {spent} · 剩余 {remaining}",
     budgetViewToggleToPie: "切换为饼图",
@@ -303,7 +303,7 @@ const I18N = {
     showCashFlow: "现金流脉冲",
     showTrend: "支出曲线",
     showRisk: "风险指标",
-    showRecentExpenses: "最近消费卡片",
+    showRecentExpenses: "最近交易卡片",
     showDebug: "调试面板",
     debugPanel: "调试面板",
     debugOnlyFailed: "仅失败",
@@ -369,7 +369,7 @@ const I18N = {
     emptyNoBudgetMonth: "本月还没有预算。",
     emptyNoTxMonth: "本月暂无交易记录。",
     emptyNoExpenseMonth: "本月暂无消费记录。",
-    emptyNoRecentExpense: "暂无消费记录。",
+    emptyNoRecentExpense: "暂无交易记录。",
     emptyNoMonthlyBudget: "暂无月度预算。",
     emptyNoYearlyBudget: "暂无年度预算。",
     emptyNoQuickBudget: "还没有预算数据。",
@@ -395,6 +395,10 @@ const I18N = {
 };
 
 const FX_QUOTE_CACHE = new Map();
+const MONEY_FORMATTER = new Intl.NumberFormat(undefined, {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+});
 let quickEntryLimitReqSeq = 0;
 
 const $ = (selector) => document.querySelector(selector);
@@ -610,13 +614,13 @@ function bindUI() {
   const recentExpensesCard = $("#recentExpensesCard");
   if (recentExpensesCard) {
     recentExpensesCard.addEventListener("click", () => {
-      void openExpenseRecordsPanel();
+      void openTransactionRecordsPanel();
     });
     recentExpensesCard.addEventListener("keydown", (event) => {
       if (!(event instanceof KeyboardEvent)) return;
       if (event.key !== "Enter" && event.key !== " ") return;
       event.preventDefault();
-      void openExpenseRecordsPanel();
+      void openTransactionRecordsPanel();
     });
   }
   $("#accountList").addEventListener("click", (event) => {
@@ -780,14 +784,14 @@ function closeTransactionRecordsOnlyMode() {
   setTransactionRecordsOnlyMode(false);
 }
 
-async function openExpenseRecordsPanel() {
+async function openTransactionRecordsPanel() {
   state.txTagFilter = "";
   const tagInput = $("#transactionTagFilter");
   if (tagInput) tagInput.value = "";
   setTransactionRecordsOnlyMode(true);
   openUtilityPanel("transactionsPanel");
   try {
-    await loadTransactions({ expenseOnly: true });
+    await loadTransactions({ expenseOnly: false });
   } catch (error) {
     showErrorToast(error);
   }
@@ -973,10 +977,7 @@ async function safeJson(res) {
 }
 
 function formatMoney(value) {
-  return Number(value || 0).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
+  return MONEY_FORMATTER.format(Number(value || 0));
 }
 
 function showToast(message, isError = false) {
@@ -1425,41 +1426,92 @@ function setupQuickAmountWheel() {
   const keypad = $("#quickKeypad");
   const amountInput = $("#quickEntryForm [name=amount_original]");
   if (!amountInput) return;
-  amountInput.addEventListener("input", () => {
-    amountInput.value = sanitizeQuickAmountText(amountInput.value);
-    const numeric = clampQuickAmount(amountInput.value);
-    syncQuickAmountDisplay(Number.isFinite(numeric) ? numeric : 0);
-    validateQuickEntryAmount();
-  });
-  if (keypad) {
-    keypad.addEventListener("click", (event) => {
-      if (!(event.target instanceof Element)) return;
-      const keyBtn = event.target.closest("button[data-keypad]");
-      if (!keyBtn) return;
-      const key = String(keyBtn.getAttribute("data-keypad") || "");
-      const currentText = sanitizeQuickAmountText(amountInput.value);
-      let nextText = currentText;
-      if (key === "back") {
-        nextText = currentText.slice(0, -1);
-      } else if (key === "clear") {
-        nextText = "";
-      } else if (key === ".") {
-        if (!currentText.includes(".")) nextText = currentText ? `${currentText}.` : "0.";
-      } else if (/^\d+$/.test(key)) {
-        nextText = `${currentText}${key}`;
-      }
-      nextText = sanitizeQuickAmountText(nextText);
-      const numeric = clampQuickAmount(nextText);
-      amountInput.value = nextText || "";
-      if (numeric > Number(state.quickEntryMax || 0) && Number(state.quickEntryMax || 0) > 0) {
-        amountInput.value = String(state.quickEntryMax);
-      }
-      syncQuickAmountDisplay(amountInput.value || 0);
+  const isCoarsePointer =
+    typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
+  if (isCoarsePointer) {
+    amountInput.readOnly = true;
+    amountInput.setAttribute("inputmode", "none");
+  }
+  let lastHapticAt = 0;
+  let lastPointerHandledAt = 0;
+  let scheduledSyncRaf = 0;
+  let pendingSyncValue = amountInput.value || 0;
+
+  const scheduleAmountUiSync = (value) => {
+    pendingSyncValue = value;
+    if (scheduledSyncRaf) return;
+    scheduledSyncRaf = window.requestAnimationFrame(() => {
+      syncQuickAmountDisplay(pendingSyncValue);
       validateQuickEntryAmount();
-      if (navigator.vibrate) navigator.vibrate(8);
+      scheduledSyncRaf = 0;
+    });
+  };
+
+  const setQuickAmountValue = (rawText) => {
+    let nextText = sanitizeQuickAmountText(rawText);
+    let numeric = clampQuickAmount(nextText);
+    const max = Number(state.quickEntryMax || 0);
+    if (numeric > max && max > 0) {
+      numeric = max;
+      nextText = sanitizeQuickAmountText(String(max));
+    }
+    amountInput.value = nextText || "";
+    scheduleAmountUiSync(nextText || numeric || 0);
+  };
+
+  const applyKeypadInput = (key) => {
+    const currentText = sanitizeQuickAmountText(amountInput.value);
+    let nextText = currentText;
+    if (key === "back") {
+      nextText = currentText.slice(0, -1);
+    } else if (key === "clear") {
+      nextText = "";
+    } else if (key === ".") {
+      if (!currentText.includes(".")) nextText = currentText ? `${currentText}.` : "0.";
+    } else if (/^\d+$/.test(key)) {
+      nextText = `${currentText}${key}`;
+    }
+    setQuickAmountValue(nextText);
+    if (navigator.vibrate && key !== "back" && key !== "clear") {
+      const now = Date.now();
+      if (now - lastHapticAt > 120) {
+        navigator.vibrate(4);
+        lastHapticAt = now;
+      }
+    }
+  };
+
+  const getKeyFromEvent = (event) => {
+    if (!(event.target instanceof Element)) return "";
+    const keyBtn = event.target.closest("button[data-keypad]");
+    if (!keyBtn) return "";
+    return String(keyBtn.getAttribute("data-keypad") || "");
+  };
+
+  amountInput.addEventListener("focus", () => {
+    if (isCoarsePointer) amountInput.blur();
+  });
+
+  amountInput.addEventListener("input", () => {
+    setQuickAmountValue(amountInput.value);
+  });
+
+  if (keypad) {
+    keypad.addEventListener("pointerdown", (event) => {
+      const key = getKeyFromEvent(event);
+      if (!key) return;
+      event.preventDefault();
+      lastPointerHandledAt = Date.now();
+      applyKeypadInput(key);
+    });
+    keypad.addEventListener("click", (event) => {
+      if (Date.now() - lastPointerHandledAt < 320) return;
+      const key = getKeyFromEvent(event);
+      if (!key) return;
+      applyKeypadInput(key);
     });
   }
-  syncQuickAmountDisplay(amountInput.value || 0);
+  scheduleAmountUiSync(amountInput.value || 0);
 }
 
 async function updateQuickEntryFlow() {
@@ -2807,6 +2859,7 @@ function renderTransactionList(rows, options = {}) {
   const expenseOnly = Boolean(options.expenseOnly);
   const visibleRows = expenseOnly ? rows.filter((row) => row.type === "expense") : rows;
   const target = $("#transactionList");
+  const baseCurrency = state.settings?.base_currency || "USD";
   if (!visibleRows.length) {
     target.innerHTML = `<div class="list-row muted">${escapeHtml(
       t(expenseOnly ? "emptyNoExpenseMonth" : "emptyNoTxMonth")
@@ -2815,6 +2868,17 @@ function renderTransactionList(rows, options = {}) {
   }
   target.innerHTML = visibleRows
     .map((row) => {
+      const sourceCurrency = String(row.currency_original || baseCurrency).toUpperCase();
+      const effectiveRate =
+        Number(row.effective_fx_rate || row.fx_rate || 1) > 0
+          ? Number(row.effective_fx_rate || row.fx_rate || 1)
+          : 1;
+      const fxLine =
+        sourceCurrency !== baseCurrency
+          ? `<div class="muted mono">FX: ${escapeHtml(sourceCurrency)} → ${escapeHtml(
+              baseCurrency
+            )} = ${effectiveRate.toFixed(6)}</div>`
+          : "";
       const tags =
         row.tags && row.tags.length
           ? `<div class="tag-wrap">${row.tags
@@ -2825,13 +2889,14 @@ function renderTransactionList(rows, options = {}) {
         <article class="list-row clickable" data-tx-id="${row.id}">
           <div class="row-main">
             <strong>${txTypeLabel(row.type)} · ${formatMoney(row.amount_base)} ${
-        state.settings?.base_currency || "USD"
+        baseCurrency
       }</strong>
             <span class="muted">${row.tx_date}</span>
           </div>
           <div class="muted">${escapeHtml(t("original"))}: ${formatMoney(row.amount_original)} ${escapeHtml(
         row.currency_original
       )}</div>
+          ${fxLine}
           <div class="muted">${formatCategoryPair(row.category_l1, row.category_l2)} · ${escapeHtml(t("reason"))}: ${
             row.transfer_reason || "-"
           }</div>
@@ -2846,28 +2911,54 @@ function renderTransactionList(rows, options = {}) {
 function renderRecentExpensesCard(rows) {
   const target = $("#recentExpensesList");
   if (!target) return;
-  const expenseRows = (Array.isArray(rows) ? rows : []).filter((row) => row.type === "expense").slice(0, 5);
-  if (!expenseRows.length) {
+  const txRows = (Array.isArray(rows) ? rows : []).slice(0, 5);
+  if (!txRows.length) {
     target.innerHTML = `<div class="list-row muted">${escapeHtml(t("emptyNoRecentExpense"))}</div>`;
     return;
   }
   const base = state.settings?.base_currency || "USD";
-  target.innerHTML = expenseRows
-    .map(
-      (row) => `
+  target.innerHTML = txRows
+    .map((row) => {
+      const context = formatRecentTransactionContext(row);
+      return `
       <article class="list-row recent-expense-row">
         <div class="row-main">
-          <strong>${escapeHtml(formatCategoryPair(row.category_l1, row.category_l2))}</strong>
+          <strong>${escapeHtml(formatRecentTransactionTitle(row))}</strong>
           <span class="mono">${formatMoney(row.amount_base)} ${escapeHtml(base)}</span>
         </div>
         <div class="row-main">
           <span class="muted">${escapeHtml(formatRecentExpenseDate(row.tx_date))}</span>
           <span class="muted">${formatMoney(row.amount_original)} ${escapeHtml(row.currency_original || "-")}</span>
         </div>
+        ${context ? `<div class="muted mono">${escapeHtml(context)}</div>` : ""}
         <div>${escapeHtml(row.note || "")}</div>
-      </article>`
-    )
+      </article>`;
+    })
     .join("");
+}
+
+function formatRecentTransactionTitle(row) {
+  if (row?.type === "expense") {
+    return formatCategoryPair(row.category_l1, row.category_l2);
+  }
+  if (row?.type === "income") {
+    return `💰 ${txTypeLabel("income")}`;
+  }
+  if (row?.type === "transfer") {
+    const reason = row.transfer_reason && row.transfer_reason !== "normal" ? ` · ${row.transfer_reason}` : "";
+    return `🔁 ${txTypeLabel("transfer")}${reason}`;
+  }
+  return txTypeLabel(row?.type || "-");
+}
+
+function formatRecentTransactionContext(row) {
+  if (row?.type === "income") {
+    return `${t("to")}: ${row.account_to_id || "-"}`;
+  }
+  if (row?.type === "transfer") {
+    return `${t("from")}: ${row.account_from_id || "-"} · ${t("to")}: ${row.account_to_id || "-"}`;
+  }
+  return "";
 }
 
 function formatRecentExpenseDate(txDate) {
