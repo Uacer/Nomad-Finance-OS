@@ -484,6 +484,12 @@ h3 {
   font-size: 0.8rem;
 }
 
+.budget-plan-meta {
+  display: flex;
+  justify-content: flex-end;
+  font-size: 0.76rem;
+}
+
 .mini-bars {
   display: grid;
   gap: 8px;
@@ -638,6 +644,14 @@ h3 {
   background: color-mix(in oklab, var(--paper), white 10%);
   display: grid;
   gap: 4px;
+}
+
+.list-row.clickable {
+  cursor: pointer;
+}
+
+.list-row.clickable:hover {
+  border-color: color-mix(in oklab, var(--accent), white 55%);
 }
 
 .row-main {
@@ -925,6 +939,11 @@ body.sheet-open .utility-close {
 }
 
 body.utility-mode #dashboardPanel {
+  display: none !important;
+}
+
+#transactionsPanel.records-only #transactionForm,
+#transactionsPanel.records-only #transactionFilterCard {
   display: none !important;
 }
 

@@ -68,6 +68,13 @@
             <div id="cashFlowBars" class="mini-bars"></div>
           </article>
         </section>
+        <article class="card" id="recentExpensesCard">
+          <div class="section-head">
+            <h3 id="recentExpensesTitle">Recent Expenses</h3>
+            <button id="recentExpensesViewAllBtn" class="btn btn-ghost" type="button">View All</button>
+          </div>
+          <div id="recentExpensesList" class="list-block compact-list"></div>
+        </article>
         <article class="card advanced-section" id="trendCard">
           <div class="section-head">
             <h3 id="trendTitle">Spending Curve</h3>
@@ -202,7 +209,7 @@
           </div>
         </form>
 
-        <div class="card filter-row">
+        <div class="card filter-row" id="transactionFilterCard">
           <label>
             Filter Tag
             <input id="transactionTagFilter" type="text" placeholder="food" />
@@ -579,6 +586,10 @@
               <input id="toggleDebug" type="checkbox" />
               <span id="toggleDebugLabel">Debug Panel</span>
             </label>
+            <label class="toggle">
+              <input id="toggleRecentExpenses" type="checkbox" />
+              <span id="toggleRecentExpensesLabel">Recent Expenses Card</span>
+            </label>
           </div>
           <button class="btn btn-solid" id="quickSettingsSaveBtn" type="submit">Save Settings</button>
         </form>
@@ -655,6 +666,86 @@
         <div class="tag-wrap">
           <button class="btn" id="accountDeleteBtn" type="button">Delete Account</button>
           <button class="btn btn-danger" id="accountForceDeleteBtn" type="button">Force Delete (with Transactions)</button>
+        </div>
+      </article>
+    </section>
+
+    <section id="transactionEditSheet" class="sheet hidden" aria-hidden="true">
+      <div class="sheet-backdrop" data-close-sheet="transactionEditSheet"></div>
+      <article class="sheet-card">
+        <div class="sheet-head">
+          <h3 id="transactionEditTitle">Edit Transaction</h3>
+          <button class="btn btn-ghost" type="button" data-close-sheet="transactionEditSheet">Close</button>
+        </div>
+        <form id="transactionEditForm" class="sheet-form">
+          <input name="transaction_id" type="hidden" />
+          <label>
+            <span id="transactionEditTypeLabel">Type</span>
+            <select name="type" required>
+              <option value="expense">expense</option>
+              <option value="income">income</option>
+              <option value="transfer">transfer</option>
+            </select>
+          </label>
+          <label>
+            <span id="transactionEditDateLabel">Date</span>
+            <input name="date" type="date" required />
+          </label>
+          <label>
+            <span id="transactionEditAmountLabel">Amount</span>
+            <input name="amount_original" type="number" step="0.00000001" required />
+          </label>
+          <label>
+            <span id="transactionEditCurrencyLabel">Currency</span>
+            <select name="currency_original" required>
+              <option value="CNY">人民币 (CNY)</option>
+              <option value="EUR">欧元 (EUR)</option>
+              <option value="THB">泰铢 (THB)</option>
+              <option value="USD" selected>美元 (USD)</option>
+              <option value="JPY">日元 (JPY)</option>
+              <option value="KRW">韩元 (KRW)</option>
+            </select>
+          </label>
+          <label>
+            <span id="transactionEditFxLabel">FX Rate (optional)</span>
+            <input name="fx_rate" type="number" step="0.00000001" placeholder="Auto if empty" />
+          </label>
+          <label>
+            <span id="transactionEditL1Label">Category L1</span>
+            <select name="category_l1"></select>
+          </label>
+          <label>
+            <span id="transactionEditL2Label">Category L2</span>
+            <select name="category_l2"></select>
+          </label>
+          <label>
+            <span id="transactionEditFromLabel">Account From</span>
+            <select name="account_from_id"></select>
+          </label>
+          <label>
+            <span id="transactionEditToLabel">Account To</span>
+            <select name="account_to_id"></select>
+          </label>
+          <label>
+            <span id="transactionEditReasonLabel">Transfer Reason</span>
+            <select name="transfer_reason">
+              <option value="normal">normal</option>
+              <option value="deposit_lock">deposit_lock</option>
+              <option value="deposit_release">deposit_release</option>
+            </select>
+          </label>
+          <label class="grid-span">
+            <span id="transactionEditTagsLabel">Tags (comma separated)</span>
+            <input name="tags" type="text" placeholder="client-a, bangkok, reimbursable" />
+          </label>
+          <label class="grid-span">
+            <span id="transactionEditNoteLabel">Note</span>
+            <input name="note" type="text" maxlength="500" placeholder="optional" />
+          </label>
+          <button class="btn btn-solid" id="transactionEditSaveBtn" type="submit">Save Transaction</button>
+        </form>
+        <div class="tag-wrap">
+          <button class="btn btn-danger" id="transactionDeleteBtn" type="button">Delete Transaction</button>
         </div>
       </article>
     </section>

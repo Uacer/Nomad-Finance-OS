@@ -5,10 +5,12 @@ const state = {
   categories: {},
   settings: null,
   providers: [],
+  transactions: [],
   dashboard: null,
   risk: null,
   utilityReturnSheet: "",
   editingAccountId: null,
+  editingTransactionId: null,
   quickEntryMax: 0,
   quickEntryType: "expense",
   txTagFilter: "",
@@ -24,6 +26,7 @@ const state = {
     showCashFlow: false,
     showTrend: false,
     showRisk: false,
+    showRecentExpenses: true,
     showDebug: false
   },
   debug: {
@@ -83,6 +86,8 @@ const I18N = {
     budgetStatus: "Budget Status (L1 only)",
     netWorthComposition: "🧩 Net Worth Composition",
     plannedBudget: "📋 Planned Budget",
+    recentExpenses: "🧾 Recent Expenses",
+    viewAllExpenses: "View All",
     budgetPlanSummary: "Planned {planned} · Spent {spent} · Remaining {remaining}",
     periodMonthly: "month",
     periodYearly: "yearly",
@@ -121,6 +126,7 @@ const I18N = {
     showCashFlow: "Cash Flow Pulse",
     showTrend: "Spending Curve",
     showRisk: "Risk Metrics",
+    showRecentExpenses: "Recent Expenses Card",
     showDebug: "Debug Panel",
     debugPanel: "Debug Panel",
     debugOnlyFailed: "Only Failed",
@@ -149,6 +155,12 @@ const I18N = {
     backToDashboard: "Back to Dashboard",
     back: "Back",
     edit: "Edit",
+    editTransaction: "Edit Transaction",
+    saveTransaction: "Save Transaction",
+    deleteTransaction: "Delete Transaction",
+    transactionDeleteConfirm: "Delete this transaction? This cannot be undone.",
+    transactionUpdated: "Transaction updated",
+    transactionDeleted: "Transaction deleted",
     editAccount: "Edit Account",
     saveAccount: "Save Account",
     deleteAccount: "Delete Account",
@@ -180,6 +192,8 @@ const I18N = {
     labelScale: "Scale",
     emptyNoBudgetMonth: "No budget configured for this month.",
     emptyNoTxMonth: "No transactions for this month.",
+    emptyNoExpenseMonth: "No expense records for this month.",
+    emptyNoRecentExpense: "No expense records yet.",
     emptyNoMonthlyBudget: "No monthly budgets.",
     emptyNoYearlyBudget: "No yearly budgets.",
     emptyNoQuickBudget: "No budgets yet.",
@@ -210,6 +224,8 @@ const I18N = {
     budgetStatus: "预算进度（仅一级分类）",
     netWorthComposition: "🧩 净资产结构",
     plannedBudget: "📋 预算计划",
+    recentExpenses: "🧾 最近消费",
+    viewAllExpenses: "查看全部",
     budgetPlanSummary: "计划 {planned} · 已花 {spent} · 剩余 {remaining}",
     periodMonthly: "月",
     periodYearly: "每年",
@@ -248,6 +264,7 @@ const I18N = {
     showCashFlow: "现金流脉冲",
     showTrend: "支出曲线",
     showRisk: "风险指标",
+    showRecentExpenses: "最近消费卡片",
     showDebug: "调试面板",
     debugPanel: "调试面板",
     debugOnlyFailed: "仅失败",
@@ -276,6 +293,12 @@ const I18N = {
     backToDashboard: "返回总览",
     back: "返回",
     edit: "编辑",
+    editTransaction: "编辑交易",
+    saveTransaction: "保存交易",
+    deleteTransaction: "删除交易",
+    transactionDeleteConfirm: "确认删除该交易？删除后不可恢复。",
+    transactionUpdated: "交易已更新",
+    transactionDeleted: "交易已删除",
     editAccount: "编辑账户",
     saveAccount: "保存账户",
     deleteAccount: "删除账户",
@@ -306,6 +329,8 @@ const I18N = {
     labelScale: "刻度",
     emptyNoBudgetMonth: "本月还没有预算。",
     emptyNoTxMonth: "本月暂无交易记录。",
+    emptyNoExpenseMonth: "本月暂无消费记录。",
+    emptyNoRecentExpense: "暂无消费记录。",
     emptyNoMonthlyBudget: "暂无月度预算。",
     emptyNoYearlyBudget: "暂无年度预算。",
     emptyNoQuickBudget: "还没有预算数据。",
@@ -461,6 +486,12 @@ function bindUI() {
   $("#accountEditForm").addEventListener("submit", submitAccountEditForm);
   $("#accountDeleteBtn").addEventListener("click", deleteCurrentAccount);
   $("#accountForceDeleteBtn").addEventListener("click", forceDeleteCurrentAccount);
+  const recentExpensesBtn = $("#recentExpensesViewAllBtn");
+  if (recentExpensesBtn) {
+    recentExpensesBtn.addEventListener("click", () => {
+      void openExpenseRecordsPanel();
+    });
+  }
   $("#accountList").addEventListener("click", (event) => {
     if (!(event.target instanceof Element)) return;
     const editBtn = event.target.closest("button[data-action='edit-account']");
@@ -591,6 +622,18 @@ function switchPanel(id) {
   }
   for (const panel of document.querySelectorAll(".panel")) {
     panel.classList.toggle("active", panel.id === id);
+  }
+}
+
+async function openExpenseRecordsPanel() {
+  state.txTagFilter = "";
+  const tagInput = $("#transactionTagFilter");
+  if (tagInput) tagInput.value = "";
+  openUtilityPanel("transactionsPanel");
+  try {
+    await loadTransactions({ expenseOnly: true });
+  } catch (error) {
+    showErrorToast(error);
   }
 }
 
@@ -1957,9 +2000,14 @@ function renderPlannedBudgetCard(dashboard) {
       .map((row) => {
         const total = Number(row.total_amount || 0);
         const used = Number(row.spent_amount || 0);
+        const remaining = Number(
+          row.remaining_amount !== undefined && row.remaining_amount !== null ? row.remaining_amount : total - used
+        );
         const pct = total > 0 ? Math.min(100, (used / total) * 100) : 0;
         const ratio = total > 0 ? used / total : 0;
         const tone = ratio >= 1 ? "overspend" : ratio >= 0.8 ? "warn" : "normal";
+        const remainClass = remaining < 0 || row.overspend ? "overspend" : "muted";
+        const remainText = remaining < 0 ? `-${formatMoney(Math.abs(remaining))}` : formatMoney(remaining);
         return `
           <article class="budget-plan-row">
             <div class="top">
@@ -1970,6 +2018,9 @@ function renderPlannedBudgetCard(dashboard) {
               <span class="${row.overspend ? "overspend" : ratio >= 0.8 ? "warn" : "muted"}">${formatMoney(
           used
         )} / ${formatMoney(total)}</span>
+            </div>
+            <div class="budget-plan-meta">
+              <span class="${remainClass}">${escapeHtml(t("remaining"))}: ${remainText}</span>
             </div>
             <div class="progress-wrap"><div class="progress-fill ${tone}" style="width:${pct}%"></div></div>
           </article>
@@ -2144,18 +2195,36 @@ function renderProviders() {
     .join("");
 }
 
-async function loadTransactions() {
+async function loadTransactions(options = {}) {
+  return loadTransactionsWithOptions(options);
+}
+
+async function loadTransactionsWithOptions(options = {}) {
+  const expenseOnly = Boolean(options.expenseOnly);
   let path = `/api/v1/transactions?month=${state.month}`;
   if (state.txTagFilter) {
     path += `&tag=${encodeURIComponent(state.txTagFilter)}`;
   }
   const rows = await api(path);
+  state.transactions = Array.isArray(rows) ? rows : [];
+  if (!expenseOnly) {
+    renderRecentExpensesCard(state.transactions);
+  }
+  renderTransactionList(state.transactions, { expenseOnly });
+  return state.transactions;
+}
+
+function renderTransactionList(rows, options = {}) {
+  const expenseOnly = Boolean(options.expenseOnly);
+  const visibleRows = expenseOnly ? rows.filter((row) => row.type === "expense") : rows;
   const target = $("#transactionList");
-  if (!rows.length) {
-    target.innerHTML = `<div class="list-row muted">${escapeHtml(t("emptyNoTxMonth"))}</div>`;
+  if (!visibleRows.length) {
+    target.innerHTML = `<div class="list-row muted">${escapeHtml(
+      t(expenseOnly ? "emptyNoExpenseMonth" : "emptyNoTxMonth")
+    )}</div>`;
     return;
   }
-  target.innerHTML = rows
+  target.innerHTML = visibleRows
     .map((row) => {
       const tags =
         row.tags && row.tags.length
@@ -2182,6 +2251,33 @@ async function loadTransactions() {
           ${tags}
         </article>`;
     })
+    .join("");
+}
+
+function renderRecentExpensesCard(rows) {
+  const target = $("#recentExpensesList");
+  if (!target) return;
+  const expenseRows = (Array.isArray(rows) ? rows : []).filter((row) => row.type === "expense").slice(0, 5);
+  if (!expenseRows.length) {
+    target.innerHTML = `<div class="list-row muted">${escapeHtml(t("emptyNoRecentExpense"))}</div>`;
+    return;
+  }
+  const base = state.settings?.base_currency || "USD";
+  target.innerHTML = expenseRows
+    .map(
+      (row) => `
+      <article class="list-row">
+        <div class="row-main">
+          <strong>${escapeHtml(formatCategoryPair(row.category_l1, row.category_l2))}</strong>
+          <span class="mono">${formatMoney(row.amount_base)} ${escapeHtml(base)}</span>
+        </div>
+        <div class="row-main">
+          <span class="muted">${escapeHtml(row.tx_date)}</span>
+          <span class="muted">${formatMoney(row.amount_original)} ${escapeHtml(row.currency_original || "-")}</span>
+        </div>
+        <div>${escapeHtml(row.note || "")}</div>
+      </article>`
+    )
     .join("");
 }
 
@@ -2363,6 +2459,8 @@ function applyI18n() {
   setText("heroLiquidLegend", t("labelLiquid"));
   setText("heroRestrictedLegend", t("labelRestricted"));
   setText("budgetPlanTitle", t("plannedBudget"));
+  setText("recentExpensesTitle", t("recentExpenses"));
+  setText("recentExpensesViewAllBtn", t("viewAllExpenses"));
   setText("trendTitle", t("trendTitle"));
   setText("trendFromLabel", t("trendFrom"));
   setText("trendToLabel", t("trendTo"));
@@ -2463,6 +2561,7 @@ function applyI18n() {
   if (debugFilterInput) {
     debugFilterInput.placeholder = t("debugFilterPlaceholder");
   }
+  renderRecentExpensesCard(state.transactions || []);
   renderDebugPanel();
 }
 
