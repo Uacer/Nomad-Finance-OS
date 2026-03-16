@@ -92,7 +92,7 @@ function createApp(db) {
     res.json(getUserSettings(db, req.userId));
   });
 
-  app.put("/api/v1/settings", (req, res) => {
+  app.put("/api/v1/settings", async (req, res) => {
     const schema = z.object({
       base_currency: z.string().min(3).max(8).optional(),
       timezone: z.string().min(2).max(100).optional(),
@@ -110,6 +110,13 @@ function createApp(db) {
         baseCurrency = normalizeSupportedCurrency(payload.base_currency, "base_currency");
       } catch (error) {
         return res.status(400).json({ error: String(error.message || "Invalid base_currency.") });
+      }
+    }
+    if (baseCurrency !== current.base_currency) {
+      try {
+        await revalueTransactionsToBaseCurrency(db, req.userId, baseCurrency);
+      } catch (error) {
+        return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
       }
     }
     const timezone = payload.timezone || current.timezone;
@@ -868,47 +875,14 @@ function createApp(db) {
       ORDER BY t.tx_date DESC, t.id DESC
     `;
     const rawRows = db.prepare(sql).all(...params);
-    const ratesByPair = new Map();
-    const uniquePairs = new Set();
-    for (const row of rawRows) {
-      const from = normalizeCurrency(row.currency_original || baseCurrency);
-      if (from !== baseCurrency) uniquePairs.add(`${from}->${baseCurrency}`);
-    }
-    try {
-      await Promise.all(
-        Array.from(uniquePairs).map(async (pair) => {
-          const [from, to] = pair.split("->");
-          const rate = await getCachedFxRate(from, to);
-          ratesByPair.set(pair, rate);
-        })
-      );
-    } catch (error) {
-      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
-    }
-    let rows;
-    try {
-      rows = rawRows.map((row) => {
-        const from = normalizeCurrency(row.currency_original || baseCurrency);
-        const amountOriginal = Number(row.amount_original || 0);
-        const pairKey = `${from}->${baseCurrency}`;
-        const effectiveRate = from === baseCurrency ? 1 : Number(ratesByPair.get(pairKey));
-        if (!Number.isFinite(effectiveRate) || effectiveRate <= 0) {
-          const fxError = new Error(`FX quote unavailable for ${pairKey}.`);
-          fxError.code = "FX_QUOTE_UNAVAILABLE";
-          throw fxError;
-        }
-        return {
-          ...row,
-          amount_base_snapshot: Number(row.amount_base),
-          amount_base: Number((amountOriginal * effectiveRate).toFixed(8)),
-          base_currency: baseCurrency,
-          effective_fx_rate: effectiveRate,
-          tags: row.tag_names ? row.tag_names.split("|") : []
-        };
-      });
-    } catch (error) {
-      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
-    }
+    const rows = rawRows.map((row) => ({
+      ...row,
+      amount_base_snapshot: Number(row.amount_base || 0),
+      amount_base: Number(row.amount_base || 0),
+      base_currency: baseCurrency,
+      effective_fx_rate: Number(row.fx_rate || 1),
+      tags: row.tag_names ? row.tag_names.split("|") : []
+    }));
     try {
       res.json(rows);
     } catch (error) {
@@ -1045,7 +1019,7 @@ function createApp(db) {
     const expenses = db
       .prepare(
         `
-          SELECT category_l1, amount_original, currency_original
+          SELECT category_l1, amount_base
           FROM transactions
           WHERE user_id = ? AND type = 'expense' AND substr(tx_date, 1, 7) = ?
         `
@@ -1053,11 +1027,7 @@ function createApp(db) {
       .all(req.userId, month);
     const spentByCategory = new Map();
     for (const tx of expenses) {
-      const spent = convertCurrency(
-        Number(tx.amount_original || 0),
-        normalizeCurrency(tx.currency_original || baseCurrency),
-        baseCurrency
-      );
+      const spent = Number(tx.amount_base || 0);
       spentByCategory.set(tx.category_l1, (spentByCategory.get(tx.category_l1) || 0) + spent);
     }
     const rows = db
@@ -1133,7 +1103,7 @@ function createApp(db) {
     const expenses = db
       .prepare(
         `
-          SELECT category_l1, amount_original, currency_original
+          SELECT category_l1, amount_base
           FROM transactions
           WHERE user_id = ? AND type = 'expense' AND substr(tx_date, 1, 4) = ?
         `
@@ -1141,11 +1111,7 @@ function createApp(db) {
       .all(req.userId, String(year));
     const spentByCategory = new Map();
     for (const tx of expenses) {
-      const spent = convertCurrency(
-        Number(tx.amount_original || 0),
-        normalizeCurrency(tx.currency_original || baseCurrency),
-        baseCurrency
-      );
+      const spent = Number(tx.amount_base || 0);
       spentByCategory.set(tx.category_l1, (spentByCategory.get(tx.category_l1) || 0) + spent);
     }
     const rows = db
@@ -1252,11 +1218,6 @@ function createApp(db) {
         });
       }
     }
-    try {
-      await ensureBaseFxCoverage(db, req.userId, currentBase);
-    } catch (error) {
-      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
-    }
     let payload;
     try {
       payload = buildMonthlyReviewPayload(db, req.userId, month, currentBase);
@@ -1274,11 +1235,6 @@ function createApp(db) {
     }
     const month = normalizeMonth(parsed.data.month);
     const baseCurrency = getUserSettings(db, req.userId).base_currency;
-    try {
-      await ensureBaseFxCoverage(db, req.userId, baseCurrency);
-    } catch (error) {
-      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
-    }
     let payload;
     try {
       payload = buildMonthlyReviewPayload(db, req.userId, month, baseCurrency);
@@ -1848,7 +1804,7 @@ function buildDashboardPayload(db, userId, month, baseCurrency) {
   const monthRows = db
     .prepare(
       `
-        SELECT type, amount_original, currency_original, category_l1
+        SELECT type, amount_base, category_l1
         FROM transactions
         WHERE user_id = ? AND substr(tx_date, 1, 7) = ?
       `
@@ -1858,11 +1814,7 @@ function buildDashboardPayload(db, userId, month, baseCurrency) {
   let monthlyExpense = 0;
   const spentByCategory = new Map();
   for (const tx of monthRows) {
-    const converted = convertCurrency(
-      Number(tx.amount_original || 0),
-      normalizeCurrency(tx.currency_original || baseCurrency),
-      baseCurrency
-    );
+    const converted = Number(tx.amount_base || 0);
     if (tx.type === "income") {
       monthlyIncome += converted;
     } else if (tx.type === "expense") {
@@ -1900,7 +1852,7 @@ function buildDashboardPayload(db, userId, month, baseCurrency) {
   const yearExpenseRows = db
     .prepare(
       `
-        SELECT category_l1, amount_original, currency_original
+        SELECT category_l1, amount_base
         FROM transactions
         WHERE user_id = ? AND type = 'expense' AND substr(tx_date, 1, 4) = ?
       `
@@ -1908,11 +1860,7 @@ function buildDashboardPayload(db, userId, month, baseCurrency) {
     .all(userId, year);
   const spentByCategoryYearly = new Map();
   for (const tx of yearExpenseRows) {
-    const converted = convertCurrency(
-      Number(tx.amount_original || 0),
-      normalizeCurrency(tx.currency_original || baseCurrency),
-      baseCurrency
-    );
+    const converted = Number(tx.amount_base || 0);
     spentByCategoryYearly.set(
       tx.category_l1,
       (spentByCategoryYearly.get(tx.category_l1) || 0) + converted
@@ -1944,7 +1892,7 @@ function buildDashboardPayload(db, userId, month, baseCurrency) {
     };
   });
 
-  const burnRate = computeBurnRate(db, userId, baseCurrency);
+  const burnRate = computeBurnRate(db, userId);
   const runway = burnRate > 0 ? Number((liquidCash / burnRate).toFixed(2)) : null;
 
   return {
@@ -1964,11 +1912,11 @@ function buildDashboardPayload(db, userId, month, baseCurrency) {
   };
 }
 
-function computeBurnRate(db, userId, baseCurrency) {
+function computeBurnRate(db, userId) {
   const rows = db
     .prepare(
       `
-        SELECT substr(tx_date, 1, 7) AS month, type, amount_original, currency_original
+        SELECT substr(tx_date, 1, 7) AS month, type, amount_base
         FROM transactions
         WHERE user_id = ? AND type IN ('income', 'expense')
         ORDER BY month DESC
@@ -1979,11 +1927,7 @@ function computeBurnRate(db, userId, baseCurrency) {
   const byMonth = new Map();
   for (const row of rows) {
     const current = byMonth.get(row.month) || { income: 0, expense: 0 };
-    const converted = convertCurrency(
-      Number(row.amount_original || 0),
-      normalizeCurrency(row.currency_original || baseCurrency),
-      baseCurrency
-    );
+    const converted = Number(row.amount_base || 0);
     if (row.type === "income") {
       current.income += converted;
     } else if (row.type === "expense") {
@@ -2034,7 +1978,7 @@ function buildRiskPayload(db, userId, month) {
   const incomeTxRows = db
     .prepare(
       `
-        SELECT substr(tx_date, 1, 7) AS month, amount_original, currency_original
+        SELECT substr(tx_date, 1, 7) AS month, amount_base
         FROM transactions
         WHERE user_id = ? AND type = 'income'
       `
@@ -2042,11 +1986,7 @@ function buildRiskPayload(db, userId, month) {
     .all(userId);
   const incomeByMonth = new Map();
   for (const row of incomeTxRows) {
-    const converted = convertCurrency(
-      Number(row.amount_original || 0),
-      normalizeCurrency(row.currency_original || baseCurrency),
-      baseCurrency
-    );
+    const converted = Number(row.amount_base || 0);
     incomeByMonth.set(row.month, (incomeByMonth.get(row.month) || 0) + converted);
   }
   const incomeRows = [...incomeByMonth.entries()]
@@ -2066,7 +2006,7 @@ function buildRiskPayload(db, userId, month) {
   const expenseRows = db
     .prepare(
       `
-        SELECT category_l2, amount_original, currency_original
+        SELECT category_l2, amount_base
         FROM transactions
         WHERE user_id = ? AND type = 'expense' AND substr(tx_date, 1, 7) = ?
       `
@@ -2075,11 +2015,7 @@ function buildRiskPayload(db, userId, month) {
   let fixedCostInMonth = 0;
   let totalExpenseInMonth = 0;
   for (const row of expenseRows) {
-    const converted = convertCurrency(
-      Number(row.amount_original || 0),
-      normalizeCurrency(row.currency_original || baseCurrency),
-      baseCurrency
-    );
+    const converted = Number(row.amount_base || 0);
     totalExpenseInMonth += converted;
     if (FIXED_COST_L2.has(row.category_l2)) {
       fixedCostInMonth += converted;
@@ -2104,7 +2040,7 @@ function buildMonthlyReviewPayload(db, userId, month, baseCurrency = "USD") {
   const rows = db
     .prepare(
       `
-        SELECT id, tx_date, type, amount_original, currency_original, category_l1, category_l2, note
+        SELECT id, tx_date, type, amount_base, category_l1, category_l2, note
         FROM transactions
         WHERE user_id = ? AND substr(tx_date, 1, 7) = ?
       `
@@ -2117,11 +2053,7 @@ function buildMonthlyReviewPayload(db, userId, month, baseCurrency = "USD") {
   let expenseTotal = 0;
   let transferTotal = 0;
   for (const row of rows) {
-    const converted = convertCurrency(
-      Number(row.amount_original || 0),
-      normalizeCurrency(row.currency_original || baseCurrency),
-      baseCurrency
-    );
+    const converted = Number(row.amount_base || 0);
     if (row.type === "expense") {
       expenseTotal += converted;
       byL1.set(row.category_l1, (byL1.get(row.category_l1) || 0) + converted);
@@ -2322,9 +2254,6 @@ function collectAllUserCurrencies(db, userId) {
   for (const row of db.prepare("SELECT DISTINCT currency FROM accounts WHERE user_id = ?").all(userId)) {
     currencies.add(normalizeCurrency(row.currency || "USD"));
   }
-  for (const row of db.prepare("SELECT DISTINCT currency_original FROM transactions WHERE user_id = ?").all(userId)) {
-    currencies.add(normalizeCurrency(row.currency_original || "USD"));
-  }
   for (const row of db.prepare("SELECT DISTINCT budget_currency FROM budgets WHERE user_id = ?").all(userId)) {
     currencies.add(normalizeCurrency(row.budget_currency || "USD"));
   }
@@ -2361,6 +2290,48 @@ async function ensureRebuildFxCoverage(db, userId) {
     }
   }
   await ensureFxPairsLoaded(pairs);
+}
+
+async function revalueTransactionsToBaseCurrency(db, userId, targetBaseCurrency) {
+  const targetBase = normalizeCurrency(targetBaseCurrency || "USD");
+  const txRows = db
+    .prepare("SELECT id, amount_original, currency_original FROM transactions WHERE user_id = ? ORDER BY id")
+    .all(userId);
+  if (!txRows.length) return { updated: 0 };
+
+  const uniqueSources = new Set();
+  for (const row of txRows) {
+    const source = normalizeCurrency(row.currency_original || targetBase);
+    if (source !== targetBase) uniqueSources.add(source);
+  }
+
+  const rateBySource = new Map([[targetBase, 1]]);
+  await Promise.all(
+    Array.from(uniqueSources).map(async (source) => {
+      const rate = await getCachedFxRate(source, targetBase);
+      rateBySource.set(source, Number(rate));
+    })
+  );
+
+  const update = db.prepare(
+    "UPDATE transactions SET fx_rate = ?, amount_base = ? WHERE id = ? AND user_id = ?"
+  );
+  const save = db.transaction(() => {
+    for (const row of txRows) {
+      const source = normalizeCurrency(row.currency_original || targetBase);
+      const amountOriginal = Number(row.amount_original || 0);
+      const fxRate = Number(rateBySource.get(source) || 1);
+      if (!Number.isFinite(fxRate) || fxRate <= 0) {
+        const error = new Error(`FX quote unavailable for ${source}->${targetBase}.`);
+        error.code = "FX_QUOTE_UNAVAILABLE";
+        throw error;
+      }
+      const amountBase = Number((amountOriginal * fxRate).toFixed(8));
+      update.run(fxRate, amountBase, row.id, userId);
+    }
+  });
+  save();
+  return { updated: txRows.length };
 }
 
 async function ensurePayloadFxCoverage(db, userId, payload) {

@@ -833,6 +833,76 @@ test("changing base currency changes monthly income/expense display values", asy
   });
 });
 
+test("historical transactions stay fixed when fx providers are unavailable later", async () => {
+  const { api } = createHarness();
+  const month = "2026-03";
+  const originalFetch = global.fetch;
+  try {
+    global.fetch = async (url) => {
+      const href = String(url || "");
+      const parsed = new URL(href, "http://localhost");
+      const base = String(parsed.searchParams.get("base") || parsed.searchParams.get("source") || "USD").toUpperCase();
+      const symbol =
+        String(parsed.searchParams.get("symbols") || parsed.searchParams.get("currencies") || "")
+          .split(",")
+          .map((x) => x.trim().toUpperCase())
+          .filter(Boolean)[0] || "USD";
+      if (base === "USD" && symbol === "CNY") {
+        if (href.includes("/live?")) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ success: true, quotes: { USDCNY: 7.2 } })
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ rates: { CNY: 7.2 } })
+        };
+      }
+      return {
+        ok: false,
+        status: 503,
+        json: async () => ({})
+      };
+    };
+    const settingRes = await api.put("/api/v1/settings").send({ base_currency: "CNY" });
+    assert.equal(settingRes.status, 200);
+    const account = await createAccount(api, {
+      name: "CNY Wallet",
+      type: "cash",
+      currency: "CNY",
+      balance: 0
+    });
+
+    const createRes = await api.post("/api/v1/transactions").send({
+      date: "2026-03-19",
+      type: "income",
+      amount_original: 100,
+      currency_original: "USD",
+      account_to_id: account.id
+    });
+    assert.equal(createRes.status, 201);
+    assert.ok(Number(createRes.body.amount_base) > 719 && Number(createRes.body.amount_base) < 721);
+
+    global.fetch = async () => ({
+      ok: false,
+      status: 503,
+      json: async () => ({})
+    });
+
+    const txRes = await api.get(`/api/v1/transactions?month=${month}`).send();
+    assert.equal(txRes.status, 200);
+    assert.equal(txRes.body.length, 1);
+    assert.ok(Number(txRes.body[0].amount_base) > 719 && Number(txRes.body[0].amount_base) < 721);
+    assert.equal(Number(txRes.body[0].amount_base), Number(txRes.body[0].amount_base_snapshot));
+    assert.ok(Number(txRes.body[0].effective_fx_rate) > 7.19 && Number(txRes.body[0].effective_fx_rate) < 7.21);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("changing base currency also converts monthly/yearly budget totals", async () => {
   await withMockedFxRate({ "USD->CNY": 7.2 }, async () => {
     const { api } = createHarness();
