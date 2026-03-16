@@ -132,6 +132,56 @@ test("expense supports l1/l2/tag and budget only at l1 level", async () => {
   assert.equal(budgetListRes.body[0].overspend, true);
 });
 
+test("deleting l2 category keeps historical transactions unchanged", async () => {
+  const { api } = createHarness();
+  const month = "2026-03";
+  const cash = await createAccount(api, {
+    name: "Wallet",
+    type: "cash",
+    currency: "USD",
+    balance: 500
+  });
+
+  const expenseRes = await api.post("/api/v1/transactions").send({
+    date: "2026-03-10",
+    type: "expense",
+    amount_original: 20,
+    currency_original: "USD",
+    fx_rate: 1,
+    category_l1: "Living",
+    category_l2: "Groceries",
+    account_from_id: cash.id,
+    note: "before delete"
+  });
+  assert.equal(expenseRes.status, 201);
+
+  const deleteRes = await api.delete("/api/v1/categories/l2").send({
+    l1_name: "Living",
+    name: "Groceries"
+  });
+  assert.equal(deleteRes.status, 200);
+  assert.equal(deleteRes.body.active, false);
+
+  const txRes = await api.get(`/api/v1/transactions?month=${month}`).send();
+  assert.equal(txRes.status, 200);
+  assert.equal(txRes.body.length, 1);
+  assert.equal(txRes.body[0].category_l1, "Living");
+  assert.equal(txRes.body[0].category_l2, "Groceries");
+
+  const createAfterDeleteRes = await api.post("/api/v1/transactions").send({
+    date: "2026-03-11",
+    type: "expense",
+    amount_original: 15,
+    currency_original: "USD",
+    fx_rate: 1,
+    category_l1: "Living",
+    category_l2: "Groceries",
+    account_from_id: cash.id
+  });
+  assert.equal(createAfterDeleteRes.status, 400);
+  assert.match(String(createAfterDeleteRes.body.error || ""), /Invalid active expense category pair/i);
+});
+
 test("deposit lock/release/forfeit follows restricted cash accounting rules", async () => {
   const { api } = createHarness();
   const month = "2026-03";

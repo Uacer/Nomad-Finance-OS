@@ -229,6 +229,38 @@ function createApp(db) {
     res.status(201).json({ l1_name: l1Name, name: l2Name, active: true });
   });
 
+  app.delete("/api/v1/categories/l2", (req, res) => {
+    const schema = z.object({
+      l1_name: z.string().min(1).max(64),
+      name: z.string().min(1).max(64)
+    });
+    const parsed = schema.safeParse(req.body || {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.flatten() });
+    }
+    const l1Name = parsed.data.l1_name.trim();
+    const l2Name = parsed.data.name.trim();
+    const l1 = db
+      .prepare("SELECT id FROM expense_category_l1 WHERE user_id = ? AND name = ?")
+      .get(req.userId, l1Name);
+    if (!l1) {
+      return res.status(404).json({ error: "Category L1 not found." });
+    }
+    const result = db
+      .prepare(
+        `
+          UPDATE expense_category_l2
+          SET active = 0
+          WHERE user_id = ? AND l1_id = ? AND name = ?
+        `
+      )
+      .run(req.userId, l1.id, l2Name);
+    if (!Number(result.changes || 0)) {
+      return res.status(404).json({ error: "Category L2 not found." });
+    }
+    res.json({ ok: true, l1_name: l1Name, name: l2Name, active: false });
+  });
+
   app.post("/api/v1/accounts", (req, res) => {
     const schema = z.object({
       name: z.string().min(1).max(128),

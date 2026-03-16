@@ -177,6 +177,16 @@ const I18N = {
     accounts: "🏦 Accounts",
     monthlyReview: "🗓️ Monthly Review",
     categories: "🧩 Categories",
+    addL1Bottom: "✏️ Add L1",
+    addL2Inline: "＋",
+    emptyNoL2Categories: "No L2 categories",
+    promptL1Name: "New L1 category name",
+    promptL2Name: "New tag (L2) for {l1}",
+    confirmDeleteL2: "Delete tag \"{l2}\" under \"{l1}\"?",
+    deleteTagAction: "Delete tag {l2}",
+    categoryL1Created: "L1 category created",
+    categoryL2Created: "Tag created",
+    categoryL2Deleted: "Tag deleted",
     aiProviders: "🤖 AI Providers",
     backToDashboard: "Back to Dashboard",
     back: "Back",
@@ -328,6 +338,16 @@ const I18N = {
     accounts: "🏦 账户管理",
     monthlyReview: "🗓️ 月度回顾",
     categories: "🧩 分类管理",
+    addL1Bottom: "✏️ 新增一级分类",
+    addL2Inline: "＋",
+    emptyNoL2Categories: "暂无二级分类",
+    promptL1Name: "输入新的一级分类名称",
+    promptL2Name: "为 {l1} 输入新的标签（L2）",
+    confirmDeleteL2: "确定要删除「{l1}」下的标签「{l2}」吗？",
+    deleteTagAction: "删除标签 {l2}",
+    categoryL1Created: "一级分类已创建",
+    categoryL2Created: "标签已创建",
+    categoryL2Deleted: "标签已删除",
     aiProviders: "🤖 AI 提供商",
     backToDashboard: "返回总览",
     back: "返回",
@@ -438,8 +458,10 @@ function bindUI() {
   $("#transactionForm").addEventListener("submit", submitTransactionForm);
   $("#budgetForm").addEventListener("submit", submitBudgetForm);
   $("#yearlyBudgetForm").addEventListener("submit", submitYearlyBudgetForm);
-  $("#l1Form").addEventListener("submit", submitL1Form);
-  $("#l2Form").addEventListener("submit", submitL2Form);
+  const l1Form = $("#l1Form");
+  if (l1Form) l1Form.addEventListener("submit", submitL1Form);
+  const l2Form = $("#l2Form");
+  if (l2Form) l2Form.addEventListener("submit", submitL2Form);
   $("#settingsForm").addEventListener("submit", submitSettingsForm);
   $("#providerForm").addEventListener("submit", submitProviderForm);
   $("#captureTextForm").addEventListener("submit", submitCaptureTextForm);
@@ -621,6 +643,33 @@ function bindUI() {
       if (event.key !== "Enter" && event.key !== " ") return;
       event.preventDefault();
       void openTransactionRecordsPanel();
+    });
+  }
+  const categoryTree = $("#categoryTree");
+  if (categoryTree) {
+    categoryTree.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const addBtn = event.target.closest("button[data-action='add-l2']");
+      if (addBtn) {
+        const l1Name = String(addBtn.getAttribute("data-l1") || "").trim();
+        if (!l1Name) return;
+        void createL2CategoryInline(l1Name);
+        return;
+      }
+      const deleteBtn = event.target.closest("button[data-action='delete-l2']");
+      if (!deleteBtn) return;
+      const encodedL1 = String(deleteBtn.getAttribute("data-l1") || "");
+      const encodedL2 = String(deleteBtn.getAttribute("data-l2") || "");
+      const l1Name = decodeURIComponent(encodedL1 || "").trim();
+      const l2Name = decodeURIComponent(encodedL2 || "").trim();
+      if (!l1Name || !l2Name) return;
+      void deleteL2CategoryInline(l1Name, l2Name);
+    });
+  }
+  const addL1BottomBtn = $("#addL1BottomBtn");
+  if (addL1BottomBtn) {
+    addL1BottomBtn.addEventListener("click", () => {
+      void createL1CategoryInline();
     });
   }
   $("#accountList").addEventListener("click", (event) => {
@@ -1240,7 +1289,7 @@ function populateL1Selects() {
     $("#budgetForm [name=category_l1]"),
     $("#yearlyBudgetForm [name=category_l1]"),
     $("#l2Form [name=l1_name]")
-  ];
+  ].filter(Boolean);
   for (const select of selects) {
     select.innerHTML = "";
     for (const name of activeL1) {
@@ -2003,15 +2052,46 @@ async function submitL1Form(event) {
   const form = event.currentTarget;
   if (!(form instanceof HTMLFormElement)) return;
   const fd = new FormData(form);
+  await createL1CategoryRecord(String(fd.get("name") || ""), form);
+}
+
+async function submitL2Form(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  if (!(form instanceof HTMLFormElement)) return;
+  const fd = new FormData(form);
+  await createL2CategoryRecord(String(fd.get("l1_name") || ""), String(fd.get("name") || ""), form);
+}
+
+async function createL1CategoryInline() {
+  const promptText = t("promptL1Name");
+  const name = window.prompt(promptText, "");
+  if (!name || !name.trim()) return;
+  await createL1CategoryRecord(name, null);
+}
+
+async function createL2CategoryInline(l1Name) {
+  const promptText = t("promptL2Name", { l1: l1Name });
+  const name = window.prompt(promptText, "");
+  if (!name || !name.trim()) return;
+  await createL2CategoryRecord(l1Name, name, null);
+}
+
+async function deleteL2CategoryInline(l1Name, l2Name) {
+  const confirmText = t("confirmDeleteL2", { l1: l1Name, l2: l2Name });
+  const ok = window.confirm(confirmText);
+  if (!ok) return;
   try {
-    await api("/api/v1/categories/l1", {
-      method: "POST",
-      body: JSON.stringify({ name: fd.get("name") })
+    await api("/api/v1/categories/l2", {
+      method: "DELETE",
+      body: JSON.stringify({
+        l1_name: l1Name,
+        name: l2Name
+      })
     });
-    showToast("L1 category created");
+    showToast(t("categoryL2Deleted"));
     try {
       await loadCategories();
-      form.reset();
     } catch (error) {
       showRefreshFailureToast(error);
     }
@@ -2020,23 +2100,42 @@ async function submitL1Form(event) {
   }
 }
 
-async function submitL2Form(event) {
-  event.preventDefault();
-  const form = event.currentTarget;
-  if (!(form instanceof HTMLFormElement)) return;
-  const fd = new FormData(form);
+async function createL1CategoryRecord(name, formToReset = null) {
+  const safeName = String(name || "").trim();
+  if (!safeName) return;
+  try {
+    await api("/api/v1/categories/l1", {
+      method: "POST",
+      body: JSON.stringify({ name: safeName })
+    });
+    showToast(t("categoryL1Created"));
+    try {
+      await loadCategories();
+      if (formToReset instanceof HTMLFormElement) formToReset.reset();
+    } catch (error) {
+      showRefreshFailureToast(error);
+    }
+  } catch (error) {
+    showErrorToast(error);
+  }
+}
+
+async function createL2CategoryRecord(l1Name, l2Name, formToReset = null) {
+  const safeL1Name = String(l1Name || "").trim();
+  const safeL2Name = String(l2Name || "").trim();
+  if (!safeL1Name || !safeL2Name) return;
   try {
     await api("/api/v1/categories/l2", {
       method: "POST",
       body: JSON.stringify({
-        l1_name: fd.get("l1_name"),
-        name: fd.get("name")
+        l1_name: safeL1Name,
+        name: safeL2Name
       })
     });
-    showToast("L2 category created");
+    showToast(t("categoryL2Created"));
     try {
       await loadCategories();
-      form.reset();
+      if (formToReset instanceof HTMLFormElement) formToReset.reset();
     } catch (error) {
       showRefreshFailureToast(error);
     }
@@ -3088,15 +3187,40 @@ function renderCategoryTree() {
   target.innerHTML = rows
     .map(([name, cfg]) => {
       const l2 = (cfg.l2 || [])
-        .map((item) => `<span class="pill">${escapeHtml(withL2Emoji(item.name))}</span>`)
+        .filter((item) => item && item.active)
+        .map((item) => {
+          const l1Encoded = encodeURIComponent(String(name || ""));
+          const l2Encoded = encodeURIComponent(String(item.name || ""));
+          const deleteLabel = t("deleteTagAction", { l2: item.name });
+          return `
+            <span class="category-tag-item">
+              <span class="pill">${escapeHtml(withL2Emoji(item.name))}</span>
+              <button
+                class="category-tag-delete-btn"
+                type="button"
+                data-action="delete-l2"
+                data-l1="${escapeHtml(l1Encoded)}"
+                data-l2="${escapeHtml(l2Encoded)}"
+                aria-label="${escapeHtml(deleteLabel)}"
+                title="${escapeHtml(deleteLabel)}"
+              >×</button>
+            </span>`;
+        })
         .join("");
       return `
         <article class="list-row">
           <div class="row-main">
             <strong>${escapeHtml(withL1Emoji(name))}</strong>
-            <span class="muted">${cfg.active ? "active" : "inactive"}</span>
+            <div class="category-row-actions">
+              <button class="btn btn-ghost category-inline-add-btn" type="button" data-action="add-l2" data-l1="${escapeHtml(
+                name
+              )}" title="${escapeHtml(t("promptL2Name", { l1: name }))}" aria-label="${escapeHtml(
+                t("promptL2Name", { l1: name })
+              )}">${escapeHtml(t("addL2Inline"))}</button>
+              <span class="muted">${cfg.active ? "active" : "inactive"}</span>
+            </div>
           </div>
-          <div class="tag-wrap">${l2 || '<span class="muted">No L2 categories</span>'}</div>
+          <div class="tag-wrap">${l2 || `<span class="muted">${escapeHtml(t("emptyNoL2Categories"))}</span>`}</div>
         </article>`;
     })
     .join("");
@@ -3244,6 +3368,7 @@ function applyI18n() {
   setText("settingsLinkAccounts", t("accounts"));
   setText("settingsLinkReview", t("monthlyReview"));
   setText("settingsLinkCategories", t("categories"));
+  setText("addL1BottomBtn", t("addL1Bottom"));
   setText("settingsLinkAi", t("aiProviders"));
   setText("accountEditTitle", t("editAccount"));
   setText("accountEditNameLabel", t("account"));

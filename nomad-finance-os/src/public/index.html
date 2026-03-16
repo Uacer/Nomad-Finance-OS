@@ -346,29 +346,10 @@
 
       <section id="categoriesPanel" class="panel">
         <h2>Categories</h2>
-        <div class="grid-two">
-          <form id="l1Form" class="card">
-            <h3>Add L1 Category</h3>
-            <label>
-              Name
-              <input name="name" type="text" required />
-            </label>
-            <button class="btn btn-solid" type="submit">Create L1</button>
-          </form>
-          <form id="l2Form" class="card">
-            <h3>Add L2 Category</h3>
-            <label>
-              L1
-              <select name="l1_name"></select>
-            </label>
-            <label>
-              L2 Name
-              <input name="name" type="text" required />
-            </label>
-            <button class="btn btn-solid" type="submit">Create L2</button>
-          </form>
-        </div>
         <div id="categoryTree" class="list-block"></div>
+        <div class="category-bottom-actions">
+          <button id="addL1BottomBtn" class="btn btn-ghost category-add-l1-btn" type="button">✏️ Add L1</button>
+        </div>
       </section>
 
       <section id="settingsPanel" class="panel">

@@ -897,6 +897,74 @@ h3 {
   gap: 6px;
 }
 
+.category-tag-item {
+  position: relative;
+  display: inline-flex;
+}
+
+.category-tag-delete-btn {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 1px solid #d3b9b4;
+  background: #fff7f6;
+  color: #8a3f3a;
+  font-size: 0.72rem;
+  line-height: 1;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.category-tag-item:hover .category-tag-delete-btn,
+.category-tag-item:focus-within .category-tag-delete-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: none) {
+  .category-tag-delete-btn {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.category-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.category-inline-add-btn {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 1.1rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.category-bottom-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.category-add-l1-btn {
+  min-width: 180px;
+}
+
 .progress-wrap {
   height: 8px;
   border-radius: 999px;
