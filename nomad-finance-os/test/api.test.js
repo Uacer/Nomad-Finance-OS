@@ -182,6 +182,131 @@ test("deleting l2 category keeps historical transactions unchanged", async () =>
   assert.match(String(createAfterDeleteRes.body.error || ""), /Invalid active expense category pair/i);
 });
 
+test("renaming l1 category updates transactions and budgets references", async () => {
+  const { api } = createHarness();
+  const month = "2026-03";
+  const year = 2026;
+  const cash = await createAccount(api, {
+    name: "Wallet",
+    type: "cash",
+    currency: "USD",
+    balance: 300
+  });
+
+  const txRes = await api.post("/api/v1/transactions").send({
+    date: "2026-03-11",
+    type: "expense",
+    amount_original: 25,
+    currency_original: "USD",
+    category_l1: "Living",
+    category_l2: "Groceries",
+    account_from_id: cash.id,
+    note: "groceries"
+  });
+  assert.equal(txRes.status, 201);
+
+  const monthBudgetRes = await api.post("/api/v1/budgets").send({
+    month,
+    category_l1: "Living",
+    total_amount: 120
+  });
+  assert.equal(monthBudgetRes.status, 201);
+
+  const yearlyBudgetRes = await api.post("/api/v1/budgets/yearly").send({
+    year,
+    category_l1: "Living",
+    total_amount: 1200
+  });
+  assert.equal(yearlyBudgetRes.status, 201);
+
+  const renameRes = await api.put("/api/v1/categories/l1/rename").send({
+    old_name: "Living",
+    new_name: "Home"
+  });
+  assert.equal(renameRes.status, 200);
+
+  const categoriesRes = await api.get("/api/v1/categories").send();
+  assert.equal(categoriesRes.status, 200);
+  assert.ok(categoriesRes.body.Home);
+  assert.equal(categoriesRes.body.Living, undefined);
+
+  const txListRes = await api.get(`/api/v1/transactions?month=${month}`).send();
+  assert.equal(txListRes.status, 200);
+  assert.equal(txListRes.body.length, 1);
+  assert.equal(txListRes.body[0].category_l1, "Home");
+  assert.equal(txListRes.body[0].category_l2, "Groceries");
+
+  const monthBudgetListRes = await api.get(`/api/v1/budgets?month=${month}`).send();
+  assert.equal(monthBudgetListRes.status, 200);
+  assert.equal(monthBudgetListRes.body.length, 1);
+  assert.equal(monthBudgetListRes.body[0].category_l1, "Home");
+
+  const yearlyBudgetListRes = await api.get(`/api/v1/budgets/yearly?year=${year}`).send();
+  assert.equal(yearlyBudgetListRes.status, 200);
+  assert.equal(yearlyBudgetListRes.body.length, 1);
+  assert.equal(yearlyBudgetListRes.body[0].category_l1, "Home");
+});
+
+test("transfer supports one-sided loan and borrow reasons", async () => {
+  const { api } = createHarness();
+  const month = "2026-03";
+  const lender = await createAccount(api, {
+    name: "Lender Wallet",
+    type: "cash",
+    currency: "USD",
+    balance: 500
+  });
+  const borrower = await createAccount(api, {
+    name: "Borrow Wallet",
+    type: "cash",
+    currency: "USD",
+    balance: 100
+  });
+
+  const loanRes = await api.post("/api/v1/transactions").send({
+    date: "2026-03-12",
+    type: "transfer",
+    amount_original: 50,
+    currency_original: "USD",
+    account_from_id: lender.id,
+    transfer_reason: "loan",
+    note: "lend to friend"
+  });
+  assert.equal(loanRes.status, 201);
+  assert.equal(loanRes.body.transfer_reason, "loan");
+  assert.equal(loanRes.body.account_from_id, lender.id);
+  assert.equal(loanRes.body.account_to_id, null);
+
+  const borrowRes = await api.post("/api/v1/transactions").send({
+    date: "2026-03-13",
+    type: "transfer",
+    amount_original: 80,
+    currency_original: "USD",
+    account_to_id: borrower.id,
+    transfer_reason: "borrow",
+    note: "borrow from friend"
+  });
+  assert.equal(borrowRes.status, 201);
+  assert.equal(borrowRes.body.transfer_reason, "borrow");
+  assert.equal(borrowRes.body.account_from_id, null);
+  assert.equal(borrowRes.body.account_to_id, borrower.id);
+
+  const accountsRes = await api.get("/api/v1/accounts").send();
+  assert.equal(accountsRes.status, 200);
+  const lenderAfter = accountsRes.body.find((row) => row.id === lender.id);
+  const borrowerAfter = accountsRes.body.find((row) => row.id === borrower.id);
+  assert.equal(Number(lenderAfter.balance), 450);
+  assert.equal(Number(borrowerAfter.balance), 180);
+
+  const txRes = await api.get(`/api/v1/transactions?month=${month}`).send();
+  assert.equal(txRes.status, 200);
+  assert.equal(txRes.body.length, 2);
+  assert.deepEqual(
+    txRes.body.map((row) => row.transfer_reason).sort(),
+    ["borrow", "loan"]
+  );
+});
+
 test("deposit lock/release/forfeit follows restricted cash accounting rules", async () => {
   const { api } = createHarness();
   const month = "2026-03";

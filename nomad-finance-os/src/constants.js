@@ -1,5 +1,5 @@
 const TRANSACTION_TYPES = ["income", "expense", "transfer"];
-const TRANSFER_REASONS = ["normal", "deposit_lock", "deposit_release"];
+const TRANSFER_REASONS = ["normal", "deposit_lock", "deposit_release", "loan", "borrow"];
 const ACCOUNT_TYPES = [
   "bank",
   "cash",

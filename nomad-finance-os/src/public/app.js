@@ -11,6 +11,7 @@ const state = {
   utilityReturnSheet: "",
   editingAccountId: null,
   editingTransactionId: null,
+  detailTransactionId: null,
   quickEntryMax: 0,
   quickEntryType: "expense",
   txTagFilter: "",
@@ -37,6 +38,10 @@ const state = {
     filter: "",
     maxEntries: 100
   },
+  categoryEmoji: {
+    l1: {},
+    l2: {}
+  },
   quickPreferences: {
     expense: {
       account_from_id: "",
@@ -49,7 +54,8 @@ const state = {
     transfer: {
       account_from_id: "",
       account_to_id: "",
-      currency_original: ""
+      currency_original: "",
+      transfer_reason: "normal"
     }
   }
 };
@@ -89,6 +95,13 @@ const CATEGORY_L2_EMOJI = {
   Certification: "📜",
   Workshops: "🧪"
 };
+const TRANSFER_REASON_EMOJI = {
+  normal: "🔁",
+  loan: "↗️",
+  borrow: "↙️",
+  deposit_lock: "🔒",
+  deposit_release: "🔓"
+};
 
 const I18N = {
   en: {
@@ -102,7 +115,7 @@ const I18N = {
     budgetStatus: "Budget Status (L1 only)",
     netWorthComposition: "🧩 Net Worth Composition",
     plannedBudget: "📋 Planned Budget",
-    recentExpenses: "🧾 Recent Transactions",
+    recentExpenses: "Transactions",
     viewAllExpenses: "View All",
     budgetPlanSummary: "Planned {planned} · Spent {spent} · Remaining {remaining}",
     budgetViewToggleToPie: "Show pie view",
@@ -121,6 +134,7 @@ const I18N = {
     type: "Type",
     stepL1Title: "Step 1 · 🗂️ Choose Category L1",
     stepL2Title: "Step 2 · 🏷️ Choose Category L2",
+    stepTransferTitle: "Step 1 · 🔁 Choose Transfer Type",
     stepSpendTitle: "Step 3 · 💳 Account & Currency",
     stepAmountTitle: "Step 4 · 🎛️ Enter Amount",
     categoryL1: "Category L1",
@@ -128,6 +142,7 @@ const I18N = {
     account: "Account",
     accountType: "Account Type",
     accountTo: "Account To",
+    transferMode: "Transfer Type",
     currency: "Currency",
     fxRateOptional: "FX Rate (optional)",
     amount: "Amount",
@@ -182,9 +197,24 @@ const I18N = {
     emptyNoL2Categories: "No L2 categories",
     promptL1Name: "New L1 category name",
     promptL2Name: "New tag (L2) for {l1}",
+    categoryPromptTitleL1: "Add Category L1",
+    categoryPromptTitleL2: "Add Tag to {l1}",
+    categoryPromptTitleEditL1: "Edit Category {l1}",
+    categoryPromptEmojiLabel: "Emoji",
+    categoryPromptNameLabelL1: "Category Name",
+    categoryPromptNameLabelL2: "Tag Name",
+    categoryPromptParentLabel: "Category L1",
+    categoryPromptSaveL1: "Create L1",
+    categoryPromptSaveL2: "Create Tag",
+    categoryPromptSaveEditL1: "Save Category",
+    categoryPromptEmojiPlaceholder: "✨",
+    categoryPromptNamePlaceholderL1: "e.g. Family",
+    categoryPromptNamePlaceholderL2: "e.g. Gifts",
+    editCategoryL1Action: "Edit category {l1}",
     confirmDeleteL2: "Delete tag \"{l2}\" under \"{l1}\"?",
     deleteTagAction: "Delete tag {l2}",
     categoryL1Created: "L1 category created",
+    categoryL1Updated: "L1 category updated",
     categoryL2Created: "Tag created",
     categoryL2Deleted: "Tag deleted",
     aiProviders: "🤖 AI Providers",
@@ -192,6 +222,12 @@ const I18N = {
     back: "Back",
     edit: "Edit",
     editTransaction: "Edit Transaction",
+    transactionDetailTitle: "Transaction Detail",
+    transactionDetailAmount: "Amount",
+    transactionDetailCategory: "Category",
+    transactionDetailAccount: "Account",
+    transactionDetailTime: "Time",
+    transactionDetailCreatedAt: "Created at {time}",
     saveTransaction: "Save Transaction",
     deleteTransaction: "Delete Transaction",
     transactionDeleteConfirm: "Delete this transaction? This cannot be undone.",
@@ -250,7 +286,12 @@ const I18N = {
     invalidAmount: "Please enter a valid amount.",
     txTypeExpense: "EXPENSE",
     txTypeIncome: "INCOME",
-    txTypeTransfer: "TRANSFER"
+    txTypeTransfer: "TRANSFER",
+    transferReasonNormal: "Internal",
+    transferReasonLoan: "Loan",
+    transferReasonBorrow: "Borrow",
+    transferReasonDepositLock: "Deposit Lock",
+    transferReasonDepositRelease: "Deposit Release"
   },
   zh: {
     subtitle: "更轻量的日常财务驾驶舱。",
@@ -263,7 +304,7 @@ const I18N = {
     budgetStatus: "预算进度（仅一级分类）",
     netWorthComposition: "🧩 净资产结构",
     plannedBudget: "📋 预算计划",
-    recentExpenses: "🧾 最近交易",
+    recentExpenses: "交易记录",
     viewAllExpenses: "查看全部",
     budgetPlanSummary: "计划 {planned} · 已花 {spent} · 剩余 {remaining}",
     budgetViewToggleToPie: "切换为饼图",
@@ -282,6 +323,7 @@ const I18N = {
     type: "类型",
     stepL1Title: "第 1 步 · 🗂️ 选择一级分类",
     stepL2Title: "第 2 步 · 🏷️ 选择二级分类",
+    stepTransferTitle: "第 1 步 · 🔁 选择转账类型",
     stepSpendTitle: "第 3 步 · 💳 选择账户与币种",
     stepAmountTitle: "第 4 步 · 🎛️ 输入金额",
     categoryL1: "一级分类",
@@ -289,6 +331,7 @@ const I18N = {
     account: "账户",
     accountType: "账户类型",
     accountTo: "入账账户",
+    transferMode: "转账类型",
     currency: "币种",
     fxRateOptional: "汇率（可选）",
     amount: "金额",
@@ -343,9 +386,24 @@ const I18N = {
     emptyNoL2Categories: "暂无二级分类",
     promptL1Name: "输入新的一级分类名称",
     promptL2Name: "为 {l1} 输入新的标签（L2）",
+    categoryPromptTitleL1: "新增一级分类",
+    categoryPromptTitleL2: "在 {l1} 下新增标签",
+    categoryPromptTitleEditL1: "编辑分类 {l1}",
+    categoryPromptEmojiLabel: "表情",
+    categoryPromptNameLabelL1: "一级分类名称",
+    categoryPromptNameLabelL2: "标签名称",
+    categoryPromptParentLabel: "所属一级分类",
+    categoryPromptSaveL1: "创建一级分类",
+    categoryPromptSaveL2: "创建标签",
+    categoryPromptSaveEditL1: "保存分类",
+    categoryPromptEmojiPlaceholder: "✨",
+    categoryPromptNamePlaceholderL1: "例如：Family",
+    categoryPromptNamePlaceholderL2: "例如：Gifts",
+    editCategoryL1Action: "编辑分类 {l1}",
     confirmDeleteL2: "确定要删除「{l1}」下的标签「{l2}」吗？",
     deleteTagAction: "删除标签 {l2}",
     categoryL1Created: "一级分类已创建",
+    categoryL1Updated: "一级分类已更新",
     categoryL2Created: "标签已创建",
     categoryL2Deleted: "标签已删除",
     aiProviders: "🤖 AI 提供商",
@@ -353,6 +411,12 @@ const I18N = {
     back: "返回",
     edit: "编辑",
     editTransaction: "编辑交易",
+    transactionDetailTitle: "交易详情",
+    transactionDetailAmount: "金额",
+    transactionDetailCategory: "分类",
+    transactionDetailAccount: "账户",
+    transactionDetailTime: "时间",
+    transactionDetailCreatedAt: "创建于 {time}",
     saveTransaction: "保存交易",
     deleteTransaction: "删除交易",
     transactionDeleteConfirm: "确认删除该交易？删除后不可恢复。",
@@ -410,7 +474,12 @@ const I18N = {
     invalidAmount: "请输入有效金额。",
     txTypeExpense: "支出",
     txTypeIncome: "收入",
-    txTypeTransfer: "转账"
+    txTypeTransfer: "转账",
+    transferReasonNormal: "内部转账",
+    transferReasonLoan: "借出",
+    transferReasonBorrow: "借入",
+    transferReasonDepositLock: "押金锁定",
+    transferReasonDepositRelease: "押金释放"
   }
 };
 
@@ -469,8 +538,11 @@ function bindUI() {
   $("#confirmExtractionBtn").addEventListener("click", confirmLatestExtraction);
   $("#generateReviewBtn").addEventListener("click", generateMonthlyReview);
   $("#transactionForm [name=type]").addEventListener("change", handleTxTypeChange);
+  $("#transactionForm [name=transfer_reason]").addEventListener("change", handleTxTypeChange);
   $("#transactionForm [name=category_l1]").addEventListener("change", populateL2Select);
   $("#transactionEditForm [name=category_l1]").addEventListener("change", populateTransactionEditL2Select);
+  $("#transactionEditForm [name=type]").addEventListener("change", handleTransactionEditTypeChange);
+  $("#transactionEditForm [name=transfer_reason]").addEventListener("change", handleTransactionEditTypeChange);
   $("#openQuickAddBtn").addEventListener("click", () => openSheet("quickEntrySheet"));
   $("#openSettingsBtn").addEventListener("click", () => openSheet("settingsSheet"));
   const budgetBtn = $("#openBudgetSheetBtn");
@@ -590,6 +662,21 @@ function bindUI() {
       renderQuickL2Grid();
     });
   }
+  const quickTransferReasonGrid = $("#quickTransferReasonGrid");
+  if (quickTransferReasonGrid) {
+    quickTransferReasonGrid.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const optionBtn = event.target.closest("button[data-transfer-reason]");
+      if (!optionBtn) return;
+      const value = String(optionBtn.getAttribute("data-transfer-reason") || "normal");
+      const select = $("#quickEntryForm [name=transfer_reason]");
+      if (!(select instanceof HTMLSelectElement)) return;
+      select.value = value;
+      rememberQuickEntryPreferences();
+      renderQuickTransferReasonGrid();
+      void updateQuickEntryFlow();
+    });
+  }
   $("#quickEntryForm [name=category_l1]").addEventListener("change", () => {
     populateQuickEntryL2();
   });
@@ -606,6 +693,11 @@ function bindUI() {
   });
   $("#quickEntryForm [name=currency_original]").addEventListener("change", () => {
     rememberQuickEntryPreferences();
+    void updateQuickEntryFlow();
+  });
+  $("#quickEntryForm [name=transfer_reason]").addEventListener("change", () => {
+    rememberQuickEntryPreferences();
+    renderQuickTransferReasonGrid();
     void updateQuickEntryFlow();
   });
   $("#quickEntryForm [name=date]").addEventListener("change", () => {
@@ -633,15 +725,11 @@ function bindUI() {
   $("#accountDeleteBtn").addEventListener("click", deleteCurrentAccount);
   $("#accountForceDeleteBtn").addEventListener("click", forceDeleteCurrentAccount);
   $("#transactionDeleteBtn").addEventListener("click", deleteCurrentTransaction);
-  const recentExpensesCard = $("#recentExpensesCard");
-  if (recentExpensesCard) {
-    recentExpensesCard.addEventListener("click", () => {
-      void openTransactionRecordsPanel();
-    });
-    recentExpensesCard.addEventListener("keydown", (event) => {
-      if (!(event instanceof KeyboardEvent)) return;
-      if (event.key !== "Enter" && event.key !== " ") return;
-      event.preventDefault();
+  $("#transactionDetailEditBtn").addEventListener("click", openCurrentDetailForEdit);
+  $("#transactionDetailDeleteBtn").addEventListener("click", deleteCurrentDetailTransaction);
+  const recentExpensesTitle = $("#recentExpensesTitle");
+  if (recentExpensesTitle) {
+    recentExpensesTitle.addEventListener("click", () => {
       void openTransactionRecordsPanel();
     });
   }
@@ -649,6 +737,14 @@ function bindUI() {
   if (categoryTree) {
     categoryTree.addEventListener("click", (event) => {
       if (!(event.target instanceof Element)) return;
+      const editBtn = event.target.closest("button[data-action='edit-l1']");
+      if (editBtn) {
+        const encodedL1 = String(editBtn.getAttribute("data-l1") || "");
+        const l1Name = decodeURIComponent(encodedL1 || "").trim();
+        if (!l1Name) return;
+        openCategoryPrompt("edit_l1", l1Name);
+        return;
+      }
       const addBtn = event.target.closest("button[data-action='add-l2']");
       if (addBtn) {
         const l1Name = String(addBtn.getAttribute("data-l1") || "").trim();
@@ -672,6 +768,10 @@ function bindUI() {
       void createL1CategoryInline();
     });
   }
+  const categoryPromptForm = $("#categoryPromptForm");
+  if (categoryPromptForm) {
+    categoryPromptForm.addEventListener("submit", submitCategoryPromptForm);
+  }
   $("#accountList").addEventListener("click", (event) => {
     if (!(event.target instanceof Element)) return;
     const editBtn = event.target.closest("button[data-action='edit-account']");
@@ -686,7 +786,15 @@ function bindUI() {
     if (!row) return;
     const id = Number(row.getAttribute("data-tx-id"));
     if (!Number.isInteger(id) || id <= 0) return;
-    openTransactionEditSheet(id);
+    openTransactionDetailSheet(id);
+  });
+  $("#recentExpensesList").addEventListener("click", (event) => {
+    if (!(event.target instanceof Element)) return;
+    const row = event.target.closest("article[data-tx-id]");
+    if (!row) return;
+    const id = Number(row.getAttribute("data-tx-id"));
+    if (!Number.isInteger(id) || id <= 0) return;
+    openTransactionDetailSheet(id);
   });
   const debugOnlyFailed = $("#debugOnlyFailed");
   if (debugOnlyFailed) {
@@ -883,6 +991,9 @@ function closeSheet(id) {
   if (!node) return;
   node.classList.add("hidden");
   node.setAttribute("aria-hidden", "true");
+  if (id === "transactionDetailSheet") {
+    state.detailTransactionId = null;
+  }
   syncSheetOpenState();
 }
 
@@ -891,6 +1002,7 @@ function closeAllSheets() {
     sheet.classList.add("hidden");
     sheet.setAttribute("aria-hidden", "true");
   }
+  state.detailTransactionId = null;
   syncSheetOpenState();
 }
 
@@ -1259,6 +1371,7 @@ async function switchTopBaseCurrency(nextBase) {
 
 async function loadCategories() {
   state.categories = (await api("/api/v1/categories")) || {};
+  pruneCategoryEmojiMap();
   renderCategoryTree();
   populateL1Selects();
   populateTransactionEditL1Select();
@@ -1306,7 +1419,7 @@ function populateL2Select() {
   const rows = state.categories?.[l1]?.l2 || [];
   for (const row of rows) {
     if (!row.active) continue;
-    target.appendChild(new Option(withL2Emoji(row.name), row.name));
+    target.appendChild(new Option(withL2Emoji(row.name, l1), row.name));
   }
 }
 
@@ -1343,7 +1456,7 @@ function populateTransactionEditL2Select() {
   const rows = state.categories?.[l1]?.l2 || [];
   for (const row of rows) {
     if (!row.active) continue;
-    target.appendChild(new Option(withL2Emoji(row.name), row.name));
+    target.appendChild(new Option(withL2Emoji(row.name, l1), row.name));
   }
 }
 
@@ -1386,7 +1499,7 @@ function populateQuickEntryL2() {
   l2Select.innerHTML = "";
   for (const row of rows) {
     if (!row.active) continue;
-    l2Select.appendChild(new Option(withL2Emoji(row.name), row.name));
+    l2Select.appendChild(new Option(withL2Emoji(row.name, l1), row.name));
   }
   if (l2Select.options.length && !l2Select.value) {
     l2Select.value = l2Select.options[0].value;
@@ -1409,7 +1522,7 @@ function renderQuickL1Grid() {
       const isActive = name === selected;
       return `
         <button class="quick-icon-btn ${isActive ? "active" : ""}" type="button" data-l1="${encodeURIComponent(name)}">
-          <span class="icon">${escapeHtml(CATEGORY_L1_EMOJI[name] || "🏷️")}</span>
+          <span class="icon">${escapeHtml(getL1EmojiSymbol(name))}</span>
           <span class="label">${escapeHtml(name)}</span>
         </button>
       `;
@@ -1431,8 +1544,29 @@ function renderQuickL2Grid() {
       const isActive = label === selected;
       return `
         <button class="quick-icon-btn ${isActive ? "active" : ""}" type="button" data-l2="${encodeURIComponent(label)}">
-          <span class="icon">${escapeHtml(CATEGORY_L2_EMOJI[label] || "🔹")}</span>
+          <span class="icon">${escapeHtml(getL2EmojiSymbol(l1, label))}</span>
           <span class="label">${escapeHtml(label)}</span>
+        </button>
+      `;
+    })
+    .join("");
+}
+
+function renderQuickTransferReasonGrid() {
+  const grid = $("#quickTransferReasonGrid");
+  const select = $("#quickEntryForm [name=transfer_reason]");
+  if (!grid || !(select instanceof HTMLSelectElement)) return;
+  const selected = String(select.value || "normal");
+  const reasons = ["normal", "loan", "borrow", "deposit_lock", "deposit_release"];
+  grid.innerHTML = reasons
+    .map((reason) => {
+      const isActive = reason === selected;
+      return `
+        <button class="quick-icon-btn ${isActive ? "active" : ""}" type="button" data-transfer-reason="${escapeHtml(
+          reason
+        )}">
+          <span class="icon">${escapeHtml(TRANSFER_REASON_EMOJI[reason] || "🔁")}</span>
+          <span class="label">${escapeHtml(getTransferReasonLabel(reason))}</span>
         </button>
       `;
     })
@@ -1568,20 +1702,27 @@ async function updateQuickEntryFlow() {
   const l2 = $("#quickEntryForm [name=category_l2]")?.value || "";
   const accountId = parseOptionalInt($("#quickEntryForm [name=account_from_id]")?.value);
   const accountToId = parseOptionalInt($("#quickEntryForm [name=account_to_id]")?.value);
+  const transferReason = getQuickTransferReason();
+  const transferConfig = getTransferReasonConfig(transferReason);
   const currency = ensureUICurrency($("#quickEntryForm [name=currency_original]")?.value || "USD");
+
+  syncQuickEntryAccountVisibility();
 
   const isExpense = state.quickEntryType === "expense";
   const isIncome = state.quickEntryType === "income";
   const isTransfer = state.quickEntryType === "transfer";
   toggleQuickStep("quickStepL1", isExpense);
   toggleQuickStep("quickStepL2", isExpense && Boolean(l1));
+  toggleQuickStep("quickStepTransferReason", isTransfer);
   toggleQuickStep("quickStepSpend", isExpense ? Boolean(l1 && l2) : true);
 
   const spendReady = isExpense
     ? Boolean(accountId && currency)
     : isIncome
       ? Boolean(accountToId && currency)
-      : Boolean(accountId && accountToId && currency);
+      : Boolean(
+          (!transferConfig.needsFrom || accountId) && (!transferConfig.needsTo || accountToId) && currency
+        );
   const amountStepVisible = isExpense ? Boolean(l1 && l2 && spendReady) : spendReady;
   toggleQuickStep("quickStepAmount", amountStepVisible);
   syncQuickComposerVisibility();
@@ -1591,7 +1732,7 @@ async function updateQuickEntryFlow() {
     validateQuickEntryAmount();
     return;
   }
-  if (isExpense || isTransfer) {
+  if (isExpense || (isTransfer && transferConfig.needsFrom)) {
     await refreshQuickEntryAmountLimit(accountId, currency);
   } else {
     applyQuickEntryMax(99999999, currency);
@@ -1623,23 +1764,17 @@ function setQuickEntryType(type) {
   if (incomeBtn) incomeBtn.classList.toggle("active", next === "income");
   if (transferBtn) transferBtn.classList.toggle("active", next === "transfer");
 
-  const accountFrom = $("#quickEntryForm [name=account_from_id]");
-  const accountFromWrap = $("#quickEntryAccountFromWrap");
-  const accountToWrap = $("#quickEntryAccountToWrap");
-  if (accountFrom) accountFrom.toggleAttribute("required", next !== "income");
-  if (accountFromWrap) accountFromWrap.classList.toggle("hidden", next === "income");
-  if (accountToWrap) accountToWrap.classList.toggle("hidden", next === "expense");
-  const accountTo = $("#quickEntryForm [name=account_to_id]");
-  if (accountTo) accountTo.toggleAttribute("required", next !== "expense");
   const l1Select = $("#quickEntryForm [name=category_l1]");
   const l2Select = $("#quickEntryForm [name=category_l2]");
   if (l1Select) l1Select.toggleAttribute("required", next === "expense");
   if (l2Select) l2Select.toggleAttribute("required", next === "expense");
 
   applyQuickEntryPreferencesForType(next);
+  syncQuickEntryAccountVisibility();
   applyI18n();
   renderQuickL1Grid();
   renderQuickL2Grid();
+  renderQuickTransferReasonGrid();
   void updateQuickEntryFlow();
 }
 
@@ -1661,8 +1796,10 @@ function applyQuickEntryPreferencesForType(type) {
   } else {
     const from = $("#quickEntryForm [name=account_from_id]");
     const to = $("#quickEntryForm [name=account_to_id]");
+    const reason = $("#quickEntryForm [name=transfer_reason]");
     if (from) setSelectValueIfExists(from, prefs.account_from_id || "");
     if (to) setSelectValueIfExists(to, prefs.account_to_id || "");
+    if (reason) setSelectValueIfExists(reason, prefs.transfer_reason || "normal");
   }
 }
 
@@ -1688,7 +1825,8 @@ function rememberQuickEntryPreferences() {
       ...state.quickPreferences.transfer,
       account_from_id: fromValue,
       account_to_id: toValue,
-      currency_original: currency
+      currency_original: currency,
+      transfer_reason: getQuickTransferReason()
     };
   }
   persistQuickEntryPreferences();
@@ -1719,7 +1857,8 @@ function loadQuickEntryPreferences() {
       transfer: {
         account_from_id: String(parsed?.transfer?.account_from_id || ""),
         account_to_id: String(parsed?.transfer?.account_to_id || ""),
-        currency_original: ensureUICurrency(parsed?.transfer?.currency_original || "USD")
+        currency_original: ensureUICurrency(parsed?.transfer?.currency_original || "USD"),
+        transfer_reason: String(parsed?.transfer?.transfer_reason || "normal")
       }
     };
     state.quickPreferences = next;
@@ -1747,6 +1886,75 @@ function updateQuickDateDisplay() {
     return;
   }
   textEl.textContent = `${t("quickDateToggle")} · ${date}`;
+}
+
+function getTransferReasonConfig(reason) {
+  const value = String(reason || "normal");
+  if (value === "loan") {
+    return { needsFrom: true, needsTo: false };
+  }
+  if (value === "borrow") {
+    return { needsFrom: false, needsTo: true };
+  }
+  return { needsFrom: true, needsTo: true };
+}
+
+function getQuickTransferReason() {
+  return String($("#quickEntryForm [name=transfer_reason]")?.value || "normal");
+}
+
+function getTransferReasonLabel(reason) {
+  const keyMap = {
+    normal: "transferReasonNormal",
+    loan: "transferReasonLoan",
+    borrow: "transferReasonBorrow",
+    deposit_lock: "transferReasonDepositLock",
+    deposit_release: "transferReasonDepositRelease"
+  };
+  return t(keyMap[String(reason || "normal")] || "transferReasonNormal");
+}
+
+function applyTransferReasonOptionLabels(select) {
+  if (!(select instanceof HTMLSelectElement)) return;
+  for (const option of Array.from(select.options)) {
+    option.textContent = getTransferReasonLabel(option.value);
+  }
+}
+
+function syncQuickEntryAccountVisibility() {
+  const next = state.quickEntryType === "income" || state.quickEntryType === "transfer" ? state.quickEntryType : "expense";
+  const accountFrom = $("#quickEntryForm [name=account_from_id]");
+  const accountFromWrap = $("#quickEntryAccountFromWrap");
+  const accountTo = $("#quickEntryForm [name=account_to_id]");
+  const accountToWrap = $("#quickEntryAccountToWrap");
+  const transferReasonWrap = $("#quickEntryTransferReasonWrap");
+  const transferReasonSelect = $("#quickEntryForm [name=transfer_reason]");
+  const transferConfig = getTransferReasonConfig(getQuickTransferReason());
+
+  if (accountFrom) {
+    const requiresFrom = next === "expense" || (next === "transfer" && transferConfig.needsFrom);
+    accountFrom.toggleAttribute("required", requiresFrom);
+  }
+  if (accountFromWrap) {
+    accountFromWrap.classList.toggle(
+      "hidden",
+      next === "income" || (next === "transfer" && !transferConfig.needsFrom)
+    );
+  }
+  if (accountTo) {
+    const requiresTo = next === "income" || (next === "transfer" && transferConfig.needsTo);
+    accountTo.toggleAttribute("required", requiresTo);
+  }
+  if (accountToWrap) {
+    accountToWrap.classList.toggle(
+      "hidden",
+      next === "expense" || (next === "transfer" && !transferConfig.needsTo)
+    );
+  }
+  if (transferReasonWrap) transferReasonWrap.classList.toggle("hidden", next !== "transfer");
+  if (transferReasonSelect && next !== "transfer") {
+    transferReasonSelect.value = "normal";
+  }
 }
 
 async function refreshQuickEntryAmountLimit(accountId, currency) {
@@ -1843,6 +2051,8 @@ function validateQuickEntryAmount() {
 
 function handleTxTypeChange() {
   const type = $("#transactionForm [name=type]").value;
+  const transferReason = String($("#transactionForm [name=transfer_reason]")?.value || "normal");
+  const transferConfig = getTransferReasonConfig(transferReason);
   for (const el of document.querySelectorAll(".field-expense")) {
     el.classList.toggle("hidden", type !== "expense");
   }
@@ -1858,8 +2068,36 @@ function handleTxTypeChange() {
     fromLabel.classList.remove("hidden");
     toLabel.classList.add("hidden");
   } else {
-    fromLabel.classList.remove("hidden");
-    toLabel.classList.remove("hidden");
+    fromLabel.classList.toggle("hidden", !transferConfig.needsFrom);
+    toLabel.classList.toggle("hidden", !transferConfig.needsTo);
+  }
+}
+
+function handleTransactionEditTypeChange() {
+  const form = $("#transactionEditForm");
+  if (!(form instanceof HTMLFormElement)) return;
+  const type = String(form.elements.type?.value || "expense");
+  const transferReason = String(form.elements.transfer_reason?.value || "normal");
+  const transferConfig = getTransferReasonConfig(transferReason);
+  const categoryL1 = form.elements.category_l1?.closest("label");
+  const categoryL2 = form.elements.category_l2?.closest("label");
+  const fromLabel = form.elements.account_from_id?.closest("label");
+  const toLabel = form.elements.account_to_id?.closest("label");
+  const reasonLabel = form.elements.transfer_reason?.closest("label");
+
+  if (categoryL1) categoryL1.classList.toggle("hidden", type !== "expense");
+  if (categoryL2) categoryL2.classList.toggle("hidden", type !== "expense");
+  if (reasonLabel) reasonLabel.classList.toggle("hidden", type !== "transfer");
+
+  if (type === "income") {
+    fromLabel?.classList.add("hidden");
+    toLabel?.classList.remove("hidden");
+  } else if (type === "expense") {
+    fromLabel?.classList.remove("hidden");
+    toLabel?.classList.add("hidden");
+  } else {
+    fromLabel?.classList.toggle("hidden", !transferConfig.needsFrom);
+    toLabel?.classList.toggle("hidden", !transferConfig.needsTo);
   }
 }
 
@@ -1921,11 +2159,16 @@ async function submitQuickEntryForm(event) {
   const fd = new FormData(form);
   const requestedAmount = Number(sanitizeQuickAmountText(String(fd.get("amount_original") || "")));
   const currencyCode = ensureUICurrency(String(fd.get("currency_original") || "USD").toUpperCase());
+  const transferReason = String(fd.get("transfer_reason") || "normal");
+  const transferConfig = getTransferReasonConfig(transferReason);
   if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) {
     showToast(t("invalidAmount"), true);
     return;
   }
-  if ((state.quickEntryType === "expense" || state.quickEntryType === "transfer") && requestedAmount > Number(state.quickEntryMax || 0)) {
+  if (
+    (state.quickEntryType === "expense" || (state.quickEntryType === "transfer" && transferConfig.needsFrom)) &&
+    requestedAmount > Number(state.quickEntryMax || 0)
+  ) {
     showToast(
       t("amountExceeded", { amount: formatMoney(state.quickEntryMax), currency: currencyCode }),
       true
@@ -1940,10 +2183,18 @@ async function submitQuickEntryForm(event) {
     category_l1: state.quickEntryType === "expense" ? fd.get("category_l1") : undefined,
     category_l2: state.quickEntryType === "expense" ? fd.get("category_l2") : undefined,
     account_from_id:
-      state.quickEntryType !== "income" ? parseOptionalInt(fd.get("account_from_id")) : undefined,
+      state.quickEntryType === "expense"
+        ? parseOptionalInt(fd.get("account_from_id"))
+        : state.quickEntryType === "transfer" && transferConfig.needsFrom
+          ? parseOptionalInt(fd.get("account_from_id"))
+          : undefined,
     account_to_id:
-      state.quickEntryType !== "expense" ? parseOptionalInt(fd.get("account_to_id")) : undefined,
-    transfer_reason: state.quickEntryType === "transfer" ? "normal" : undefined,
+      state.quickEntryType === "income"
+        ? parseOptionalInt(fd.get("account_to_id"))
+        : state.quickEntryType === "transfer" && transferConfig.needsTo
+          ? parseOptionalInt(fd.get("account_to_id"))
+          : undefined,
+    transfer_reason: state.quickEntryType === "transfer" ? transferReason : undefined,
     note: fd.get("note") || "",
     tags: []
   };
@@ -2064,17 +2315,91 @@ async function submitL2Form(event) {
 }
 
 async function createL1CategoryInline() {
-  const promptText = t("promptL1Name");
-  const name = window.prompt(promptText, "");
-  if (!name || !name.trim()) return;
-  await createL1CategoryRecord(name, null);
+  openCategoryPrompt("l1");
 }
 
 async function createL2CategoryInline(l1Name) {
-  const promptText = t("promptL2Name", { l1: l1Name });
-  const name = window.prompt(promptText, "");
-  if (!name || !name.trim()) return;
-  await createL2CategoryRecord(l1Name, name, null);
+  openCategoryPrompt("l2", l1Name);
+}
+
+function openCategoryPrompt(mode, l1Name = "") {
+  const form = $("#categoryPromptForm");
+  if (!(form instanceof HTMLFormElement)) return;
+  const safeMode = mode === "l2" || mode === "edit_l1" ? mode : "l1";
+  form.reset();
+  form.elements.mode.value = safeMode;
+  form.elements.l1_name.value = String(l1Name || "").trim();
+  form.elements.old_name.value = safeMode === "edit_l1" ? String(l1Name || "").trim() : "";
+  form.elements.emoji.value =
+    safeMode === "edit_l1" ? getL1EmojiSymbol(String(l1Name || "").trim()) : "";
+  form.elements.name.value = safeMode === "edit_l1" ? String(l1Name || "").trim() : "";
+  updateCategoryPromptView();
+  openSheet("categoryPromptSheet", { preserveUtility: true });
+  const nameInput = $("#categoryPromptNameInput");
+  if (nameInput) {
+    window.requestAnimationFrame(() => {
+      nameInput.focus();
+    });
+  }
+}
+
+function updateCategoryPromptView() {
+  const form = $("#categoryPromptForm");
+  if (!(form instanceof HTMLFormElement)) return;
+  const mode = String(form.elements.mode.value || "l1");
+  const l1Name = String(form.elements.l1_name.value || "").trim();
+  const isL2 = mode === "l2";
+  const isEditL1 = mode === "edit_l1";
+  const titleKey = isL2
+    ? "categoryPromptTitleL2"
+    : isEditL1
+      ? "categoryPromptTitleEditL1"
+      : "categoryPromptTitleL1";
+  const nameLabelKey = isL2 ? "categoryPromptNameLabelL2" : "categoryPromptNameLabelL1";
+  const saveKey = isL2
+    ? "categoryPromptSaveL2"
+    : isEditL1
+      ? "categoryPromptSaveEditL1"
+      : "categoryPromptSaveL1";
+  setText("categoryPromptTitle", t(titleKey, { l1: l1Name }));
+  setText("categoryPromptEmojiLabel", t("categoryPromptEmojiLabel"));
+  setText("categoryPromptNameLabel", t(nameLabelKey));
+  setText("categoryPromptSaveBtn", t(saveKey));
+  setText("categoryPromptParentLabel", t("categoryPromptParentLabel"));
+  const parentInput = $("#categoryPromptParentInput");
+  if (parentInput) parentInput.value = isL2 ? withL1Emoji(l1Name) : "";
+  const parentLabel = $("#categoryPromptParentLabel")?.closest("label");
+  if (parentLabel) parentLabel.classList.toggle("hidden", !isL2);
+  const emojiInput = $("#categoryPromptEmojiInput");
+  if (emojiInput) emojiInput.placeholder = t("categoryPromptEmojiPlaceholder");
+  const nameInput = $("#categoryPromptNameInput");
+  if (nameInput) {
+    nameInput.placeholder =
+      isL2 ? t("categoryPromptNamePlaceholderL2") : t("categoryPromptNamePlaceholderL1");
+  }
+}
+
+async function submitCategoryPromptForm(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  if (!(form instanceof HTMLFormElement)) return;
+  const mode = String(form.elements.mode.value || "l1");
+  const oldName = String(form.elements.old_name.value || "").trim();
+  const l1Name = String(form.elements.l1_name.value || "").trim();
+  const name = String(form.elements.name.value || "").trim();
+  const emoji = String(form.elements.emoji.value || "").trim();
+  if (!name) return;
+  if (mode === "l2") {
+    const ok = await createL2CategoryRecord(l1Name, name, null, { emoji });
+    if (!ok) return;
+  } else if (mode === "edit_l1") {
+    const ok = await updateL1CategoryRecord(oldName, name, { emoji });
+    if (!ok) return;
+  } else {
+    const ok = await createL1CategoryRecord(name, null, { emoji });
+    if (!ok) return;
+  }
+  closeSheet("categoryPromptSheet");
 }
 
 async function deleteL2CategoryInline(l1Name, l2Name) {
@@ -2089,6 +2414,8 @@ async function deleteL2CategoryInline(l1Name, l2Name) {
         name: l2Name
       })
     });
+    delete state.categoryEmoji.l2[buildL2EmojiKey(l1Name, l2Name)];
+    persistUiState();
     showToast(t("categoryL2Deleted"));
     try {
       await loadCategories();
@@ -2100,30 +2427,84 @@ async function deleteL2CategoryInline(l1Name, l2Name) {
   }
 }
 
-async function createL1CategoryRecord(name, formToReset = null) {
+async function createL1CategoryRecord(name, formToReset = null, options = {}) {
   const safeName = String(name || "").trim();
-  if (!safeName) return;
+  if (!safeName) return false;
   try {
     await api("/api/v1/categories/l1", {
       method: "POST",
       body: JSON.stringify({ name: safeName })
     });
-    showToast(t("categoryL1Created"));
+    const emoji = normalizeEmojiInput(options.emoji);
+    if (emoji) {
+      state.categoryEmoji.l1[safeName] = emoji;
+      persistUiState();
+    }
+    showToast(t("categoryL1Updated"));
     try {
       await loadCategories();
       if (formToReset instanceof HTMLFormElement) formToReset.reset();
+      return true;
     } catch (error) {
       showRefreshFailureToast(error);
+      return false;
     }
   } catch (error) {
     showErrorToast(error);
+    return false;
   }
 }
 
-async function createL2CategoryRecord(l1Name, l2Name, formToReset = null) {
+async function updateL1CategoryRecord(oldName, newName, options = {}) {
+  const safeOldName = String(oldName || "").trim();
+  const safeNewName = String(newName || "").trim();
+  if (!safeOldName || !safeNewName) return false;
+  try {
+    await api("/api/v1/categories/l1/rename", {
+      method: "PUT",
+      body: JSON.stringify({
+        old_name: safeOldName,
+        new_name: safeNewName
+      })
+    });
+    const nextL1Emoji = {};
+    for (const [name, emoji] of Object.entries(state.categoryEmoji?.l1 || {})) {
+      if (name === safeOldName) continue;
+      if (emoji) nextL1Emoji[name] = emoji;
+    }
+    const nextL2Emoji = {};
+    for (const [key, emoji] of Object.entries(state.categoryEmoji?.l2 || {})) {
+      const [l1, l2] = String(key || "").split("|||");
+      if (!emoji || !l2) continue;
+      const targetL1 = l1 === safeOldName ? safeNewName : l1;
+      nextL2Emoji[buildL2EmojiKey(targetL1, l2)] = emoji;
+    }
+    const emoji = normalizeEmojiInput(options.emoji);
+    if (emoji) {
+      nextL1Emoji[safeNewName] = emoji;
+    } else if (state.categoryEmoji?.l1?.[safeOldName]) {
+      nextL1Emoji[safeNewName] = state.categoryEmoji.l1[safeOldName];
+    }
+    state.categoryEmoji = { l1: nextL1Emoji, l2: nextL2Emoji };
+    persistUiState();
+    showToast(t("categoryL1Created"));
+    try {
+      await loadCategories();
+      return true;
+    } catch (error) {
+      showRefreshFailureToast(error);
+      return false;
+    }
+  } catch (error) {
+    showErrorToast(error);
+    return false;
+  }
+}
+
+async function createL2CategoryRecord(l1Name, l2Name, formToReset = null, options = {}) {
   const safeL1Name = String(l1Name || "").trim();
   const safeL2Name = String(l2Name || "").trim();
-  if (!safeL1Name || !safeL2Name) return;
+  if (!safeL1Name || !safeL2Name) return false;
   try {
     await api("/api/v1/categories/l2", {
       method: "POST",
@@ -2132,15 +2513,23 @@ async function createL2CategoryRecord(l1Name, l2Name, formToReset = null) {
         name: safeL2Name
       })
     });
+    const emoji = normalizeEmojiInput(options.emoji);
+    if (emoji) {
+      state.categoryEmoji.l2[buildL2EmojiKey(safeL1Name, safeL2Name)] = emoji;
+      persistUiState();
+    }
     showToast(t("categoryL2Created"));
     try {
       await loadCategories();
       if (formToReset instanceof HTMLFormElement) formToReset.reset();
+      return true;
     } catch (error) {
       showRefreshFailureToast(error);
+      return false;
     }
   } catch (error) {
     showErrorToast(error);
+    return false;
   }
 }
 
@@ -2799,8 +3188,100 @@ async function getLinkedTransactionCount(accountId) {
   }
 }
 
+function getTransactionById(transactionId) {
+  return (state.transactions || []).find((row) => row.id === transactionId) || null;
+}
+
+function openTransactionDetailSheet(transactionId) {
+  const tx = getTransactionById(transactionId);
+  if (!tx) {
+    showToast("Transaction not found", true);
+    return;
+  }
+  state.detailTransactionId = transactionId;
+  populateTransactionDetailSheet(tx);
+  openSheet("transactionDetailSheet", { preserveUtility: true });
+}
+
+function populateTransactionDetailSheet(tx) {
+  const baseCurrency = String(state.settings?.base_currency || "USD").toUpperCase();
+  const sourceCurrency = String(tx.currency_original || baseCurrency).toUpperCase();
+  const originalAmount = getSignedTransactionAmount(tx, "amount_original");
+  const baseAmount = getSignedTransactionAmount(tx, "amount_base");
+  setText("transactionDetailAmountValue", `${formatSignedMoney(originalAmount)} ${sourceCurrency}`);
+  setText(
+    "transactionDetailAmountSub",
+    sourceCurrency === baseCurrency ? "" : `${formatSignedMoney(baseAmount)} ${baseCurrency}`
+  );
+  setText("transactionDetailCategoryValue", formatTransactionDetailCategory(tx));
+  setText("transactionDetailAccountValue", formatTransactionDetailAccount(tx));
+  const detailTime = formatTransactionDetailTime(tx);
+  setText("transactionDetailTimeValue", detailTime.primary);
+  setText("transactionDetailCreatedSub", detailTime.secondary);
+}
+
+function getSignedTransactionAmount(tx, fieldName) {
+  const amount = Number(tx?.[fieldName] || 0);
+  if (tx?.type === "expense") return -Math.abs(amount);
+  if (tx?.type === "income") return Math.abs(amount);
+  return amount;
+}
+
+function formatTransactionDetailCategory(tx) {
+  if (tx?.type === "expense") {
+    return tx.category_l2 ? withL2Emoji(tx.category_l2, tx.category_l1) : "-";
+  }
+  if (tx?.type === "transfer") {
+    return getTransferReasonLabel(tx.transfer_reason || "normal");
+  }
+  if (tx?.type === "income") {
+    return txTypeLabel("income");
+  }
+  return "-";
+}
+
+function formatTransactionDetailAccount(tx) {
+  if (tx?.type === "expense") {
+    return getAccountDisplayName(tx.account_from_id);
+  }
+  if (tx?.type === "income") {
+    return getAccountDisplayName(tx.account_to_id);
+  }
+  if (tx?.type === "transfer") {
+    return `${getAccountDisplayName(tx.account_from_id)} → ${getAccountDisplayName(tx.account_to_id)}`;
+  }
+  return "-";
+}
+
+function formatTransactionDetailTime(tx) {
+  const txDate = String(tx?.tx_date || "-");
+  const createdAt = formatTimestampValue(tx?.created_at);
+  if (!createdAt || createdAt.startsWith(txDate)) {
+    return { primary: txDate, secondary: "" };
+  }
+  return {
+    primary: txDate,
+    secondary: t("transactionDetailCreatedAt", { time: createdAt })
+  };
+}
+
+function getAccountDisplayName(accountId) {
+  const id = Number(accountId || 0);
+  if (!Number.isInteger(id) || id <= 0) return "-";
+  const account = (state.accounts || []).find((row) => row.id === id);
+  if (!account) return `#${id}`;
+  return `${account.name} · ${account.type}`;
+}
+
+function openCurrentDetailForEdit() {
+  const txId = Number(state.detailTransactionId || 0);
+  if (!Number.isInteger(txId) || txId <= 0) return;
+  closeSheet("transactionDetailSheet");
+  openTransactionEditSheet(txId);
+}
+
 function openTransactionEditSheet(transactionId) {
-  const tx = (state.transactions || []).find((row) => row.id === transactionId);
+  const tx = getTransactionById(transactionId);
   if (!tx) {
     showToast("Transaction not found", true);
     return;
@@ -2824,11 +3305,14 @@ function openTransactionEditSheet(transactionId) {
   form.elements.transfer_reason.value = tx.transfer_reason || "normal";
   form.elements.note.value = tx.note || "";
   form.elements.tags.value = Array.isArray(tx.tags) ? tx.tags.join(", ") : "";
+  handleTransactionEditTypeChange();
   openSheet("transactionEditSheet", { preserveUtility: true });
 }
 
 function buildTransactionPayloadFromForm(formData) {
   const type = String(formData.get("type") || "");
+  const transferReason = String(formData.get("transfer_reason") || "normal");
+  const transferConfig = getTransferReasonConfig(transferReason);
   const fxRaw = String(formData.get("fx_rate") || "").trim();
   const payload = {
     date: String(formData.get("date") || ""),
@@ -2849,9 +3333,9 @@ function buildTransactionPayloadFromForm(formData) {
   } else if (type === "income") {
     payload.account_to_id = parseOptionalInt(formData.get("account_to_id"));
   } else if (type === "transfer") {
-    payload.account_from_id = parseOptionalInt(formData.get("account_from_id"));
-    payload.account_to_id = parseOptionalInt(formData.get("account_to_id"));
-    payload.transfer_reason = String(formData.get("transfer_reason") || "normal");
+    payload.account_from_id = transferConfig.needsFrom ? parseOptionalInt(formData.get("account_from_id")) : undefined;
+    payload.account_to_id = transferConfig.needsTo ? parseOptionalInt(formData.get("account_to_id")) : undefined;
+    payload.transfer_reason = transferReason;
   }
   return payload;
 }
@@ -2888,12 +3372,24 @@ async function submitTransactionEditForm(event) {
 async function deleteCurrentTransaction() {
   const txId = Number(state.editingTransactionId || 0);
   if (!Number.isInteger(txId) || txId <= 0) return;
+  await deleteTransactionById(txId, { closeEditSheet: true });
+}
+
+async function deleteCurrentDetailTransaction() {
+  const txId = Number(state.detailTransactionId || 0);
+  if (!Number.isInteger(txId) || txId <= 0) return;
+  await deleteTransactionById(txId, { closeDetailSheet: true });
+}
+
+async function deleteTransactionById(txId, options = {}) {
   if (!window.confirm(t("transactionDeleteConfirm"))) return;
   try {
     await api(`/api/v1/transactions/${txId}`, { method: "DELETE" });
     showToast(t("transactionDeleted"));
-    state.editingTransactionId = null;
-    closeSheet("transactionEditSheet");
+    if (state.editingTransactionId === txId) state.editingTransactionId = null;
+    if (state.detailTransactionId === txId) state.detailTransactionId = null;
+    if (options.closeEditSheet) closeSheet("transactionEditSheet");
+    if (options.closeDetailSheet) closeSheet("transactionDetailSheet");
     try {
       await refreshAfterLedgerChange();
     } catch (error) {
@@ -2996,9 +3492,9 @@ function renderTransactionList(rows, options = {}) {
         row.currency_original
       )}</div>
           ${fxLine}
-          <div class="muted">${formatCategoryPair(row.category_l1, row.category_l2)} · ${escapeHtml(t("reason"))}: ${
-            row.transfer_reason || "-"
-          }</div>
+          <div class="muted">${formatCategoryPair(row.category_l1, row.category_l2)} · ${escapeHtml(
+            t("reason")
+          )}: ${escapeHtml(getTransferReasonLabel(row.transfer_reason || "normal"))}</div>
           <div class="muted mono">${escapeHtml(t("from"))}: ${row.account_from_id || "-"} · ${escapeHtml(t("to"))}: ${row.account_to_id || "-"}</div>
           <div>${escapeHtml(row.note || "")}</div>
           ${tags}
@@ -3020,7 +3516,7 @@ function renderRecentExpensesCard(rows) {
     .map((row) => {
       const context = formatRecentTransactionContext(row);
       return `
-      <article class="list-row recent-expense-row">
+      <article class="list-row recent-expense-row clickable" data-tx-id="${row.id}">
         <div class="row-main">
           <strong>${escapeHtml(formatRecentTransactionTitle(row))}</strong>
           <span class="mono">${formatMoney(row.amount_base)} ${escapeHtml(base)}</span>
@@ -3044,7 +3540,10 @@ function formatRecentTransactionTitle(row) {
     return `💰 ${txTypeLabel("income")}`;
   }
   if (row?.type === "transfer") {
-    const reason = row.transfer_reason && row.transfer_reason !== "normal" ? ` · ${row.transfer_reason}` : "";
+    const reason =
+      row.transfer_reason && row.transfer_reason !== "normal"
+        ? ` · ${getTransferReasonLabel(row.transfer_reason)}`
+        : "";
     return `🔁 ${txTypeLabel("transfer")}${reason}`;
   }
   return txTypeLabel(row?.type || "-");
@@ -3084,6 +3583,24 @@ function parseDateOnlyLocal(value) {
   const day = Number(match[3]);
   if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return null;
   return new Date(year, month - 1, day);
+}
+
+function formatTimestampValue(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const normalized = text.replace("T", " ").replace("Z", "").trim();
+  const compact = normalized.replace(/\.\d+$/, "");
+  if (/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}/.test(compact)) {
+    return compact.slice(0, 16);
+  }
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) return compact;
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  const hour = String(parsed.getHours()).padStart(2, "0");
+  const minute = String(parsed.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day} ${hour}:${minute}`;
 }
 
 async function loadBudgets() {
@@ -3167,7 +3684,9 @@ async function loadReview() {
       (row) => `
       <div class="list-row">
         <div class="row-main">
-          <strong>${escapeHtml(withL1Emoji(row.category_l1 || ""))} / ${escapeHtml(withL2Emoji(row.category_l2 || ""))}</strong>
+          <strong>${escapeHtml(withL1Emoji(row.category_l1 || ""))} / ${escapeHtml(
+        withL2Emoji(row.category_l2 || "", row.category_l1 || "")
+      )}</strong>
           <span>${formatMoney(row.amount_base)}</span>
         </div>
         <div class="muted">${row.tx_date}</div>
@@ -3186,15 +3705,15 @@ function renderCategoryTree() {
   }
   target.innerHTML = rows
     .map(([name, cfg]) => {
+      const l1Encoded = encodeURIComponent(String(name || ""));
       const l2 = (cfg.l2 || [])
         .filter((item) => item && item.active)
         .map((item) => {
-          const l1Encoded = encodeURIComponent(String(name || ""));
           const l2Encoded = encodeURIComponent(String(item.name || ""));
           const deleteLabel = t("deleteTagAction", { l2: item.name });
           return `
             <span class="category-tag-item">
-              <span class="pill">${escapeHtml(withL2Emoji(item.name))}</span>
+              <span class="pill">${escapeHtml(withL2Emoji(item.name, name))}</span>
               <button
                 class="category-tag-delete-btn"
                 type="button"
@@ -3210,14 +3729,20 @@ function renderCategoryTree() {
       return `
         <article class="list-row">
           <div class="row-main">
-            <strong>${escapeHtml(withL1Emoji(name))}</strong>
+            <button
+              class="category-l1-edit-btn"
+              type="button"
+              data-action="edit-l1"
+              data-l1="${escapeHtml(l1Encoded)}"
+              aria-label="${escapeHtml(t("editCategoryL1Action", { l1: name }))}"
+              title="${escapeHtml(t("editCategoryL1Action", { l1: name }))}"
+            >${escapeHtml(withL1Emoji(name))}</button>
             <div class="category-row-actions">
               <button class="btn btn-ghost category-inline-add-btn" type="button" data-action="add-l2" data-l1="${escapeHtml(
                 name
               )}" title="${escapeHtml(t("promptL2Name", { l1: name }))}" aria-label="${escapeHtml(
                 t("promptL2Name", { l1: name })
               )}">${escapeHtml(t("addL2Inline"))}</button>
-              <span class="muted">${cfg.active ? "active" : "inactive"}</span>
             </div>
           </div>
           <div class="tag-wrap">${l2 || `<span class="muted">${escapeHtml(t("emptyNoL2Categories"))}</span>`}</div>
@@ -3295,6 +3820,8 @@ function applyI18n() {
   setText("heroRestrictedLegend", t("labelRestricted"));
   setText("budgetPlanTitle", t("plannedBudget"));
   setText("recentExpensesTitle", t("recentExpenses"));
+  setAttr("recentExpensesTitle", "title", t("recentExpenses"));
+  setAttr("recentExpensesTitle", "aria-label", t("recentExpenses"));
   setAttr("quickDateToggleBtn", "title", t("quickDateToggle"));
   setAttr("quickDateToggleBtn", "aria-label", t("quickDateToggle"));
   setAttr("budgetPlanViewToggleBtn", "title", state.ui.budgetPieView ? t("budgetViewToggleToList") : t("budgetViewToggleToPie"));
@@ -3321,12 +3848,14 @@ function applyI18n() {
   setText("quickEntryDateInputLabel", t("date"));
   setText("quickStepL1Title", t("stepL1Title"));
   setText("quickStepL2Title", t("stepL2Title"));
+  setText("quickStepTransferReasonTitle", t("stepTransferTitle"));
   setText("quickStepSpendTitle", t("stepSpendTitle"));
   setText("quickStepAmountTitle", t("stepAmountTitle"));
   setText("quickEntryL1Label", t("categoryL1"));
   setText("quickEntryL2Label", t("categoryL2"));
   setText("quickEntryAccountLabel", t("account"));
   setText("quickEntryAccountToLabel", t("accountTo"));
+  setText("quickEntryTransferReasonLabel", t("transferMode"));
   setText("quickEntryCurrencyLabel", t("currency"));
   setText("quickDateDefaultHint", t("quickDateHint"));
   updateQuickDateDisplay();
@@ -3369,6 +3898,8 @@ function applyI18n() {
   setText("settingsLinkReview", t("monthlyReview"));
   setText("settingsLinkCategories", t("categories"));
   setText("addL1BottomBtn", t("addL1Bottom"));
+  setText("categoryPromptParentLabel", t("categoryPromptParentLabel"));
+  setText("categoryPromptEmojiLabel", t("categoryPromptEmojiLabel"));
   setText("settingsLinkAi", t("aiProviders"));
   setText("accountEditTitle", t("editAccount"));
   setText("accountEditNameLabel", t("account"));
@@ -3387,11 +3918,18 @@ function applyI18n() {
   setText("transactionEditL2Label", t("categoryL2"));
   setText("transactionEditFromLabel", t("account"));
   setText("transactionEditToLabel", t("accountTo"));
-  setText("transactionEditReasonLabel", t("reason"));
+  setText("transactionEditReasonLabel", t("transferMode"));
   setText("transactionEditTagsLabel", t("tagsLabel"));
   setText("transactionEditNoteLabel", t("note"));
   setText("transactionEditSaveBtn", t("saveTransaction"));
   setText("transactionDeleteBtn", t("deleteTransaction"));
+  setText("transactionDetailTitle", t("transactionDetailTitle"));
+  setText("transactionDetailEditBtn", t("edit"));
+  setText("transactionDetailDeleteBtn", t("deleteTransaction"));
+  setText("transactionDetailAmountLabel", t("transactionDetailAmount"));
+  setText("transactionDetailCategoryLabel", t("transactionDetailCategory"));
+  setText("transactionDetailAccountLabel", t("transactionDetailAccount"));
+  setText("transactionDetailTimeLabel", t("transactionDetailTime"));
   setText("closeUtilityBtn", "←");
   const utilityBtn = $("#closeUtilityBtn");
   if (utilityBtn) utilityBtn.setAttribute("aria-label", t("back"));
@@ -3402,6 +3940,11 @@ function applyI18n() {
   if ((state.accounts || []).length) {
     populateQuickEntryAccounts();
   }
+  renderQuickTransferReasonGrid();
+  applyTransferReasonOptionLabels($("#quickEntryForm [name=transfer_reason]"));
+  applyTransferReasonOptionLabels($("#transactionForm [name=transfer_reason]"));
+  applyTransferReasonOptionLabels($("#transactionEditForm [name=transfer_reason]"));
+  updateCategoryPromptView();
   const quickCurrency = $("#quickEntryForm [name=currency_original]")?.value || "USD";
   applyQuickEntryMax(state.quickEntryMax, quickCurrency);
   const trendMode = $("#trendMode");
@@ -3462,6 +4005,12 @@ function loadUiState() {
       state.trend.end = parsed.trend.end || state.trend.end;
       state.trend.mode = parsed.trend.mode || state.trend.mode;
     }
+    if (parsed.categoryEmoji) {
+      state.categoryEmoji = {
+        l1: parsed.categoryEmoji.l1 && typeof parsed.categoryEmoji.l1 === "object" ? parsed.categoryEmoji.l1 : {},
+        l2: parsed.categoryEmoji.l2 && typeof parsed.categoryEmoji.l2 === "object" ? parsed.categoryEmoji.l2 : {}
+      };
+    }
   } catch {
     // ignore localStorage errors
   }
@@ -3486,7 +4035,8 @@ function persistUiState() {
         debug: {
           onlyFailed: state.debug.onlyFailed,
           filter: state.debug.filter
-        }
+        },
+        categoryEmoji: state.categoryEmoji
       })
     );
   } catch {
@@ -3494,21 +4044,63 @@ function persistUiState() {
   }
 }
 
+function buildL2EmojiKey(l1Name, l2Name) {
+  return `${String(l1Name || "").trim()}|||${String(l2Name || "").trim()}`;
+}
+
+function normalizeEmojiInput(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const compact = raw.split(/\s+/)[0] || "";
+  return compact.slice(0, 8);
+}
+
+function getL1EmojiSymbol(name) {
+  const label = String(name || "").trim();
+  if (!label) return "🏷️";
+  return state.categoryEmoji?.l1?.[label] || CATEGORY_L1_EMOJI[label] || "🏷️";
+}
+
+function getL2EmojiSymbol(l1Name, l2Name) {
+  const l1 = String(l1Name || "").trim();
+  const l2 = String(l2Name || "").trim();
+  if (!l2) return "🔹";
+  return state.categoryEmoji?.l2?.[buildL2EmojiKey(l1, l2)] || CATEGORY_L2_EMOJI[l2] || "🔹";
+}
+
+function pruneCategoryEmojiMap() {
+  const existingL1 = new Set(Object.keys(state.categories || {}));
+  const nextL1 = {};
+  for (const [name, emoji] of Object.entries(state.categoryEmoji?.l1 || {})) {
+    if (existingL1.has(name) && emoji) nextL1[name] = emoji;
+  }
+  const nextL2 = {};
+  for (const [key, emoji] of Object.entries(state.categoryEmoji?.l2 || {})) {
+    if (!emoji) continue;
+    const [l1Name, l2Name] = String(key).split("|||");
+    const l2Rows = state.categories?.[l1Name]?.l2 || [];
+    if (l2Rows.some((row) => row?.name === l2Name)) {
+      nextL2[buildL2EmojiKey(l1Name, l2Name)] = emoji;
+    }
+  }
+  state.categoryEmoji = { l1: nextL1, l2: nextL2 };
+}
+
 function withL1Emoji(name) {
   const label = String(name || "").trim();
   if (!label || label === "-") return "-";
-  return `${CATEGORY_L1_EMOJI[label] || "🏷️"} ${label}`;
+  return `${getL1EmojiSymbol(label)} ${label}`;
 }
 
-function withL2Emoji(name) {
+function withL2Emoji(name, l1Name = "") {
   const label = String(name || "").trim();
   if (!label || label === "-") return "-";
-  return `${CATEGORY_L2_EMOJI[label] || "🔹"} ${label}`;
+  return `${getL2EmojiSymbol(l1Name, label)} ${label}`;
 }
 
 function formatCategoryPair(l1, l2) {
   const left = l1 ? withL1Emoji(l1) : "-";
-  const right = l2 ? withL2Emoji(l2) : "-";
+  const right = l2 ? withL2Emoji(l2, l1) : "-";
   return `${left} / ${right}`;
 }
 

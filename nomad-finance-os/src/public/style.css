@@ -449,6 +449,23 @@ h3 {
   gap: 8px;
 }
 
+.section-title-btn {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.95rem;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.section-title-btn:hover {
+  color: color-mix(in oklab, var(--accent), var(--ink) 45%);
+}
+
 .card {
   background: var(--paper);
   border: 1px solid var(--line);
@@ -699,6 +716,10 @@ h3 {
   font-size: 0.8rem;
 }
 
+.recent-expense-row.clickable {
+  cursor: pointer;
+}
+
 .mini-bars {
   display: grid;
   gap: 8px;
@@ -939,7 +960,24 @@ h3 {
 .category-row-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: flex-end;
+}
+
+.category-l1-edit-btn {
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  font-size: 1.02rem;
+  line-height: 1.2;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.category-l1-edit-btn:hover {
+  color: color-mix(in oklab, var(--ink), var(--accent) 26%);
 }
 
 .category-inline-add-btn {
@@ -963,6 +1001,28 @@ h3 {
 
 .category-add-l1-btn {
   min-width: 180px;
+}
+
+#categoryPromptSheet .sheet-backdrop {
+  background: rgba(30, 24, 20, 0.3);
+}
+
+#categoryPromptSheet .sheet-card {
+  left: 50%;
+  right: auto;
+  top: 14vh;
+  bottom: auto;
+  transform: translateX(-50%);
+  width: min(460px, calc(100vw - 24px));
+  max-height: min(78vh, 540px);
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  padding: 14px;
+}
+
+#categoryPromptParentInput[readonly] {
+  color: var(--ink-soft);
+  background: #f1eadf;
 }
 
 .progress-wrap {
@@ -1153,6 +1213,10 @@ body.utility-mode .sheet {
   gap: 8px;
 }
 
+.quick-transfer-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .quick-icon-btn {
   border: 0;
   background: transparent;
@@ -1179,6 +1243,10 @@ body.utility-mode .sheet {
   line-height: 1.1;
   text-align: center;
   color: var(--ink-soft);
+}
+
+.quick-transfer-grid .quick-icon-btn .label {
+  font-size: 0.72rem;
 }
 
 .quick-icon-btn.active .icon {
@@ -1373,6 +1441,47 @@ body.sheet-open .topbar {
 .sheet-form {
   display: grid;
   gap: 10px;
+}
+
+.transaction-detail-sheet-card {
+  display: grid;
+  gap: 10px;
+}
+
+.transaction-detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.transaction-detail-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
+  background: color-mix(in oklab, var(--paper), white 8%);
+  display: grid;
+  gap: 6px;
+}
+
+.transaction-detail-row {
+  display: grid;
+  grid-template-columns: minmax(94px, 110px) 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 6px 0;
+}
+
+.transaction-detail-row + .transaction-detail-row {
+  border-top: 1px solid color-mix(in oklab, var(--line), transparent 24%);
+}
+
+.transaction-detail-value {
+  display: grid;
+  gap: 2px;
+}
+
+.transaction-detail-amount strong {
+  color: #c95856;
 }
 
 .step-block {

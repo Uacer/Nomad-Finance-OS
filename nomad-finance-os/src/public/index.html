@@ -84,9 +84,16 @@
             <div id="cashFlowBars" class="mini-bars"></div>
           </article>
         </section>
-        <article class="card clickable-card" id="recentExpensesCard" role="button" tabindex="0" aria-label="Open transactions">
+        <article class="card" id="recentExpensesCard">
           <div class="section-head">
-            <h3 id="recentExpensesTitle">Recent Transactions</h3>
+            <button
+              id="recentExpensesTitle"
+              class="section-title-btn"
+              type="button"
+              aria-label="Open transactions"
+            >
+              Transactions
+            </button>
           </div>
           <div id="recentExpensesList" class="list-block compact-list"></div>
         </article>
@@ -203,6 +210,8 @@
             Transfer Reason
             <select name="transfer_reason">
               <option value="normal">normal</option>
+              <option value="loan">loan</option>
+              <option value="borrow">borrow</option>
               <option value="deposit_lock">deposit_lock</option>
               <option value="deposit_release">deposit_release</option>
             </select>
@@ -448,6 +457,22 @@
               <label>
                 <span id="quickEntryL2Label">Category L2</span>
                 <select name="category_l2" required></select>
+              </label>
+            </div>
+          </section>
+          <section id="quickStepTransferReason" class="quick-icon-step hidden">
+            <p class="step-title" id="quickStepTransferReasonTitle">Step 1 · Choose Transfer Type</p>
+            <div id="quickTransferReasonGrid" class="quick-icon-grid quick-transfer-grid" aria-label="Transfer Type"></div>
+            <div class="hidden">
+              <label>
+                <span id="quickEntryTransferReasonLabel">Transfer Type</span>
+                <select name="transfer_reason">
+                  <option value="normal">Internal</option>
+                  <option value="loan">Loan</option>
+                  <option value="borrow">Borrow</option>
+                  <option value="deposit_lock">Deposit Lock</option>
+                  <option value="deposit_release">Deposit Release</option>
+                </select>
               </label>
             </div>
           </section>
@@ -742,6 +767,8 @@
             <span id="transactionEditReasonLabel">Transfer Reason</span>
             <select name="transfer_reason">
               <option value="normal">normal</option>
+              <option value="loan">loan</option>
+              <option value="borrow">borrow</option>
               <option value="deposit_lock">deposit_lock</option>
               <option value="deposit_release">deposit_release</option>
             </select>
@@ -759,6 +786,88 @@
         <div class="tag-wrap">
           <button class="btn btn-danger" id="transactionDeleteBtn" type="button">Delete Transaction</button>
         </div>
+      </article>
+    </section>
+
+    <section id="transactionDetailSheet" class="sheet hidden" aria-hidden="true">
+      <div class="sheet-backdrop" data-close-sheet="transactionDetailSheet"></div>
+      <article class="sheet-card transaction-detail-sheet-card">
+        <div class="sheet-head">
+          <h3 id="transactionDetailTitle">Transaction Detail</h3>
+          <button class="btn btn-ghost" type="button" data-close-sheet="transactionDetailSheet">Close</button>
+        </div>
+        <div class="transaction-detail-actions">
+          <button class="btn" id="transactionDetailEditBtn" type="button">Edit</button>
+          <button class="btn btn-danger" id="transactionDetailDeleteBtn" type="button">Delete</button>
+        </div>
+        <article class="transaction-detail-card">
+          <div class="transaction-detail-row">
+            <span id="transactionDetailAmountLabel">Amount</span>
+            <div class="transaction-detail-value transaction-detail-amount">
+              <strong id="transactionDetailAmountValue">-</strong>
+              <span id="transactionDetailAmountSub" class="muted"></span>
+            </div>
+          </div>
+          <div class="transaction-detail-row">
+            <span id="transactionDetailCategoryLabel">Category</span>
+            <strong id="transactionDetailCategoryValue">-</strong>
+          </div>
+          <div class="transaction-detail-row">
+            <span id="transactionDetailAccountLabel">Account</span>
+            <strong id="transactionDetailAccountValue">-</strong>
+          </div>
+          <div class="transaction-detail-row">
+            <span id="transactionDetailTimeLabel">Time</span>
+            <div class="transaction-detail-value">
+              <strong id="transactionDetailTimeValue">-</strong>
+              <span id="transactionDetailCreatedSub" class="muted"></span>
+            </div>
+          </div>
+        </article>
+      </article>
+    </section>
+
+    <section id="categoryPromptSheet" class="sheet hidden" aria-hidden="true">
+      <div class="sheet-backdrop" data-close-sheet="categoryPromptSheet"></div>
+      <article class="sheet-card category-prompt-card">
+        <div class="sheet-head">
+          <h3 id="categoryPromptTitle">Add Category</h3>
+          <button class="btn btn-ghost" type="button" data-close-sheet="categoryPromptSheet">Close</button>
+        </div>
+        <form id="categoryPromptForm" class="sheet-form">
+          <input type="hidden" name="mode" value="l1" />
+          <input type="hidden" name="l1_name" value="" />
+          <input type="hidden" name="old_name" value="" />
+          <label>
+            <span id="categoryPromptParentLabel">Category L1</span>
+            <input id="categoryPromptParentInput" type="text" readonly />
+          </label>
+          <label>
+            <span id="categoryPromptEmojiLabel">Emoji</span>
+            <input
+              id="categoryPromptEmojiInput"
+              name="emoji"
+              type="text"
+              maxlength="8"
+              placeholder="✨"
+              autocomplete="off"
+              inputmode="text"
+            />
+          </label>
+          <label>
+            <span id="categoryPromptNameLabel">Name</span>
+            <input
+              id="categoryPromptNameInput"
+              name="name"
+              type="text"
+              maxlength="60"
+              required
+              placeholder="e.g. Family"
+              autocomplete="off"
+            />
+          </label>
+          <button class="btn btn-solid" id="categoryPromptSaveBtn" type="submit">Create</button>
+        </form>
       </article>
     </section>
 

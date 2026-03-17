@@ -198,6 +198,104 @@ function createApp(db) {
     res.json({ ok: true });
   });
 
+  app.put("/api/v1/categories/l1/rename", (req, res) => {
+    const schema = z.object({
+      old_name: z.string().min(1).max(64),
+      new_name: z.string().min(1).max(64)
+    });
+    const parsed = schema.safeParse(req.body || {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.flatten() });
+    }
+    const oldName = parsed.data.old_name.trim();
+    const newName = parsed.data.new_name.trim();
+    if (!oldName || !newName) {
+      return res.status(400).json({ error: "old_name and new_name are required." });
+    }
+    if (oldName === newName) {
+      return res.json({ ok: true, old_name: oldName, new_name: newName });
+    }
+    const renameTx = db.transaction(() => {
+      const current = db
+        .prepare("SELECT id FROM expense_category_l1 WHERE user_id = ? AND name = ?")
+        .get(req.userId, oldName);
+      if (!current) {
+        const error = new Error("Category L1 not found.");
+        error.code = "CATEGORY_L1_NOT_FOUND";
+        throw error;
+      }
+      const conflict = db
+        .prepare("SELECT id FROM expense_category_l1 WHERE user_id = ? AND name = ?")
+        .get(req.userId, newName);
+      if (conflict && conflict.id !== current.id) {
+        const error = new Error("Category L1 name already exists.");
+        error.code = "CATEGORY_L1_CONFLICT";
+        throw error;
+      }
+
+      db.prepare(
+        `
+          UPDATE expense_category_l1
+          SET name = ?
+          WHERE user_id = ? AND id = ?
+        `
+      ).run(newName, req.userId, current.id);
+      db.prepare(
+        `
+          UPDATE transactions
+          SET category_l1 = ?
+          WHERE user_id = ? AND category_l1 = ?
+        `
+      ).run(newName, req.userId, oldName);
+      db.prepare(
+        `
+          INSERT INTO budgets (user_id, month, category_l1, total_amount, budget_currency)
+          SELECT user_id, month, ?, total_amount, budget_currency
+          FROM budgets
+          WHERE user_id = ? AND category_l1 = ?
+          ON CONFLICT(user_id, month, category_l1)
+          DO UPDATE SET total_amount = excluded.total_amount, budget_currency = excluded.budget_currency
+        `
+      ).run(newName, req.userId, oldName);
+      db.prepare(
+        `
+          DELETE FROM budgets
+          WHERE user_id = ? AND category_l1 = ?
+        `
+      ).run(req.userId, oldName);
+      db.prepare(
+        `
+          INSERT INTO yearly_budgets (user_id, year, category_l1, total_amount, budget_currency)
+          SELECT user_id, year, ?, total_amount, budget_currency
+          FROM yearly_budgets
+          WHERE user_id = ? AND category_l1 = ?
+          ON CONFLICT(user_id, year, category_l1)
+          DO UPDATE SET total_amount = excluded.total_amount, budget_currency = excluded.budget_currency
+        `
+      ).run(newName, req.userId, oldName);
+      db.prepare(
+        `
+          DELETE FROM yearly_budgets
+          WHERE user_id = ? AND category_l1 = ?
+        `
+      ).run(req.userId, oldName);
+    });
+
+    try {
+      renameTx();
+    } catch (error) {
+      if (error?.code === "CATEGORY_L1_NOT_FOUND") {
+        return res.status(404).json({ error: String(error.message || "Category L1 not found.") });
+      }
+      if (error?.code === "CATEGORY_L1_CONFLICT") {
+        return res.status(409).json({ error: String(error.message || "Category L1 name already exists.") });
+      }
+      return res.status(500).json({ error: "Failed to rename category." });
+    }
+
+    res.json({ ok: true, old_name: oldName, new_name: newName });
+  });
+
   app.post("/api/v1/categories/l2", (req, res) => {
     const schema = z.object({
       l1_name: z.string().min(1).max(64),
@@ -1572,18 +1670,22 @@ function createTransactionRecord(db, userId, payload) {
       );
       updateBalance.run(deltaTo, prepared.to.id, userId);
     } else if (prepared.type === "transfer") {
-      const deltaFrom = convertCurrency(
-        prepared.amountOriginal,
-        prepared.sourceCurrency,
-        normalizeCurrency(prepared.from.currency)
-      );
-      const deltaTo = convertCurrency(
-        prepared.amountOriginal,
-        prepared.sourceCurrency,
-        normalizeCurrency(prepared.to.currency)
-      );
-      updateBalance.run(-deltaFrom, prepared.from.id, userId);
-      updateBalance.run(deltaTo, prepared.to.id, userId);
+      if (prepared.from) {
+        const deltaFrom = convertCurrency(
+          prepared.amountOriginal,
+          prepared.sourceCurrency,
+          normalizeCurrency(prepared.from.currency)
+        );
+        updateBalance.run(-deltaFrom, prepared.from.id, userId);
+      }
+      if (prepared.to) {
+        const deltaTo = convertCurrency(
+          prepared.amountOriginal,
+          prepared.sourceCurrency,
+          normalizeCurrency(prepared.to.currency)
+        );
+        updateBalance.run(deltaTo, prepared.to.id, userId);
+      }
     }
     for (const tag of prepared.tags) {
       insertTag.run(userId, tag);
@@ -1666,16 +1768,32 @@ function prepareTransactionForWrite(db, userId, payload) {
 
   const transferReason = payload.transfer_reason || "normal";
   if (type === "transfer") {
-    if (!from || !to) {
-      throw new Error("Transfer requires account_from_id and account_to_id.");
+    if (transferReason === "loan") {
+      if (!from) {
+        throw new Error("loan transfer requires account_from_id.");
+      }
+      if (to) {
+        throw new Error("loan transfer does not allow account_to_id.");
+      }
+    } else if (transferReason === "borrow") {
+      if (!to) {
+        throw new Error("borrow transfer requires account_to_id.");
+      }
+      if (from) {
+        throw new Error("borrow transfer does not allow account_from_id.");
+      }
+    } else {
+      if (!from || !to) {
+        throw new Error("Transfer requires account_from_id and account_to_id.");
+      }
+      if (from.id === to.id) {
+        throw new Error("Transfer requires different source and target accounts.");
+      }
     }
-    if (from.id === to.id) {
-      throw new Error("Transfer requires different source and target accounts.");
-    }
-    if (transferReason === "deposit_lock" && to.type !== "restricted_cash") {
+    if (transferReason === "deposit_lock" && to && to.type !== "restricted_cash") {
       throw new Error("deposit_lock requires destination account type restricted_cash.");
     }
-    if (transferReason === "deposit_release" && from.type !== "restricted_cash") {
+    if (transferReason === "deposit_release" && from && from.type !== "restricted_cash") {
       throw new Error("deposit_release requires source account type restricted_cash.");
     }
   }
