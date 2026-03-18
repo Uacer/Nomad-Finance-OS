@@ -89,7 +89,7 @@ body.auth-required {
   border-bottom: 0;
   background: color-mix(in oklab, var(--bg-2), white 14%);
   backdrop-filter: blur(7px);
-  box-shadow: 0 1px 0 rgba(34, 29, 24, 0.08);
+  box-shadow: 0 2px 6px rgba(34, 29, 24, 0.1);
 }
 
 .minimal-topbar {
@@ -202,7 +202,8 @@ textarea {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 9px 10px;
+  padding: 10px 12px;
+  min-height: 44px;
   color: var(--ink);
   background: var(--paper);
 }
@@ -263,7 +264,7 @@ textarea {
 .fab {
   position: fixed;
   left: 50%;
-  bottom: 18px;
+  bottom: calc(62px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   width: 56px;
   height: 56px;
@@ -435,13 +436,51 @@ body.auth-required .fab {
 }
 
 .tabs {
+  display: flex;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  background: color-mix(in oklab, var(--bg-2), white 14%);
+  backdrop-filter: blur(7px);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -2px 8px rgba(34, 29, 24, 0.07);
+  overflow-x: auto;
+  padding: 0 2px env(safe-area-inset-bottom);
+}
+
+.tab {
+  flex: 1 1 0;
+  min-width: 56px;
+  border: 0;
+  border-top: 2px solid transparent;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 0.72rem;
+  padding: 8px 4px 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.tab.active {
+  border-top-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+body.sheet-open .tabs,
+body.utility-mode .tabs,
+body.auth-required .tabs {
   display: none;
 }
 
 .layout {
   display: grid;
   gap: 14px;
-  padding: 14px 16px 120px;
+  padding: 14px 16px calc(120px + 56px + env(safe-area-inset-bottom));
 }
 
 .panel {
@@ -498,9 +537,15 @@ h3 {
   color: inherit;
   font: inherit;
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 1rem;
   line-height: 1.2;
   cursor: pointer;
+}
+
+.section-title-btn::after {
+  content: " →";
+  opacity: 0.45;
+  font-size: 0.9em;
 }
 
 .section-title-btn:hover {
@@ -531,6 +576,7 @@ h3 {
 .hero-card {
   display: grid;
   gap: 10px;
+  border-left: 4px solid var(--accent);
 }
 
 .hero-top {
@@ -596,29 +642,29 @@ h3 {
 .hero-submetrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 10px;
 }
 
 .hero-subcard {
   border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 8px;
+  padding: 9px 10px;
   background: #f7f1e8;
 }
 
 .hero-subcard.secondary {
-  background: #efe5d8;
+  background: #e8ddd0;
 }
 
 .hero-subcard .k {
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   color: var(--ink-soft);
 }
 
 .hero-subcard .v {
   margin-top: 3px;
-  font-weight: 600;
-  font-size: 0.94rem;
+  font-weight: 700;
+  font-size: 1.02rem;
 }
 
 .infographic-grid {
@@ -664,7 +710,7 @@ h3 {
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  font-size: 0.8rem;
+  font-size: 0.875rem;
 }
 
 .budget-pie-view {
@@ -750,11 +796,11 @@ h3 {
 }
 
 .recent-expense-row {
-  font-size: 0.8rem;
+  font-size: 0.875rem;
 }
 
 .recent-expense-row strong {
-  font-size: 0.8rem;
+  font-size: 0.875rem;
 }
 
 .recent-expense-row.clickable {
@@ -776,7 +822,7 @@ h3 {
 
 .mini-bar-label {
   color: var(--ink-soft);
-  font-size: 0.81rem;
+  font-size: 0.86rem;
 }
 
 .mini-bar-track {
@@ -810,7 +856,7 @@ h3 {
 
 .mini-bar-value {
   font-family: var(--mono);
-  font-size: 0.73rem;
+  font-size: 0.8rem;
   color: var(--ink-soft);
 }
 
@@ -858,7 +904,7 @@ h3 {
   align-items: center;
   gap: 6px;
   color: var(--ink-soft);
-  font-size: 0.8rem;
+  font-size: 0.875rem;
 }
 
 .dot {
@@ -1067,7 +1113,7 @@ h3 {
 }
 
 .progress-wrap {
-  height: 8px;
+  height: 10px;
   border-radius: 999px;
   overflow: hidden;
   border: 1px solid #d9cfc1;
@@ -1076,7 +1122,9 @@ h3 {
 
 .progress-fill {
   height: 100%;
+  min-width: 3px;
   background: linear-gradient(90deg, #3f8059, #7ca072);
+  transition: width 300ms ease;
 }
 
 .progress-fill.warn {
@@ -1085,6 +1133,41 @@ h3 {
 
 .progress-fill.overspend {
   background: linear-gradient(90deg, #b34745, #d36b67);
+}
+
+.budget-threshold-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 8px;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.btl-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.btl-item::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.btl-ok::before {
+  background: #3f8059;
+}
+
+.btl-warn::before {
+  background: #d1a33a;
+}
+
+.btl-over::before {
+  background: #b34745;
 }
 
 .form-grid {
@@ -1100,18 +1183,21 @@ h3 {
 .actions {
   display: flex;
   align-items: end;
+  gap: 8px;
 }
 
 .btn {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 9px 13px;
+  min-height: 40px;
   background: #f7f1e8;
   color: var(--ink);
   cursor: pointer;
 }
 
 .btn-solid {
+  min-height: 44px;
   background: var(--ink);
   color: var(--accent-ink);
   border-color: var(--ink);
@@ -1328,8 +1414,8 @@ body.utility-mode .sheet {
   border-radius: 999px;
   background: #f3ede4;
   padding: 4px 10px;
-  min-height: 32px;
-  font-size: 0.86rem;
+  min-height: 36px;
+  font-size: 0.9rem;
   width: 100%;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -1343,8 +1429,8 @@ body.utility-mode .sheet {
   color: var(--ink);
   padding: 4px 10px;
   cursor: pointer;
-  font-size: 0.86rem;
-  min-height: 32px;
+  font-size: 0.9rem;
+  min-height: 36px;
   width: 100%;
   text-align: left;
   white-space: nowrap;
@@ -1477,11 +1563,37 @@ body.sheet-open .topbar {
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 10px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 8px;
 }
 
 .sheet-form {
   display: grid;
   gap: 10px;
+}
+
+.token-reveal-sheet-card {
+  display: grid;
+  gap: 10px;
+}
+
+.token-reveal-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.token-reveal-row textarea {
+  min-height: 84px;
+}
+
+.token-reveal-row .btn {
+  min-width: 84px;
 }
 
 .transaction-detail-sheet-card {
@@ -1637,9 +1749,23 @@ body.utility-mode #dashboardPanel {
   color: #f6efe4;
 }
 
+@media (max-width: 520px) {
+  .token-reveal-row {
+    grid-template-columns: 1fr;
+  }
+
+  .token-reveal-row .btn {
+    width: 100%;
+  }
+}
+
 @media (min-width: 920px) {
   .topbar {
     padding: 18px 24px;
+  }
+
+  .tabs {
+    display: none;
   }
 
   .layout {

@@ -100,6 +100,7 @@
             </div>
             <div id="budgetPlanSummary" class="muted"></div>
             <div id="budgetPlanList" class="list-block compact-list"></div>
+            <div class="budget-threshold-legend" aria-label="Budget status legend"><span class="btl-item btl-ok">Under 80%</span><span class="btl-item btl-warn">80–99%</span><span class="btl-item btl-over">Over limit</span></div>
             <div id="budgetPlanPieView" class="budget-pie-view hidden"></div>
           </article>
           <article class="card advanced-section" id="cashFlowCard">
@@ -398,11 +399,16 @@
           <div class="actions">
             <button id="agentTokenCreateBtn" class="btn btn-solid" type="submit">Create Token</button>
           </div>
-          <label class="grid-span">
-            <span id="agentTokenLatestLabel">Last Created Token (shown once)</span>
-            <textarea id="agentTokenPlaintext" rows="2" readonly placeholder="Will appear after creation"></textarea>
-          </label>
         </form>
+        <article class="card">
+          <h3 id="agentQuickstartTitle">Agent Quickstart</h3>
+          <p class="muted" id="agentQuickstartHint">
+            Copy one setup block for another agent to download the skill and start calling this API.
+          </p>
+          <div class="actions">
+            <button id="agentQuickstartCopyBtn" class="btn btn-ghost" type="button">Copy Agent Setup</button>
+          </div>
+        </article>
         <article class="card">
           <h3 id="agentTokenListTitle">Existing Agent Tokens</h3>
           <div id="agentTokenList" class="list-block"></div>
@@ -533,6 +539,23 @@
             </section>
           </section>
         </form>
+      </article>
+    </section>
+
+    <section id="agentTokenRevealSheet" class="sheet hidden" aria-hidden="true">
+      <div class="sheet-backdrop" data-close-sheet="agentTokenRevealSheet"></div>
+      <article class="sheet-card token-reveal-sheet-card">
+        <div class="sheet-head">
+          <h3 id="agentTokenRevealTitle">Token Created</h3>
+          <button class="btn btn-ghost" type="button" data-close-sheet="agentTokenRevealSheet">Close</button>
+        </div>
+        <p class="muted" id="agentTokenRevealHint">
+          Copy it now. For security, this token will not be shown again.
+        </p>
+        <div class="token-reveal-row">
+          <textarea id="agentTokenRevealValue" class="mono" rows="3" readonly></textarea>
+          <button id="agentTokenRevealCopyBtn" class="btn btn-solid" type="button">Copy</button>
+        </div>
       </article>
     </section>
 

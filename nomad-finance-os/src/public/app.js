@@ -309,13 +309,22 @@ const I18N = {
     transferReasonDepositLock: "Deposit Lock",
     transferReasonDepositRelease: "Deposit Release",
     agentTokensTitle: "Agent API Tokens",
-    agentTokensHint: "Create a token for your own agent. The plain token is shown only once.",
+    agentTokensHint: "Create a token for your own agent. Token plaintext is shown in a popup only once.",
     agentTokenName: "Token Name",
     createAgentToken: "Create Token",
     latestAgentToken: "Last Created Token (shown once)",
+    agentTokenRevealTitle: "Token Created",
+    agentTokenRevealHint: "Copy it now. For security, this token will not be shown again.",
+    tokenCopied: "Token copied",
+    tokenCopyMissing: "No token to copy",
     agentTokenCreated: "Agent token created",
     agentTokenRevoked: "Agent token revoked",
     copyToken: "Copy",
+    agentQuickstartTitle: "Agent Quickstart",
+    agentQuickstartHint:
+      "Copy one setup block for another agent to download the skill and start calling this API.",
+    copyAgentSetup: "Copy Agent Setup",
+    agentSetupCopied: "Agent setup copied",
     revokeToken: "Revoke",
     tokenScopes: "Scopes",
     tokenLastUsed: "Last used",
@@ -520,13 +529,21 @@ const I18N = {
     transferReasonDepositLock: "押金锁定",
     transferReasonDepositRelease: "押金释放",
     agentTokensTitle: "Agent API Token",
-    agentTokensHint: "为你的自有 agent 创建 token。明文仅展示一次。",
+    agentTokensHint: "为你的自有 agent 创建 token。明文只会在弹窗中展示一次。",
     agentTokenName: "Token 名称",
     createAgentToken: "创建 Token",
     latestAgentToken: "最近创建的 Token（仅展示一次）",
+    agentTokenRevealTitle: "Token 已创建",
+    agentTokenRevealHint: "请现在复制，出于安全原因后续不会再次展示明文。",
+    tokenCopied: "Token 已复制",
+    tokenCopyMissing: "没有可复制的 Token",
     agentTokenCreated: "Agent token 已创建",
     agentTokenRevoked: "Agent token 已吊销",
     copyToken: "复制",
+    agentQuickstartTitle: "Agent 快速接入",
+    agentQuickstartHint: "一键复制给其他 agent 的接入指令（含 skill 下载与调用示例）。",
+    copyAgentSetup: "复制接入指令",
+    agentSetupCopied: "接入指令已复制",
     revokeToken: "吊销",
     tokenScopes: "权限",
     tokenLastUsed: "最近使用",
@@ -603,6 +620,18 @@ function bindUI() {
   if (settingsForm) settingsForm.addEventListener("submit", submitSettingsForm);
   const agentTokenForm = $("#agentTokenForm");
   if (agentTokenForm) agentTokenForm.addEventListener("submit", submitAgentTokenForm);
+  const agentTokenRevealCopyBtn = $("#agentTokenRevealCopyBtn");
+  if (agentTokenRevealCopyBtn) {
+    agentTokenRevealCopyBtn.addEventListener("click", () => {
+      void copyLatestAgentToken();
+    });
+  }
+  const agentQuickstartCopyBtn = $("#agentQuickstartCopyBtn");
+  if (agentQuickstartCopyBtn) {
+    agentQuickstartCopyBtn.addEventListener("click", () => {
+      void copyAgentSetupGuide();
+    });
+  }
   $("#captureTextForm").addEventListener("submit", submitCaptureTextForm);
   $("#captureImageForm").addEventListener("submit", submitCaptureImageForm);
   $("#confirmExtractionBtn").addEventListener("click", confirmLatestExtraction);
@@ -1370,6 +1399,86 @@ async function copyDiagnosticsToClipboard() {
       message: String(error?.message || "Clipboard write failed."),
       stack: error?.stack || ""
     });
+  }
+}
+
+async function copyTextToClipboard(text) {
+  const value = String(text || "");
+  if (!value) return false;
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return true;
+  }
+  const tmp = document.createElement("textarea");
+  tmp.value = value;
+  tmp.setAttribute("readonly", "readonly");
+  tmp.style.position = "fixed";
+  tmp.style.opacity = "0";
+  tmp.style.pointerEvents = "none";
+  document.body.appendChild(tmp);
+  tmp.select();
+  const copied = document.execCommand("copy");
+  document.body.removeChild(tmp);
+  if (!copied) {
+    throw new Error("Clipboard copy is not available.");
+  }
+  return true;
+}
+
+function buildAgentSetupGuide(token) {
+  const baseUrl = String(window.location?.origin || "").trim() || "http://localhost:5001";
+  const safeToken = String(token || "<PASTE_AGENT_TOKEN_HERE>").trim() || "<PASTE_AGENT_TOKEN_HERE>";
+  return [
+    "# Nomad Finance OS Agent Setup",
+    "git clone https://github.com/Uacer/Nomad-Finance-OS.git",
+    "cd Nomad-Finance-OS/nomad-finance-os",
+    "",
+    `export NOMAD_API_BASE_URL=\"${baseUrl}\"`,
+    `export NOMAD_API_TOKEN=\"${safeToken}\"`,
+    "",
+    "# Parse a draft",
+    "node skills/nomad-capture-ledger/scripts/capture_client.js capture-text --message \"午饭50元\"",
+    "",
+    "# Confirm posting",
+    "node skills/nomad-capture-ledger/scripts/capture_client.js confirm --extraction-id <EXTRACTION_ID>"
+  ].join("\n");
+}
+
+async function copyAgentSetupGuide() {
+  try {
+    await copyTextToClipboard(buildAgentSetupGuide(state.latestAgentTokenPlaintext));
+    showToast(t("agentSetupCopied"));
+  } catch (error) {
+    showToast(formatErrorForToast(error), true);
+  }
+}
+
+function showAgentTokenReveal(token) {
+  const value = String(token || "").trim();
+  const revealBox = $("#agentTokenRevealValue");
+  if (revealBox instanceof HTMLTextAreaElement) {
+    revealBox.value = value;
+    revealBox.focus();
+    revealBox.setSelectionRange(0, revealBox.value.length);
+  }
+  openSheet("agentTokenRevealSheet", { preserveUtility: true });
+}
+
+async function copyLatestAgentToken() {
+  const revealBox = $("#agentTokenRevealValue");
+  const token =
+    revealBox instanceof HTMLTextAreaElement
+      ? String(revealBox.value || "")
+      : String(state.latestAgentTokenPlaintext || "");
+  if (!token.trim()) {
+    showToast(t("tokenCopyMissing"), true);
+    return;
+  }
+  try {
+    await copyTextToClipboard(token);
+    showToast(t("tokenCopied"));
+  } catch (error) {
+    showToast(formatErrorForToast(error), true);
   }
 }
 
@@ -2845,10 +2954,7 @@ async function submitAgentTokenForm(event) {
       body: JSON.stringify({ name })
     });
     state.latestAgentTokenPlaintext = String(created?.token || "");
-    const tokenField = $("#agentTokenPlaintext");
-    if (tokenField instanceof HTMLTextAreaElement) {
-      tokenField.value = state.latestAgentTokenPlaintext;
-    }
+    showAgentTokenReveal(state.latestAgentTokenPlaintext);
     showToast(t("agentTokenCreated"));
     form.reset();
     await loadAgentTokens();
@@ -3211,7 +3317,7 @@ function renderPlannedBudgetCard(dashboard) {
                 <span class="budget-plan-period muted">/ ${escapeHtml(periodLabel)}</span>
               </div>
               <span class="${row.overspend ? "overspend" : ratio >= 0.8 ? "warn" : "muted"}">
-                ${formatMoney(used)} / ${formatMoney(total)}
+                ${formatMoney(used)} / ${formatMoney(total)}<span class="mono" style="font-size:0.76em;opacity:0.75"> ${pct.toFixed(0)}%</span>
                 <span class="${remainClass}"> · ${escapeHtml(t("remaining"))}: ${remainText}</span>
               </span>
             </div>
@@ -3645,7 +3751,9 @@ async function deleteTransactionById(txId, options = {}) {
 function renderAgentTokens() {
   const target = $("#agentTokenList");
   if (!target) return;
-  const rows = Array.isArray(state.agentTokens) ? state.agentTokens : [];
+  const rows = (Array.isArray(state.agentTokens) ? state.agentTokens : []).filter(
+    (row) => row && !row.revoked
+  );
   if (!rows.length) {
     target.innerHTML = `<div class="list-row muted">${escapeHtml(t("tokenListEmpty"))}</div>`;
     return;
@@ -3653,21 +3761,19 @@ function renderAgentTokens() {
   target.innerHTML = rows
     .map((row) => {
       const scopes = Array.isArray(row.scopes) ? row.scopes.join(", ") : "";
-      const statusLabel = row.revoked ? t("tokenStatusRevoked") : t("tokenStatusActive");
       const lastUsed = row.last_used_at ? formatTimestampValue(row.last_used_at) : t("tokenNeverUsed");
-      const revokeBtn = row.revoked
-        ? ""
-        : `<button class="btn" data-action="revoke" data-id="${row.id}">${escapeHtml(t("revokeToken"))}</button>`;
       return `
         <article class="list-row">
           <div class="row-main">
             <strong>${escapeHtml(row.name || "")}</strong>
-            <span class="pill">${escapeHtml(statusLabel)}</span>
+            <span class="pill">${escapeHtml(t("tokenStatusActive"))}</span>
           </div>
           <div class="muted mono">${escapeHtml(row.token_masked || row.token_prefix || "")}</div>
           <div class="muted">${escapeHtml(t("tokenScopes"))}: ${escapeHtml(scopes || "-")}</div>
           <div class="muted">${escapeHtml(t("tokenLastUsed"))}: ${escapeHtml(lastUsed)}</div>
-          <div class="tag-wrap">${revokeBtn}</div>
+          <div class="tag-wrap">
+            <button class="btn" data-action="revoke" data-id="${row.id}">${escapeHtml(t("revokeToken"))}</button>
+          </div>
         </article>
       `;
     })
@@ -4156,7 +4262,12 @@ function applyI18n() {
   setText("agentTokenHint", t("agentTokensHint"));
   setText("agentTokenNameLabel", t("agentTokenName"));
   setText("agentTokenCreateBtn", t("createAgentToken"));
-  setText("agentTokenLatestLabel", t("latestAgentToken"));
+  setText("agentQuickstartTitle", t("agentQuickstartTitle"));
+  setText("agentQuickstartHint", t("agentQuickstartHint"));
+  setText("agentQuickstartCopyBtn", t("copyAgentSetup"));
+  setText("agentTokenRevealTitle", t("agentTokenRevealTitle"));
+  setText("agentTokenRevealHint", t("agentTokenRevealHint"));
+  setText("agentTokenRevealCopyBtn", t("copyToken"));
   setText("accountEditTitle", t("editAccount"));
   setText("accountEditNameLabel", t("account"));
   setText("accountEditTypeLabel", t("accountType"));
@@ -4193,10 +4304,12 @@ function applyI18n() {
   if (quickNote) {
     quickNote.placeholder = ensureUILanguage(state.settings?.ui_language) === "zh" ? "可选" : "optional";
   }
-  const latestTokenBox = $("#agentTokenPlaintext");
-  if (latestTokenBox instanceof HTMLTextAreaElement) {
-    latestTokenBox.placeholder =
-      ensureUILanguage(state.settings?.ui_language) === "zh" ? "创建后会显示在这里" : "Will appear after creation";
+  const tokenRevealBox = $("#agentTokenRevealValue");
+  if (tokenRevealBox instanceof HTMLTextAreaElement) {
+    tokenRevealBox.placeholder =
+      ensureUILanguage(state.settings?.ui_language) === "zh"
+        ? "创建后会显示在弹窗里"
+        : "Token plaintext will appear here";
   }
   if ((state.accounts || []).length) {
     populateQuickEntryAccounts();
