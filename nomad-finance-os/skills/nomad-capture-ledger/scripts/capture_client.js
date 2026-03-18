@@ -46,13 +46,23 @@ async function main() {
 
   const userId =
     toPositiveInt(options["user-id"]) || toPositiveInt(process.env.NOMAD_USER_ID) || 1;
+  const apiToken = String(options["api-token"] || process.env.NOMAD_API_TOKEN || "").trim();
+  const allowDevBypass = toBoolean(
+    options["allow-dev-bypass"] !== undefined
+      ? options["allow-dev-bypass"]
+      : process.env.NOMAD_ALLOW_DEV_BYPASS
+  );
   const providerId =
     toPositiveInt(options["provider-id"]) || toPositiveInt(process.env.NOMAD_PROVIDER_ID);
   const timeoutMs =
     toPositiveInt(options["timeout-ms"]) || toPositiveInt(process.env.NOMAD_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS;
+  if (!apiToken && !allowDevBypass) {
+    throw new Error("NOMAD_API_TOKEN is required unless --allow-dev-bypass true is set.");
+  }
+  const auth = { apiToken, allowDevBypass, userId };
 
   if (command === "lookup-context") {
-    const context = await fetchRepairContext({ baseUrl, userId, timeoutMs });
+    const context = await fetchRepairContext({ baseUrl, timeoutMs, auth });
     printJson({ ok: true, action: "lookup-context", ...context });
     return;
   }
@@ -66,8 +76,8 @@ async function main() {
     if (providerId) body.provider_id = providerId;
     const result = await parseWithRetry({
       baseUrl,
-      userId,
       timeoutMs,
+      auth,
       endpoint: "/api/v1/transactions/parse-text",
       body,
       retriesOn502: 1
@@ -85,8 +95,8 @@ async function main() {
     if (providerId) body.provider_id = providerId;
     const result = await parseWithRetry({
       baseUrl,
-      userId,
       timeoutMs,
+      auth,
       endpoint: "/api/v1/transactions/parse-image",
       body,
       retriesOn502: 1
@@ -115,8 +125,8 @@ async function main() {
       };
       const tx = await callApi({
         baseUrl,
-        userId,
         timeoutMs,
+        auth,
         method: "POST",
         endpoint: "/api/v1/transactions/confirm-extraction",
         body: payload
@@ -132,7 +142,7 @@ async function main() {
     } catch (error) {
       if (error instanceof ApiError && error.status === 400) {
         const message = getErrorMessage(error);
-        const context = await fetchRepairContext({ baseUrl, userId, timeoutMs }).catch(() => null);
+        const context = await fetchRepairContext({ baseUrl, timeoutMs, auth }).catch(() => null);
         printJson({
           ok: false,
           action: "confirm",
@@ -202,8 +212,8 @@ async function parseWithRetry(input) {
     try {
       const response = await callApi({
         baseUrl: input.baseUrl,
-        userId: input.userId,
         timeoutMs: input.timeoutMs,
+        auth: input.auth,
         method: "POST",
         endpoint: input.endpoint,
         body: input.body
@@ -254,15 +264,15 @@ async function fetchRepairContext(input) {
   const [categories, accounts] = await Promise.all([
     callApi({
       baseUrl: input.baseUrl,
-      userId: input.userId,
       timeoutMs: input.timeoutMs,
+      auth: input.auth,
       method: "GET",
       endpoint: "/api/v1/categories"
     }),
     callApi({
       baseUrl: input.baseUrl,
-      userId: input.userId,
       timeoutMs: input.timeoutMs,
+      auth: input.auth,
       method: "GET",
       endpoint: "/api/v1/accounts"
     })
@@ -295,12 +305,17 @@ async function callApi(input) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), Number(input.timeoutMs || DEFAULT_TIMEOUT_MS));
   try {
+    const headers = {
+      "content-type": "application/json"
+    };
+    if (input.auth?.apiToken) {
+      headers.authorization = `Bearer ${input.auth.apiToken}`;
+    } else if (input.auth?.allowDevBypass) {
+      headers["x-user-id"] = String(input.auth?.userId || 1);
+    }
     const res = await fetch(url, {
       method: input.method,
-      headers: {
-        "content-type": "application/json",
-        "x-user-id": String(input.userId || 1)
-      },
+      headers,
       body: input.body ? JSON.stringify(input.body) : undefined,
       signal: controller.signal
     });
@@ -391,6 +406,11 @@ function toPositiveInt(value) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
+function toBoolean(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return ["1", "true", "yes", "on"].includes(normalized);
+}
+
 function display(value) {
   return value === null || value === undefined || value === "" ? "-" : String(value);
 }
@@ -403,15 +423,17 @@ function printHelp() {
   const help = `nomad-capture-ledger client
 
 Commands:
-  capture-text --message "..." [--provider-id 3] [--user-id 1] [--timeout-ms 15000]
-  capture-ocr --ocr-text "..." [--provider-id 3] [--user-id 1] [--timeout-ms 15000]
-  confirm --extraction-id 123 [--overrides-json '{"account_from_id":8}'] [--user-id 1]
+  capture-text --message "..." [--provider-id 3] [--api-token xxx] [--allow-dev-bypass true] [--user-id 1] [--timeout-ms 15000]
+  capture-ocr --ocr-text "..." [--provider-id 3] [--api-token xxx] [--allow-dev-bypass true] [--user-id 1] [--timeout-ms 15000]
+  confirm --extraction-id 123 [--overrides-json '{"account_from_id":8}'] [--api-token xxx] [--allow-dev-bypass true] [--user-id 1]
   cancel --extraction-id 123
-  lookup-context [--user-id 1]
+  lookup-context [--api-token xxx] [--allow-dev-bypass true] [--user-id 1]
 
 Environment:
   NOMAD_API_BASE_URL (required except cancel)
-  NOMAD_USER_ID (default 1)
+  NOMAD_API_TOKEN (recommended)
+  NOMAD_ALLOW_DEV_BYPASS (default false; when true uses x-user-id fallback)
+  NOMAD_USER_ID (dev bypass only, default 1)
   NOMAD_PROVIDER_ID (optional)
   NOMAD_TIMEOUT_MS (default 15000)
 `;

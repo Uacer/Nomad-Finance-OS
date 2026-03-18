@@ -5,6 +5,10 @@ Base URL: `${NOMAD_API_BASE_URL}`
 Headers:
 
 - `content-type: application/json`
+- `authorization: Bearer ${NOMAD_API_TOKEN}`
+
+Dev-only fallback (when backend allows bypass):
+
 - `x-user-id: ${NOMAD_USER_ID:-1}`
 
 Optional parse header behavior:

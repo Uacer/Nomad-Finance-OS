@@ -4,12 +4,20 @@ const request = require("supertest");
 const { createDb } = require("../src/db");
 const { createApp } = require("../src/app");
 
-function createHarness() {
+function createHarness(options = {}) {
+  const allowDevBypass = options.allowDevBypass !== undefined ? Boolean(options.allowDevBypass) : true;
+  const previousBypass = process.env.AUTH_ALLOW_DEV_BYPASS;
+  process.env.AUTH_ALLOW_DEV_BYPASS = allowDevBypass ? "1" : "0";
   const db = createDb(":memory:");
   const app = createApp(db);
+  if (previousBypass === undefined) {
+    delete process.env.AUTH_ALLOW_DEV_BYPASS;
+  } else {
+    process.env.AUTH_ALLOW_DEV_BYPASS = previousBypass;
+  }
   const rawApi = request.agent(app);
   const api = createBypassApiClient(rawApi, 1);
-  return { db, api, rawApi };
+  return { db, app, api, rawApi };
 }
 
 function createBypassApiClient(rawApi, userId = 1) {
@@ -17,6 +25,15 @@ function createBypassApiClient(rawApi, userId = 1) {
   const wrapped = {};
   for (const method of methods) {
     wrapped[method] = (url) => rawApi[method](url).set("x-user-id", String(userId));
+  }
+  return wrapped;
+}
+
+function createBearerApiClient(rawApi, token) {
+  const methods = ["get", "post", "put", "patch", "delete"];
+  const wrapped = {};
+  for (const method of methods) {
+    wrapped[method] = (url) => rawApi[method](url).set("authorization", `Bearer ${token}`);
   }
   return wrapped;
 }
@@ -32,6 +49,57 @@ async function withMockedFetchJson(jsonPayload, fn) {
     return await fn();
   } finally {
     global.fetch = originalFetch;
+  }
+}
+
+async function signInViaMagicLink(rawApi, email = "agent-user@example.com") {
+  const previousResendKey = process.env.RESEND_API_KEY;
+  const previousResendFrom = process.env.RESEND_FROM_EMAIL;
+  process.env.RESEND_API_KEY = "re_test_key";
+  process.env.RESEND_FROM_EMAIL = "noreply@example.com";
+  const originalFetch = global.fetch;
+  let lastEmailPayload = null;
+  global.fetch = async (url, init) => {
+    const href = String(url || "");
+    if (!href.includes("api.resend.com/emails")) {
+      throw new Error(`Unexpected URL in mocked fetch: ${href}`);
+    }
+    lastEmailPayload = JSON.parse(String(init?.body || "{}"));
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ id: "mail_mock_login" })
+    };
+  };
+  try {
+    const syntheticIp = `198.18.0.${Math.max(1, Math.floor(Math.random() * 200))}`;
+    const requestRes = await rawApi
+      .post("/api/v1/auth/magic-link/request")
+      .set("x-forwarded-for", syntheticIp)
+      .send({ email });
+    assert.equal(requestRes.status, 200);
+    const text = String(lastEmailPayload?.text || "");
+    const linkMatch = text.match(/https?:\/\/\S+\/auth\/magic-link\/verify\?token=[^\s]+/);
+    assert.ok(linkMatch && linkMatch[0], "magic link should exist in resend payload");
+    const verifyUrl = new URL(linkMatch[0]);
+    const verifyRes = await rawApi.get(`${verifyUrl.pathname}${verifyUrl.search}`).send();
+    assert.equal(verifyRes.status, 302);
+    const sessionRes = await rawApi.get("/api/v1/auth/session").send();
+    assert.equal(sessionRes.status, 200);
+    assert.equal(sessionRes.body.authenticated, true);
+    return sessionRes.body.user;
+  } finally {
+    global.fetch = originalFetch;
+    if (previousResendKey === undefined) {
+      delete process.env.RESEND_API_KEY;
+    } else {
+      process.env.RESEND_API_KEY = previousResendKey;
+    }
+    if (previousResendFrom === undefined) {
+      delete process.env.RESEND_FROM_EMAIL;
+    } else {
+      process.env.RESEND_FROM_EMAIL = previousResendFrom;
+    }
   }
 }
 
@@ -1236,4 +1304,167 @@ test("magic link request -> verify -> session login -> logout flow", async () =>
       process.env.RESEND_FROM_EMAIL = previousResendFrom;
     }
   }
+});
+
+test("session user can create/list/revoke agent tokens", async () => {
+  const { rawApi } = createHarness({ allowDevBypass: false });
+  await signInViaMagicLink(rawApi, "token-owner@example.com");
+
+  const createRes = await rawApi.post("/api/v1/auth/agent-tokens").send({
+    name: "My Agent"
+  });
+  assert.equal(createRes.status, 201);
+  assert.equal(createRes.body.name, "My Agent");
+  assert.match(String(createRes.body.token || ""), /^nfat_/);
+  assert.ok(createRes.body.id > 0);
+  assert.ok(String(createRes.body.token_prefix || "").length >= 8);
+
+  const listRes = await rawApi.get("/api/v1/auth/agent-tokens").send();
+  assert.equal(listRes.status, 200);
+  assert.equal(listRes.body.length, 1);
+  assert.equal(listRes.body[0].name, "My Agent");
+  assert.equal(listRes.body[0].revoked, false);
+  assert.equal("token" in listRes.body[0], false);
+
+  const revokeRes = await rawApi.delete(`/api/v1/auth/agent-tokens/${createRes.body.id}`).send();
+  assert.equal(revokeRes.status, 200);
+  assert.equal(revokeRes.body.revoked, true);
+
+  const afterRevoke = await rawApi.get("/api/v1/auth/agent-tokens").send();
+  assert.equal(afterRevoke.status, 200);
+  assert.equal(afterRevoke.body[0].revoked, true);
+});
+
+test("bearer token supports parse -> confirm flow with default scopes", async () => {
+  const { app, rawApi } = createHarness({ allowDevBypass: false });
+  await signInViaMagicLink(rawApi, "parse-owner@example.com");
+
+  const cashRes = await rawApi.post("/api/v1/accounts").send({
+    name: "Cash",
+    type: "cash",
+    currency: "USD",
+    balance: 300
+  });
+  assert.equal(cashRes.status, 201);
+
+  const providerRes = await rawApi.post("/api/v1/ai/providers").send({
+    provider_type: "openai_compatible",
+    display_name: "Demo Provider",
+    base_url: "https://example.com/v1",
+    model: "gpt-4.1-mini",
+    api_key: "sk-demo-secret-1234"
+  });
+  assert.equal(providerRes.status, 201);
+
+  const tokenRes = await rawApi.post("/api/v1/auth/agent-tokens").send({ name: "Parser Agent" });
+  assert.equal(tokenRes.status, 201);
+  const bearerApi = createBearerApiClient(request.agent(app), tokenRes.body.token);
+
+  const parseRes = await withMockedFetchJson(
+    {
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              type: "expense",
+              amount_original: 20,
+              currency_original: "USD",
+              category_l1: "Living",
+              category_l2: "Groceries",
+              confidence: 0.91
+            })
+          }
+        }
+      ]
+    },
+    async () =>
+      bearerApi.post("/api/v1/transactions/parse-text").send({
+        text: "Lunch 20 USD",
+        provider_id: providerRes.body.id
+      })
+  );
+  assert.equal(parseRes.status, 201);
+  assert.ok(parseRes.body.extraction_id > 0);
+
+  const confirmRes = await bearerApi.post("/api/v1/transactions/confirm-extraction").send({
+    extraction_id: parseRes.body.extraction_id,
+    overrides: {
+      date: "2026-03-14",
+      account_from_id: cashRes.body.id,
+      category_l1: "Living",
+      category_l2: "Groceries"
+    }
+  });
+  assert.equal(confirmRes.status, 201);
+  assert.equal(confirmRes.body.type, "expense");
+});
+
+test("bearer token scope restricts write access", async () => {
+  const { app, rawApi } = createHarness({ allowDevBypass: false });
+  await signInViaMagicLink(rawApi, "scope-owner@example.com");
+
+  const tokenRes = await rawApi.post("/api/v1/auth/agent-tokens").send({
+    name: "ReadOnly Agent",
+    scopes: ["accounts:read"]
+  });
+  assert.equal(tokenRes.status, 201);
+
+  const bearerApi = createBearerApiClient(request.agent(app), tokenRes.body.token);
+  const accountsRes = await bearerApi.get("/api/v1/accounts").send();
+  assert.equal(accountsRes.status, 200);
+
+  const createTxRes = await bearerApi.post("/api/v1/transactions").send({
+    date: "2026-03-10",
+    type: "expense",
+    amount_original: 10,
+    currency_original: "USD",
+    fx_rate: 1,
+    category_l1: "Living",
+    category_l2: "Groceries",
+    account_from_id: 1
+  });
+  assert.equal(createTxRes.status, 403);
+});
+
+test("bearer token is isolated by user and revoked token is rejected", async () => {
+  const { app, rawApi } = createHarness({ allowDevBypass: false });
+  const userA = await signInViaMagicLink(rawApi, "user-a@example.com");
+  const aAccount = await rawApi.post("/api/v1/accounts").send({
+    name: "A Wallet",
+    type: "cash",
+    currency: "USD",
+    balance: 100
+  });
+  assert.equal(aAccount.status, 201);
+  const tokenRes = await rawApi.post("/api/v1/auth/agent-tokens").send({ name: "A Agent" });
+  assert.equal(tokenRes.status, 201);
+
+  const rawApiB = request.agent(app);
+  const userB = await signInViaMagicLink(rawApiB, "user-b@example.com");
+  assert.notEqual(userA.id, userB.id);
+  const bAccount = await rawApiB.post("/api/v1/accounts").send({
+    name: "B Wallet",
+    type: "cash",
+    currency: "USD",
+    balance: 200
+  });
+  assert.equal(bAccount.status, 201);
+
+  const bearerApi = createBearerApiClient(request.agent(app), tokenRes.body.token);
+  const accountsBefore = await bearerApi.get("/api/v1/accounts").send();
+  assert.equal(accountsBefore.status, 200);
+  assert.equal(accountsBefore.body.length, 1);
+  assert.equal(accountsBefore.body[0].name, "A Wallet");
+
+  const revokeRes = await rawApi.delete(`/api/v1/auth/agent-tokens/${tokenRes.body.id}`).send();
+  assert.equal(revokeRes.status, 200);
+
+  const afterRevoke = await bearerApi.get("/api/v1/accounts").send();
+  assert.equal(afterRevoke.status, 401);
+});
+
+test("x-user-id bypass is disabled when AUTH_ALLOW_DEV_BYPASS is false", async () => {
+  const { rawApi } = createHarness({ allowDevBypass: false });
+  const res = await rawApi.get("/api/v1/settings").set("x-user-id", "1").send();
+  assert.equal(res.status, 401);
 });

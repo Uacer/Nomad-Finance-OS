@@ -62,11 +62,39 @@ function runMigrations(db) {
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id, created_at DESC)
   `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS auth_api_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      token_prefix TEXT NOT NULL,
+      token_hash TEXT NOT NULL,
+      scopes_json TEXT NOT NULL,
+      revoked INTEGER NOT NULL DEFAULT 0,
+      last_used_at TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      revoked_at TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_api_tokens_hash ON auth_api_tokens(token_hash)
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_auth_api_tokens_user ON auth_api_tokens(user_id, created_at DESC)
+  `);
   ensureColumn(db, "auth_magic_links", "email_normalized", "TEXT");
   ensureColumn(db, "auth_magic_links", "revoked", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "auth_magic_links", "requested_ip", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "auth_sessions", "revoked", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "auth_sessions", "last_seen_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP");
+  ensureColumn(db, "auth_api_tokens", "name", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "auth_api_tokens", "token_prefix", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "auth_api_tokens", "token_hash", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "auth_api_tokens", "scopes_json", "TEXT NOT NULL DEFAULT '[]'");
+  ensureColumn(db, "auth_api_tokens", "revoked", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, "auth_api_tokens", "last_used_at", "TEXT");
+  ensureColumn(db, "auth_api_tokens", "revoked_at", "TEXT");
   if (hasColumn(db, "auth_magic_links", "email")) {
     db.exec(`
       UPDATE auth_magic_links

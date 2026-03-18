@@ -386,58 +386,30 @@
 
       <section id="settingsPanel" class="panel">
         <h2>Settings & BYOK AI</h2>
-        <form id="settingsForm" class="card form-grid">
-          <label>
-            Language
-            <select name="ui_language">
-              <option value="en">English</option>
-              <option value="zh">中文</option>
-            </select>
-          </label>
-          <label>
-            Base Currency
-            <select name="base_currency">
-              <option value="CNY">人民币 (CNY)</option>
-              <option value="EUR">欧元 (EUR)</option>
-              <option value="THB">泰铢 (THB)</option>
-              <option value="USD" selected>美元 (USD)</option>
-              <option value="JPY">日元 (JPY)</option>
-              <option value="KRW">韩元 (KRW)</option>
-            </select>
-          </label>
-          <label>
-            Timezone
-            <input name="timezone" type="text" value="UTC" />
-          </label>
-          <div class="actions">
-            <button class="btn btn-solid" type="submit">Save Settings</button>
-          </div>
-        </form>
-        <form id="providerForm" class="card form-grid">
-          <h3 class="grid-span">Add AI Provider</h3>
-          <label>
-            Display Name
-            <input name="display_name" type="text" placeholder="My OpenAI Gateway" required />
-          </label>
-          <label>
-            Base URL
-            <input name="base_url" type="url" placeholder="https://api.openai.com/v1" required />
-          </label>
-          <label>
-            Model
-            <input name="model" type="text" value="gpt-4o-mini" required />
-          </label>
-          <label>
-            API Key
-            <input name="api_key" type="password" required />
-          </label>
-          <div class="actions">
-            <button class="btn btn-solid" type="submit">Create Provider</button>
-          </div>
-        </form>
         <article class="card">
           <h3>Providers</h3>
           <div id="providerList" class="list-block"></div>
+        </article>
+        <form id="agentTokenForm" class="card form-grid">
+          <h3 id="agentTokenTitle" class="grid-span">Agent API Tokens</h3>
+          <p class="grid-span muted" id="agentTokenHint">
+            Create a token for your own agent. The plain token is shown only once.
+          </p>
+          <label>
+            <span id="agentTokenNameLabel">Token Name</span>
+            <input name="name" type="text" maxlength="80" placeholder="My Telegram Agent" required />
+          </label>
+          <div class="actions">
+            <button id="agentTokenCreateBtn" class="btn btn-solid" type="submit">Create Token</button>
+          </div>
+          <label class="grid-span">
+            <span id="agentTokenLatestLabel">Last Created Token (shown once)</span>
+            <textarea id="agentTokenPlaintext" rows="2" readonly placeholder="Will appear after creation"></textarea>
+          </label>
+        </form>
+        <article class="card">
+          <h3 id="agentTokenListTitle">Existing Agent Tokens</h3>
+          <div id="agentTokenList" class="list-block"></div>
         </article>
       </section>
     </main>

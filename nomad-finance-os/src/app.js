@@ -31,10 +31,6 @@ const FX_CONVERT_MAX_AGE_MS = Math.max(
   Number.parseInt(String(process.env.FX_CONVERT_MAX_AGE_MS || `${36 * 60 * 60 * 1000}`), 10) ||
     36 * 60 * 60 * 1000
 );
-const AUTH_ALLOW_DEV_BYPASS = parseEnvBoolean(
-  process.env.AUTH_ALLOW_DEV_BYPASS,
-  process.env.NODE_ENV !== "production"
-);
 const MAGIC_LINK_TTL_MINUTES = Math.max(
   5,
   Number.parseInt(String(process.env.MAGIC_LINK_TTL_MINUTES || "15"), 10) || 15
@@ -53,9 +49,41 @@ const MAGIC_LINK_RATE_LIMIT_MAX = Math.max(
 );
 const SESSION_COOKIE_NAME = "nfos_session";
 const MAGIC_LINK_RATE_LIMIT = new Map();
+const DEFAULT_AGENT_SCOPES = [
+  "transactions:write",
+  "transactions:read",
+  "transactions:parse",
+  "accounts:read",
+  "categories:read"
+];
+const ALLOWED_AGENT_SCOPES = new Set([
+  "transactions:write",
+  "transactions:read",
+  "transactions:parse",
+  "accounts:read",
+  "accounts:write",
+  "categories:read",
+  "categories:write",
+  "settings:read",
+  "settings:write",
+  "budgets:read",
+  "budgets:write",
+  "dashboard:read",
+  "metrics:read",
+  "reviews:read",
+  "reviews:write",
+  "analytics:read",
+  "export:read",
+  "tags:read",
+  "admin:rebuild-balances",
+  "ai:providers:read",
+  "ai:providers:write",
+  "ai:providers:validate"
+]);
 
 function createApp(db) {
   const app = express();
+  const authAllowDevBypass = parseEnvBoolean(process.env.AUTH_ALLOW_DEV_BYPASS, false);
   const authMagicHasLegacyEmail = tableHasColumn(db, "auth_magic_links", "email");
   const insertMagicLinkStmt = authMagicHasLegacyEmail
     ? db.prepare(
@@ -102,7 +130,9 @@ function createApp(db) {
         path: req.originalUrl || req.path,
         status: res.statusCode,
         duration_ms: Date.now() - startedAt,
-        user_id: userId
+        user_id: userId,
+        auth_method: req.authMethod || "none",
+        token_id: Number.isInteger(req.tokenId) ? req.tokenId : null
       };
       console.log(JSON.stringify({ event: "http_request", ...line }));
       if (res.statusCode >= 400 && res.locals.errorSummary) {
@@ -123,18 +153,35 @@ function createApp(db) {
     const isVerifyPath = req.path === "/auth/magic-link/verify";
     if (!isApi && !isVerifyPath) return next();
 
-    const sessionToken = getCookie(req, SESSION_COOKIE_NAME);
-    if (sessionToken) {
-      const session = resolveSession(db, sessionToken);
-      if (session) {
-        req.userId = session.user_id;
-        req.userEmail = session.email || "";
+    const bearerToken = extractBearerToken(req);
+    if (bearerToken) {
+      const token = resolveApiToken(db, bearerToken);
+      if (token) {
+        req.userId = token.user_id;
+        req.userEmail = "";
         req.isAuthenticated = true;
-        ensureUserAndSeedDefaults(db, session.user_id);
+        req.authMethod = "api_token";
+        req.tokenId = token.id;
+        req.authScopes = token.scopes;
+        ensureUserAndSeedDefaults(db, token.user_id);
       }
     }
 
-    if (!req.userId && AUTH_ALLOW_DEV_BYPASS) {
+    if (!req.userId) {
+      const sessionToken = getCookie(req, SESSION_COOKIE_NAME);
+      if (sessionToken) {
+        const session = resolveSession(db, sessionToken);
+        if (session) {
+          req.userId = session.user_id;
+          req.userEmail = session.email || "";
+          req.isAuthenticated = true;
+          req.authMethod = "session";
+          ensureUserAndSeedDefaults(db, session.user_id);
+        }
+      }
+    }
+
+    if (!req.userId && authAllowDevBypass) {
       const rawUserId = String(req.header("x-user-id") || "").trim();
       if (rawUserId) {
         const userId = Number.parseInt(rawUserId, 10);
@@ -145,6 +192,7 @@ function createApp(db) {
         req.userEmail = "";
         req.isAuthenticated = true;
         req.isDevBypass = true;
+        req.authMethod = "dev_bypass";
         ensureUserAndSeedDefaults(db, userId);
       }
     }
@@ -160,6 +208,12 @@ function createApp(db) {
     }
     if (!req.userId) {
       return res.status(401).json({ error: "Authentication required." });
+    }
+    if (req.authMethod === "api_token") {
+      const requiredScope = resolveRequiredScope(req);
+      if (requiredScope && !hasScope(req.authScopes, requiredScope)) {
+        return res.status(403).json({ error: `Insufficient scope. Required: ${requiredScope}.` });
+      }
     }
     return next();
   });
@@ -246,13 +300,13 @@ function createApp(db) {
     if (!req.userId) {
       return res.json({
         authenticated: false,
-        allow_dev_bypass: AUTH_ALLOW_DEV_BYPASS
+        allow_dev_bypass: authAllowDevBypass
       });
     }
     const user = getUserById(db, req.userId);
     return res.json({
       authenticated: true,
-      allow_dev_bypass: AUTH_ALLOW_DEV_BYPASS,
+      allow_dev_bypass: authAllowDevBypass,
       dev_bypass: Boolean(req.isDevBypass),
       user: {
         id: req.userId,
@@ -285,6 +339,100 @@ function createApp(db) {
       })
     );
     res.json({ ok: true });
+  });
+
+  app.post("/api/v1/auth/agent-tokens", requireSessionAuth, (req, res) => {
+    const schema = z.object({
+      name: z.string().trim().min(1).max(80),
+      scopes: z.array(z.string().trim().min(1).max(80)).max(30).optional()
+    });
+    const parsed = schema.safeParse(req.body || {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.flatten() });
+    }
+    const scopes = normalizeAgentScopes(parsed.data.scopes);
+    if (!scopes.length) {
+      return res.status(400).json({ error: "At least one valid scope is required." });
+    }
+    const token = createAgentTokenString();
+    const tokenHash = hashToken(token);
+    const tokenPrefix = token.slice(0, 14);
+    const result = db
+      .prepare(
+        `
+          INSERT INTO auth_api_tokens (
+            user_id, name, token_prefix, token_hash, scopes_json, revoked, last_used_at, revoked_at
+          ) VALUES (?, ?, ?, ?, ?, 0, NULL, NULL)
+        `
+      )
+      .run(req.userId, parsed.data.name.trim(), tokenPrefix, tokenHash, JSON.stringify(scopes));
+    const tokenId = Number(result.lastInsertRowid);
+    logEvent(db, req.userId, "agent_token_created", {
+      token_id: tokenId,
+      scopes
+    });
+    return res.status(201).json({
+      id: tokenId,
+      name: parsed.data.name.trim(),
+      token_prefix: tokenPrefix,
+      scopes,
+      token,
+      created_at: new Date().toISOString()
+    });
+  });
+
+  app.get("/api/v1/auth/agent-tokens", requireSessionAuth, (req, res) => {
+    const rows = db
+      .prepare(
+        `
+          SELECT id, name, token_prefix, scopes_json, revoked, last_used_at, created_at, revoked_at
+          FROM auth_api_tokens
+          WHERE user_id = ?
+          ORDER BY id DESC
+        `
+      )
+      .all(req.userId)
+      .map((row) => {
+        const scopes = parseScopesJson(row.scopes_json);
+        const prefix = String(row.token_prefix || "");
+        const masked = prefix ? `${prefix}...` : "";
+        return {
+          id: row.id,
+          name: row.name,
+          token_prefix: prefix,
+          token_masked: masked,
+          scopes,
+          revoked: Boolean(row.revoked),
+          last_used_at: row.last_used_at || null,
+          created_at: row.created_at,
+          revoked_at: row.revoked_at || null
+        };
+      });
+    return res.json(rows);
+  });
+
+  app.delete("/api/v1/auth/agent-tokens/:id", requireSessionAuth, (req, res) => {
+    const tokenId = Number.parseInt(String(req.params.id), 10);
+    if (!Number.isInteger(tokenId) || tokenId <= 0) {
+      return res.status(400).json({ error: "Invalid token id." });
+    }
+    const token = db
+      .prepare("SELECT id, revoked FROM auth_api_tokens WHERE id = ? AND user_id = ?")
+      .get(tokenId, req.userId);
+    if (!token) {
+      return res.status(404).json({ error: "Agent token not found." });
+    }
+    if (!Number(token.revoked || 0)) {
+      db.prepare(
+        `
+          UPDATE auth_api_tokens
+          SET revoked = 1, revoked_at = CURRENT_TIMESTAMP
+          WHERE id = ? AND user_id = ?
+        `
+      ).run(tokenId, req.userId);
+      logEvent(db, req.userId, "agent_token_revoked", { token_id: tokenId });
+    }
+    return res.json({ ok: true, id: tokenId, revoked: true });
   });
 
   app.get("/api/v1/settings", (req, res) => {
@@ -976,6 +1124,12 @@ function createApp(db) {
     logEvent(db, req.userId, "capture_text_parsed", {
       fallback_used: extraction.fallback_used
     });
+    if (req.authMethod === "api_token") {
+      logEvent(db, req.userId, "agent_token_used", {
+        token_id: req.tokenId,
+        action: "transactions.parse_text"
+      });
+    }
     res.status(201).json({
       extraction_id: record.id,
       draft,
@@ -1039,6 +1193,12 @@ function createApp(db) {
     logEvent(db, req.userId, "capture_image_parsed", {
       fallback_used: extraction.fallback_used
     });
+    if (req.authMethod === "api_token") {
+      logEvent(db, req.userId, "agent_token_used", {
+        token_id: req.tokenId,
+        action: "transactions.parse_image"
+      });
+    }
     res.status(201).json({
       extraction_id: record.id,
       draft,
@@ -1100,6 +1260,13 @@ function createApp(db) {
       extraction_id: extractionId,
       transaction_id: transaction.id
     });
+    if (req.authMethod === "api_token") {
+      logEvent(db, req.userId, "agent_token_used", {
+        token_id: req.tokenId,
+        action: "transactions.confirm_extraction",
+        transaction_id: transaction.id
+      });
+    }
     res.status(201).json(transaction);
   });
 
@@ -1154,6 +1321,13 @@ function createApp(db) {
       transaction_id: tx.id,
       type: tx.type
     });
+    if (req.authMethod === "api_token") {
+      logEvent(db, req.userId, "agent_token_used", {
+        token_id: req.tokenId,
+        action: "transactions.create",
+        transaction_id: tx.id
+      });
+    }
     res.status(201).json(tx);
   });
 
@@ -2496,6 +2670,117 @@ function normalizeDate(value) {
   const str = String(value);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(str)) return null;
   return str;
+}
+
+function requireSessionAuth(req, res, next) {
+  if (req.authMethod !== "session") {
+    return res.status(401).json({ error: "Session authentication required." });
+  }
+  return next();
+}
+
+function createAgentTokenString() {
+  return `nfat_${randomToken()}`;
+}
+
+function normalizeAgentScopes(rawScopes) {
+  const list = Array.isArray(rawScopes) && rawScopes.length ? rawScopes : DEFAULT_AGENT_SCOPES;
+  return [...new Set(list.map((scope) => String(scope || "").trim()).filter((scope) => ALLOWED_AGENT_SCOPES.has(scope)))];
+}
+
+function parseScopesJson(raw) {
+  try {
+    const parsed = JSON.parse(String(raw || "[]"));
+    if (!Array.isArray(parsed)) return [];
+    return normalizeAgentScopes(parsed);
+  } catch {
+    return [];
+  }
+}
+
+function extractBearerToken(req) {
+  const raw = String(req.header("authorization") || "").trim();
+  if (!raw) return "";
+  const [scheme, token] = raw.split(/\s+/, 2);
+  if (String(scheme || "").toLowerCase() !== "bearer") return "";
+  return String(token || "").trim();
+}
+
+function resolveApiToken(db, rawToken) {
+  const tokenHash = hashToken(rawToken);
+  const row = db
+    .prepare(
+      `
+        SELECT id, user_id, token_prefix, scopes_json, revoked
+        FROM auth_api_tokens
+        WHERE token_hash = ?
+      `
+    )
+    .get(tokenHash);
+  if (!row) return null;
+  if (Number(row.revoked || 0) !== 0) return null;
+  const scopes = parseScopesJson(row.scopes_json);
+  if (!scopes.length) return null;
+  db.prepare("UPDATE auth_api_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?").run(row.id);
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    token_prefix: row.token_prefix || "",
+    scopes
+  };
+}
+
+function hasScope(scopes, requiredScope) {
+  if (!requiredScope) return true;
+  if (!Array.isArray(scopes)) return false;
+  return scopes.includes(requiredScope);
+}
+
+function resolveRequiredScope(req) {
+  const method = String(req.method || "GET").toUpperCase();
+  const path = String(req.path || "");
+  if (!path.startsWith("/api/v1/")) return null;
+  if (
+    path === "/api/v1/auth/magic-link/request" ||
+    path === "/api/v1/auth/session" ||
+    path === "/api/v1/auth/logout" ||
+    path.startsWith("/api/v1/auth/agent-tokens")
+  ) {
+    return null;
+  }
+  if (path === "/api/v1/settings") {
+    return method === "GET" ? "settings:read" : "settings:write";
+  }
+  if (path.startsWith("/api/v1/fx/")) {
+    return "settings:read";
+  }
+  if (path === "/api/v1/categories") return "categories:read";
+  if (path.startsWith("/api/v1/categories/")) return method === "GET" ? "categories:read" : "categories:write";
+  if (path === "/api/v1/accounts") return method === "GET" ? "accounts:read" : "accounts:write";
+  if (path.startsWith("/api/v1/accounts/")) return method === "GET" ? "accounts:read" : "accounts:write";
+  if (path === "/api/v1/admin/rebuild-balances") return "admin:rebuild-balances";
+  if (path === "/api/v1/tags") return "tags:read";
+  if (path === "/api/v1/ai/providers") return method === "GET" ? "ai:providers:read" : "ai:providers:write";
+  if (path.startsWith("/api/v1/ai/providers/")) {
+    if (path.endsWith("/validate")) return "ai:providers:validate";
+    return method === "GET" ? "ai:providers:read" : "ai:providers:write";
+  }
+  if (path === "/api/v1/transactions/parse-text" || path === "/api/v1/transactions/parse-image") {
+    return "transactions:parse";
+  }
+  if (path === "/api/v1/transactions/confirm-extraction") return "transactions:write";
+  if (path === "/api/v1/transactions") return method === "GET" ? "transactions:read" : "transactions:write";
+  if (path.startsWith("/api/v1/transactions/")) return method === "GET" ? "transactions:read" : "transactions:write";
+  if (path === "/api/v1/budgets" || path === "/api/v1/budgets/yearly") {
+    return method === "GET" ? "budgets:read" : "budgets:write";
+  }
+  if (path === "/api/v1/dashboard") return "dashboard:read";
+  if (path.startsWith("/api/v1/metrics/")) return "metrics:read";
+  if (path === "/api/v1/reviews/monthly") return "reviews:read";
+  if (path === "/api/v1/reviews/monthly/generate") return "reviews:write";
+  if (path === "/api/v1/export/transactions.csv") return "export:read";
+  if (path === "/api/v1/analytics/summary") return "analytics:read";
+  return "__unmapped_scope__";
 }
 
 function parseUserIdForLog(rawUserId) {

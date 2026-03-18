@@ -48,6 +48,7 @@ Optional env:
 - `BACKUP_DIR`: backup output directory (defaults to `backups`)
 - `PORT`: API port (defaults to `5001`)
 - `EXCHANGERATE_HOST_ACCESS_KEY`: optional API key for `exchangerate.host` live FX endpoint
+- `AUTH_ALLOW_DEV_BYPASS`: set `true` only for local dev `x-user-id` bypass (defaults to `false`)
 
 FX provider priority:
 
@@ -172,5 +173,12 @@ Sample cron entries are provided at `ops/cron/backup.cron`:
 - `POST /api/v1/reviews/monthly/generate`
 - `GET /api/v1/export/transactions.csv`
 - `GET /api/v1/analytics/summary`
+- `POST /api/v1/auth/agent-tokens`
+- `GET /api/v1/auth/agent-tokens`
+- `DELETE /api/v1/auth/agent-tokens/:id`
 
-Use `x-user-id` header to simulate multi-user data isolation (defaults to `1` if omitted).
+Auth modes:
+
+- Human web: email magic-link + `nfos_session` cookie
+- User agent: `Authorization: Bearer <agent_token>`
+- Dev-only bypass (must be explicitly enabled): `AUTH_ALLOW_DEV_BYPASS=true` + `x-user-id`

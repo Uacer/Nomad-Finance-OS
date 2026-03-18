@@ -5,6 +5,7 @@ const state = {
   categories: {},
   settings: null,
   providers: [],
+  agentTokens: [],
   transactions: [],
   dashboard: null,
   risk: null,
@@ -24,6 +25,7 @@ const state = {
   },
   latestExtractionId: null,
   latestExtractionDraft: null,
+  latestAgentTokenPlaintext: "",
   trend: {
     start: "",
     end: "",
@@ -306,7 +308,22 @@ const I18N = {
     transferReasonLoan: "Loan",
     transferReasonBorrow: "Borrow",
     transferReasonDepositLock: "Deposit Lock",
-    transferReasonDepositRelease: "Deposit Release"
+    transferReasonDepositRelease: "Deposit Release",
+    agentTokensTitle: "Agent API Tokens",
+    agentTokensHint: "Create a token for your own agent. The plain token is shown only once.",
+    agentTokenName: "Token Name",
+    createAgentToken: "Create Token",
+    latestAgentToken: "Last Created Token (shown once)",
+    agentTokenCreated: "Agent token created",
+    agentTokenRevoked: "Agent token revoked",
+    copyToken: "Copy",
+    revokeToken: "Revoke",
+    tokenScopes: "Scopes",
+    tokenLastUsed: "Last used",
+    tokenNeverUsed: "Never",
+    tokenStatusActive: "active",
+    tokenStatusRevoked: "revoked",
+    tokenListEmpty: "No agent tokens yet."
   },
   zh: {
     subtitle: "更轻量的日常财务驾驶舱。",
@@ -502,7 +519,22 @@ const I18N = {
     transferReasonLoan: "借出",
     transferReasonBorrow: "借入",
     transferReasonDepositLock: "押金锁定",
-    transferReasonDepositRelease: "押金释放"
+    transferReasonDepositRelease: "押金释放",
+    agentTokensTitle: "Agent API Token",
+    agentTokensHint: "为你的自有 agent 创建 token。明文仅展示一次。",
+    agentTokenName: "Token 名称",
+    createAgentToken: "创建 Token",
+    latestAgentToken: "最近创建的 Token（仅展示一次）",
+    agentTokenCreated: "Agent token 已创建",
+    agentTokenRevoked: "Agent token 已吊销",
+    copyToken: "复制",
+    revokeToken: "吊销",
+    tokenScopes: "权限",
+    tokenLastUsed: "最近使用",
+    tokenNeverUsed: "从未",
+    tokenStatusActive: "生效中",
+    tokenStatusRevoked: "已吊销",
+    tokenListEmpty: "暂无 agent token。"
   }
 };
 
@@ -568,8 +600,12 @@ function bindUI() {
   if (l1Form) l1Form.addEventListener("submit", submitL1Form);
   const l2Form = $("#l2Form");
   if (l2Form) l2Form.addEventListener("submit", submitL2Form);
-  $("#settingsForm").addEventListener("submit", submitSettingsForm);
-  $("#providerForm").addEventListener("submit", submitProviderForm);
+  const settingsForm = $("#settingsForm");
+  if (settingsForm) settingsForm.addEventListener("submit", submitSettingsForm);
+  const providerForm = $("#providerForm");
+  if (providerForm) providerForm.addEventListener("submit", submitProviderForm);
+  const agentTokenForm = $("#agentTokenForm");
+  if (agentTokenForm) agentTokenForm.addEventListener("submit", submitAgentTokenForm);
   $("#captureTextForm").addEventListener("submit", submitCaptureTextForm);
   $("#captureImageForm").addEventListener("submit", submitCaptureImageForm);
   $("#confirmExtractionBtn").addEventListener("click", confirmLatestExtraction);
@@ -910,6 +946,26 @@ function bindUI() {
       showErrorToast(error);
     }
   });
+  const agentTokenList = $("#agentTokenList");
+  if (agentTokenList) {
+    agentTokenList.addEventListener("click", async (event) => {
+      if (!(event.target instanceof Element)) return;
+      const btn = event.target.closest("button[data-action]");
+      if (!btn) return;
+      const tokenId = Number(btn.getAttribute("data-id"));
+      if (!Number.isInteger(tokenId) || tokenId <= 0) return;
+      const action = String(btn.getAttribute("data-action") || "");
+      try {
+        if (action === "revoke") {
+          await api(`/api/v1/auth/agent-tokens/${tokenId}`, { method: "DELETE" });
+          showToast(t("agentTokenRevoked"));
+          await loadAgentTokens();
+        }
+      } catch (error) {
+        showErrorToast(error);
+      }
+    });
+  }
 }
 
 function initializeDebugCapture() {
@@ -1501,7 +1557,7 @@ async function loadAll() {
   try {
     syncControlState();
     loadUiState();
-    await Promise.all([loadSettings(), loadCategories(), loadAccounts(), loadProviders()]);
+    await Promise.all([loadSettings(), loadCategories(), loadAccounts(), loadProviders(), loadAgentTokens()]);
     await Promise.all([
       loadDashboard(),
       loadTransactions(),
@@ -1527,9 +1583,15 @@ async function loadSettings() {
   const uiLanguage = ensureUILanguage(state.settings.ui_language || "en");
   state.settings.ui_language = uiLanguage;
   const uiBase = ensureUICurrency(state.settings.base_currency || "USD");
-  $("#settingsForm [name=ui_language]").value = uiLanguage;
-  $("#settingsForm [name=base_currency]").value = uiBase;
-  $("#settingsForm [name=timezone]").value = state.settings.timezone || "UTC";
+  const settingsForm = $("#settingsForm");
+  if (settingsForm instanceof HTMLFormElement) {
+    const formLanguage = settingsForm.querySelector("[name=ui_language]");
+    const formBase = settingsForm.querySelector("[name=base_currency]");
+    const formTimezone = settingsForm.querySelector("[name=timezone]");
+    if (formLanguage) formLanguage.value = uiLanguage;
+    if (formBase) formBase.value = uiBase;
+    if (formTimezone) formTimezone.value = state.settings.timezone || "UTC";
+  }
   $("#quickSettingsForm [name=ui_language]").value = uiLanguage;
   $("#quickSettingsForm [name=base_currency]").value = uiBase;
   $("#quickSettingsForm [name=timezone]").value = state.settings.timezone || "UTC";
@@ -1601,6 +1663,11 @@ async function loadAccounts() {
 async function loadProviders() {
   state.providers = (await api("/api/v1/ai/providers")) || [];
   renderProviders();
+}
+
+async function loadAgentTokens() {
+  state.agentTokens = (await api("/api/v1/auth/agent-tokens")) || [];
+  renderAgentTokens();
 }
 
 function populateL1Selects() {
@@ -2800,6 +2867,31 @@ async function submitQuickSettingsForm(event) {
   }
 }
 
+async function submitAgentTokenForm(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  if (!(form instanceof HTMLFormElement)) return;
+  const fd = new FormData(form);
+  const name = String(fd.get("name") || "").trim();
+  if (!name) return;
+  try {
+    const created = await api("/api/v1/auth/agent-tokens", {
+      method: "POST",
+      body: JSON.stringify({ name })
+    });
+    state.latestAgentTokenPlaintext = String(created?.token || "");
+    const tokenField = $("#agentTokenPlaintext");
+    if (tokenField instanceof HTMLTextAreaElement) {
+      tokenField.value = state.latestAgentTokenPlaintext;
+    }
+    showToast(t("agentTokenCreated"));
+    form.reset();
+    await loadAgentTokens();
+  } catch (error) {
+    showErrorToast(error);
+  }
+}
+
 async function submitProviderForm(event) {
   event.preventDefault();
   const form = event.currentTarget;
@@ -3643,6 +3735,38 @@ function renderProviders() {
     .join("");
 }
 
+function renderAgentTokens() {
+  const target = $("#agentTokenList");
+  if (!target) return;
+  const rows = Array.isArray(state.agentTokens) ? state.agentTokens : [];
+  if (!rows.length) {
+    target.innerHTML = `<div class="list-row muted">${escapeHtml(t("tokenListEmpty"))}</div>`;
+    return;
+  }
+  target.innerHTML = rows
+    .map((row) => {
+      const scopes = Array.isArray(row.scopes) ? row.scopes.join(", ") : "";
+      const statusLabel = row.revoked ? t("tokenStatusRevoked") : t("tokenStatusActive");
+      const lastUsed = row.last_used_at ? formatTimestampValue(row.last_used_at) : t("tokenNeverUsed");
+      const revokeBtn = row.revoked
+        ? ""
+        : `<button class="btn" data-action="revoke" data-id="${row.id}">${escapeHtml(t("revokeToken"))}</button>`;
+      return `
+        <article class="list-row">
+          <div class="row-main">
+            <strong>${escapeHtml(row.name || "")}</strong>
+            <span class="pill">${escapeHtml(statusLabel)}</span>
+          </div>
+          <div class="muted mono">${escapeHtml(row.token_masked || row.token_prefix || "")}</div>
+          <div class="muted">${escapeHtml(t("tokenScopes"))}: ${escapeHtml(scopes || "-")}</div>
+          <div class="muted">${escapeHtml(t("tokenLastUsed"))}: ${escapeHtml(lastUsed)}</div>
+          <div class="tag-wrap">${revokeBtn}</div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
 async function loadTransactions(options = {}) {
   return loadTransactionsWithOptions(options);
 }
@@ -4120,6 +4244,12 @@ function applyI18n() {
   setText("categoryPromptParentLabel", t("categoryPromptParentLabel"));
   setText("categoryPromptEmojiLabel", t("categoryPromptEmojiLabel"));
   setText("settingsLinkAi", t("aiProviders"));
+  setText("agentTokenTitle", t("agentTokensTitle"));
+  setText("agentTokenListTitle", t("agentTokensTitle"));
+  setText("agentTokenHint", t("agentTokensHint"));
+  setText("agentTokenNameLabel", t("agentTokenName"));
+  setText("agentTokenCreateBtn", t("createAgentToken"));
+  setText("agentTokenLatestLabel", t("latestAgentToken"));
   setText("accountEditTitle", t("editAccount"));
   setText("accountEditNameLabel", t("account"));
   setText("accountEditTypeLabel", t("accountType"));
@@ -4156,6 +4286,11 @@ function applyI18n() {
   if (quickNote) {
     quickNote.placeholder = ensureUILanguage(state.settings?.ui_language) === "zh" ? "可选" : "optional";
   }
+  const latestTokenBox = $("#agentTokenPlaintext");
+  if (latestTokenBox instanceof HTMLTextAreaElement) {
+    latestTokenBox.placeholder =
+      ensureUILanguage(state.settings?.ui_language) === "zh" ? "创建后会显示在这里" : "Will appear after creation";
+  }
   if ((state.accounts || []).length) {
     populateQuickEntryAccounts();
   }
@@ -4188,6 +4323,7 @@ function applyI18n() {
     debugFilterInput.placeholder = t("debugFilterPlaceholder");
   }
   renderRecentExpensesCard(state.transactions || []);
+  renderAgentTokens();
   renderDebugPanel();
 }
 
