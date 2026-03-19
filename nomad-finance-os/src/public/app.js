@@ -115,7 +115,7 @@ const I18N = {
   en: {
     subtitle: "A simpler daily money cockpit.",
     month: "Month",
-    dashboard: "🏠 Dashboard",
+    dashboard: "Summary",
     cashFlowPulse: "📈 Cash Flow Pulse",
     liquiditySplit: "Liquidity Split",
     runwaySignal: "Runway Signal",
@@ -336,7 +336,7 @@ const I18N = {
   zh: {
     subtitle: "更轻量的日常财务驾驶舱。",
     month: "月份",
-    dashboard: "🏠 总览",
+    dashboard: "Summary",
     cashFlowPulse: "📈 现金流脉冲",
     liquiditySplit: "流动性结构",
     runwaySignal: "Runway 信号",
