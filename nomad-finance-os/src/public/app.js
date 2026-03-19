@@ -3421,26 +3421,29 @@ function renderBudgetPieView(monthlyRows, yearlyRows, baseCurrency) {
 function renderAccounts() {
   const target = $("#accountList");
   if (!state.accounts.length) {
-    target.innerHTML = '<div class="list-row muted">No accounts yet.</div>';
+    target.innerHTML = '<div class="list-row muted" style="padding:16px;text-align:center">No accounts yet. Create one above.</div>';
     return;
   }
+  const typeIcon = { bank:"🏦", cash:"💵", wise:"💸", crypto_wallet:"₿", exchange:"📈", alipay:"🅰", wechat:"💬", restricted_cash:"🔒" };
+  const typeLabel = { bank:"Bank", cash:"Cash", wise:"Wise", crypto_wallet:"Crypto", exchange:"Exchange", alipay:"Alipay", wechat:"WeChat", restricted_cash:"Restricted" };
   target.innerHTML = state.accounts
-    .map(
-      (row) => `
-      <article class="list-row">
-        <div class="row-main">
-          <strong>${escapeHtml(row.name)}</strong>
-          <span class="mono">${formatMoney(row.balance)} ${row.currency}</span>
+    .map((row) => {
+      const icon = typeIcon[row.type] || "💼";
+      const label = typeLabel[row.type] || row.type;
+      const bal = formatMoney(row.balance);
+      const isNeg = Number(row.balance) < 0;
+      return `
+      <article class="list-row clickable account-list-row" data-action="edit-account" data-id="${row.id}">
+        <div class="account-row-inner">
+          <span class="account-type-icon">${icon}</span>
+          <div class="account-info">
+            <span class="account-name">${escapeHtml(row.name)}</span>
+            <span class="account-meta muted">${escapeHtml(label)} · ${escapeHtml(row.currency)}</span>
+          </div>
+          <span class="account-balance mono${isNeg ? " overspend" : ""}">${bal}</span>
         </div>
-        <div class="muted">type: ${row.type}</div>
-        <div class="row-main">
-          <span class="muted mono">id: ${row.id}</span>
-          <button class="btn btn-ghost" type="button" data-action="edit-account" data-id="${row.id}">${escapeHtml(
-            t("edit")
-          )}</button>
-        </div>
-      </article>`
-    )
+      </article>`;
+    })
     .join("");
 }
 
@@ -4563,3 +4566,190 @@ function txTypeLabel(type) {
   if (type === "transfer") return t("txTypeTransfer");
   return String(type || "").toUpperCase();
 }
+
+// ── Dashboard drag-to-reorder ──────────────────────────────────────────────
+
+const DASH_ORDER_KEY = "nomad-dash-order";
+
+function applyDashboardOrder() {
+  const container = document.getElementById("dashboardSortable");
+  if (!container) return;
+  let order;
+  try { order = JSON.parse(localStorage.getItem(DASH_ORDER_KEY) || "null"); } catch { order = null; }
+  if (!Array.isArray(order) || !order.length) return;
+  const map = {};
+  for (const el of container.querySelectorAll("[data-sort-id]")) map[el.dataset.sortId] = el;
+  for (const id of order) {
+    if (map[id]) container.appendChild(map[id]);
+  }
+}
+
+function saveDashboardOrder() {
+  const container = document.getElementById("dashboardSortable");
+  if (!container) return;
+  const ids = [...container.querySelectorAll("[data-sort-id]")].map(el => el.dataset.sortId);
+  try { localStorage.setItem(DASH_ORDER_KEY, JSON.stringify(ids)); } catch {}
+}
+
+function initDashboardDrag() {
+  const container = document.getElementById("dashboardSortable");
+  if (!container) return;
+  applyDashboardOrder();
+
+  let dragEl = null;
+  let placeholder = null;
+  let longPressTimer = null;
+  let pressTimer = null;
+  let pressEl = null;
+  let dragOffsetY = 0;
+  let active = false;
+  let currentTouchY = 0;
+
+  function snapshots() {
+    return [...container.children]
+      .filter(c => c !== dragEl && !c.classList.contains("drag-placeholder"))
+      .map(c => ({ el: c, midY: c.getBoundingClientRect().top + c.getBoundingClientRect().height / 2 }));
+  }
+
+  function movePlaceholder(clientY) {
+    const snaps = snapshots();
+    let insertBefore = null;
+    for (const s of snaps) {
+      if (clientY < s.midY) { insertBefore = s.el; break; }
+    }
+    if (insertBefore) container.insertBefore(placeholder, insertBefore);
+    else container.appendChild(placeholder);
+    const contRect = container.getBoundingClientRect();
+    dragEl.style.transform = `translateY(${clientY - contRect.top - dragOffsetY}px)`;
+  }
+
+  function startDrag(card, clientY) {
+    active = true;
+    dragEl = card;
+    document.body.style.webkitUserSelect = "none";
+    document.body.style.userSelect = "none";
+    const rect = card.getBoundingClientRect();
+    dragOffsetY = clientY - rect.top;
+    placeholder = document.createElement("div");
+    placeholder.className = "drag-placeholder";
+    placeholder.style.height = rect.height + "px";
+    container.insertBefore(placeholder, card);
+    card.style.position = "absolute";
+    card.style.top = "0";
+    card.style.left = "0";
+    card.style.width = rect.width + "px";
+    card.style.zIndex = "200";
+    card.style.pointerEvents = "none";
+    card.classList.add("is-dragging");
+    container.style.position = "relative";
+    container.classList.add("sort-active");
+    if (navigator.vibrate) navigator.vibrate(38);
+    movePlaceholder(clientY);
+  }
+
+  function unlockSelection() {
+    document.body.style.webkitUserSelect = "";
+    document.body.style.userSelect = "";
+  }
+
+  function clearPressState() {
+    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+    if (pressEl) { pressEl.classList.remove("press-ready"); pressEl = null; }
+  }
+
+  function endDrag() {
+    if (!active) return;
+    active = false;
+    unlockSelection();
+    container.insertBefore(dragEl, placeholder);
+    placeholder.remove();
+    placeholder = null;
+    dragEl.style.cssText = "";
+    dragEl.classList.remove("is-dragging");
+    container.style.position = "";
+    container.classList.remove("sort-active");
+    dragEl = null;
+    saveDashboardOrder();
+  }
+
+  function cancelDrag() {
+    if (!active) return;
+    active = false;
+    unlockSelection();
+    placeholder && placeholder.remove();
+    placeholder = null;
+    if (dragEl) {
+      dragEl.style.cssText = "";
+      dragEl.classList.remove("is-dragging");
+    }
+    dragEl = null;
+    container.style.position = "";
+    container.classList.remove("sort-active");
+  }
+
+  // ── Touch ──
+  container.addEventListener("touchstart", (e) => {
+    const card = e.target.closest("[data-sort-id]");
+    if (!card) return;
+    document.body.style.webkitUserSelect = "none";
+    document.body.style.userSelect = "none";
+    pressEl = card;
+    currentTouchY = e.touches[0].clientY;
+    pressTimer = setTimeout(() => card.classList.add("press-ready"), 80);
+    longPressTimer = setTimeout(() => {
+      clearPressState();
+      startDrag(card, currentTouchY);
+    }, 500);
+  }, { passive: false });
+
+  window.addEventListener("touchmove", (e) => {
+    currentTouchY = e.touches[0].clientY;
+    if (longPressTimer) {
+      clearTimeout(longPressTimer); longPressTimer = null;
+      clearPressState();
+      unlockSelection();
+    }
+    if (!active) return;
+    e.preventDefault();
+    movePlaceholder(e.touches[0].clientY);
+  }, { passive: false });
+
+  window.addEventListener("touchend", () => {
+    if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+    clearPressState();
+    if (active) endDrag(); else unlockSelection();
+  });
+
+  window.addEventListener("touchcancel", () => {
+    if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+    clearPressState();
+    unlockSelection();
+    cancelDrag();
+  });
+
+  // ── Mouse (desktop) ──
+  container.addEventListener("mousedown", (e) => {
+    const card = e.target.closest("[data-sort-id]");
+    if (!card || e.target.closest("button,input,select,a,textarea")) return;
+    const clientY = e.clientY;
+    longPressTimer = setTimeout(() => {
+      e.preventDefault();
+      startDrag(card, clientY);
+    }, 500);
+  });
+
+  window.addEventListener("mousemove", (e) => {
+    if (longPressTimer && Math.abs(e.movementY) > 4) {
+      clearTimeout(longPressTimer); longPressTimer = null;
+    }
+    if (!active) return;
+    movePlaceholder(e.clientY);
+  });
+
+  window.addEventListener("mouseup", () => {
+    if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+    if (active) endDrag();
+  });
+}
+
+document.addEventListener("DOMContentLoaded", initDashboardDrag);

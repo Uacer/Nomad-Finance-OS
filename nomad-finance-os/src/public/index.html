@@ -91,38 +91,36 @@
           <div class="hero-legend" id="heroCompositionLegend"></div>
           <div id="heroSubMetrics" class="hero-submetrics"></div>
         </article>
-        <article class="card" id="todayExpensesCard">
+        <p class="dash-section-label">Pinned</p>
+        <div id="dashboardSortable">
+        <article class="card dashboard-card" id="todayExpensesCard" data-sort-id="todayExpensesCard">
           <div class="section-head">
             <h3 class="today-expenses-title">Today</h3>
             <span class="today-expenses-total" id="todayExpensesTotal"></span>
           </div>
           <div id="todayExpensesList" class="list-block compact-list"></div>
         </article>
-        <section class="infographic-grid">
-          <article class="card">
-            <div class="section-head">
-              <h3 id="budgetPlanTitle">Planned Budget</h3>
-              <button
-                id="budgetPlanViewToggleBtn"
-                class="btn btn-ghost budget-view-toggle"
-                type="button"
-                aria-label="Switch budget view"
-                title="Switch budget view"
-              >
-                ◔
-              </button>
-            </div>
-            <div id="budgetPlanSummary" class="muted"></div>
-            <div id="budgetPlanList" class="list-block compact-list"></div>
-            <div class="budget-threshold-legend" aria-label="Budget status legend"><span class="btl-item btl-ok">Under 80%</span><span class="btl-item btl-warn">80–99%</span><span class="btl-item btl-over">Over limit</span></div>
-            <div id="budgetPlanPieView" class="budget-pie-view hidden"></div>
-          </article>
-          <article class="card advanced-section" id="cashFlowCard">
-            <h3 id="cashFlowTitle">Cash Flow Pulse</h3>
-            <div id="cashFlowBars" class="mini-bars"></div>
-          </article>
-        </section>
-        <article class="card" id="recentExpensesCard">
+        <article class="card dashboard-card" data-sort-id="budgetPlanCard">
+          <div class="section-head budget-head">
+            <h3 id="budgetPlanTitle">Planned Budget</h3>
+            <button
+              id="budgetPlanViewToggleBtn"
+              class="budget-view-toggle"
+              type="button"
+              aria-label="Switch budget view"
+              title="Switch budget view"
+            ></button>
+          </div>
+          <div id="budgetPlanSummary" class="muted"></div>
+          <div id="budgetPlanList" class="list-block compact-list"></div>
+          <div class="budget-threshold-legend" aria-label="Budget status legend"><span class="btl-item btl-ok">Under 80%</span><span class="btl-item btl-warn">80–99%</span><span class="btl-item btl-over">Over limit</span></div>
+          <div id="budgetPlanPieView" class="budget-pie-view hidden"></div>
+        </article>
+        <article class="card advanced-section dashboard-card" id="cashFlowCard" data-sort-id="cashFlowCard">
+          <h3 id="cashFlowTitle">Cash Flow Pulse</h3>
+          <div id="cashFlowBars" class="mini-bars"></div>
+        </article>
+        <article class="card dashboard-card" id="recentExpensesCard" data-sort-id="recentExpensesCard">
           <div class="section-head">
             <button
               id="recentExpensesTitle"
@@ -135,7 +133,7 @@
           </div>
           <div id="recentExpensesList" class="list-block compact-list"></div>
         </article>
-        <article class="card advanced-section" id="trendCard">
+        <article class="card advanced-section dashboard-card" id="trendCard" data-sort-id="trendCard">
           <div class="section-head">
             <h3 id="trendTitle">Spending Curve</h3>
             <select id="trendMode" class="btn btn-ghost">
@@ -158,10 +156,11 @@
           </div>
           <div id="trendLegend" class="muted"></div>
         </article>
-        <article class="card advanced-section" id="riskCard">
+        <article class="card advanced-section dashboard-card" id="riskCard" data-sort-id="riskCard">
           <h3 id="riskTitle">Risk Metrics</h3>
           <div id="riskMetrics" class="list-block"></div>
         </article>
+        </div>
       </section>
 
       <section id="capturePanel" class="panel">
@@ -346,42 +345,43 @@
 
       <section id="accountsPanel" class="panel">
         <h2>Accounts</h2>
-        <form id="accountForm" class="card form-grid">
+        <form id="accountForm" class="card account-create-form">
+          <h3 class="account-form-title">New Account</h3>
           <label>
-            Name
-            <input name="name" type="text" required />
+            <span class="field-eyebrow">Name</span>
+            <input name="name" type="text" placeholder="e.g. SCB Savings" required />
           </label>
-          <label>
-            Type
-            <select name="type" required>
-              <option value="bank">bank</option>
-              <option value="cash">cash</option>
-              <option value="wise">wise</option>
-              <option value="crypto_wallet">crypto_wallet</option>
-              <option value="exchange">exchange</option>
-              <option value="alipay">alipay</option>
-              <option value="wechat">wechat</option>
-              <option value="restricted_cash">restricted_cash</option>
-            </select>
-          </label>
-          <label>
-            Currency
-            <select name="currency" required>
-              <option value="CNY">人民币 (CNY)</option>
-              <option value="EUR">欧元 (EUR)</option>
-              <option value="THB">泰铢 (THB)</option>
-              <option value="USD" selected>美元 (USD)</option>
-              <option value="JPY">日元 (JPY)</option>
-              <option value="KRW">韩元 (KRW)</option>
-            </select>
-          </label>
-          <label>
-            Opening Balance
-            <input name="balance" type="number" step="0.01" value="0" />
-          </label>
-          <div class="actions">
-            <button class="btn btn-solid" type="submit">Create Account</button>
+          <div class="account-form-row">
+            <label>
+              <span class="field-eyebrow">Type</span>
+              <select name="type" required>
+                <option value="bank">🏦 Bank</option>
+                <option value="cash">💵 Cash</option>
+                <option value="wise">💸 Wise</option>
+                <option value="crypto_wallet">₿ Crypto</option>
+                <option value="exchange">📈 Exchange</option>
+                <option value="alipay">🅰 Alipay</option>
+                <option value="wechat">💬 WeChat</option>
+                <option value="restricted_cash">🔒 Restricted</option>
+              </select>
+            </label>
+            <label>
+              <span class="field-eyebrow">Currency</span>
+              <select name="currency" required>
+                <option value="CNY">CNY</option>
+                <option value="EUR">EUR</option>
+                <option value="THB">THB</option>
+                <option value="USD" selected>USD</option>
+                <option value="JPY">JPY</option>
+                <option value="KRW">KRW</option>
+              </select>
+            </label>
           </div>
+          <label>
+            <span class="field-eyebrow">Opening Balance</span>
+            <input name="balance" type="number" step="0.01" value="0" inputmode="decimal" />
+          </label>
+          <button class="btn btn-solid" type="submit" style="margin-top:4px">Create Account</button>
         </form>
         <div id="accountList" class="list-block"></div>
       </section>
@@ -618,68 +618,108 @@
           <h3 id="settingsSheetTitle">Settings</h3>
           <button class="btn btn-ghost" type="button" data-close-sheet="settingsSheet">Close</button>
         </div>
-        <form id="quickSettingsForm" class="sheet-form">
+
+        <form id="quickSettingsForm" class="settings-form">
           <label id="quickSettingsUserRow" class="hidden">
             <span id="quickSettingsUserLabel">User ID</span>
             <input name="user_id" type="number" min="1" value="1" />
           </label>
-          <label>
-            <span id="quickSettingsLangLabel">Language</span>
-            <select name="ui_language">
-              <option value="en">English</option>
-              <option value="zh">中文</option>
-            </select>
-          </label>
-          <label>
-            <span id="quickSettingsBaseLabel">Base Currency</span>
-            <select name="base_currency">
-              <option value="CNY">人民币 (CNY)</option>
-              <option value="EUR">欧元 (EUR)</option>
-              <option value="THB">泰铢 (THB)</option>
-              <option value="USD" selected>美元 (USD)</option>
-              <option value="JPY">日元 (JPY)</option>
-              <option value="KRW">韩元 (KRW)</option>
-            </select>
-          </label>
-          <label>
-            <span id="quickSettingsTimezoneLabel">Timezone</span>
-            <input name="timezone" type="text" value="UTC" />
-          </label>
-          <div class="toggle-grid">
-            <span id="quickSettingsAdvancedLabel">Advanced Insights</span>
-            <label class="toggle">
-              <input id="toggleCashFlow" type="checkbox" />
+
+          <!-- Section: Preferences -->
+          <p class="settings-section-label" id="quickSettingsLangLabel">Preferences</p>
+          <div class="settings-group">
+            <div class="settings-row">
+              <span class="settings-row-label">Language</span>
+              <select name="ui_language" class="settings-inline-select">
+                <option value="en">English</option>
+                <option value="zh">中文</option>
+              </select>
+            </div>
+            <div class="settings-row">
+              <span class="settings-row-label" id="quickSettingsBaseLabel">Base Currency</span>
+              <select name="base_currency" class="settings-inline-select">
+                <option value="CNY">CNY</option>
+                <option value="EUR">EUR</option>
+                <option value="THB">THB</option>
+                <option value="USD" selected>USD</option>
+                <option value="JPY">JPY</option>
+                <option value="KRW">KRW</option>
+              </select>
+            </div>
+            <div class="settings-row">
+              <span class="settings-row-label" id="quickSettingsTimezoneLabel">Timezone</span>
+              <input name="timezone" type="text" value="UTC" class="settings-inline-input" />
+            </div>
+          </div>
+
+          <!-- Section: Dashboard Widgets -->
+          <p class="settings-section-label" id="quickSettingsAdvancedLabel">Dashboard Widgets</p>
+          <div class="settings-group">
+            <label class="settings-toggle-row">
+              <span id="toggleRecentExpensesLabel">Transactions Card</span>
+              <input id="toggleRecentExpenses" type="checkbox" role="switch" />
+            </label>
+            <label class="settings-toggle-row">
               <span id="toggleCashFlowLabel">Cash Flow Pulse</span>
+              <input id="toggleCashFlow" type="checkbox" role="switch" />
             </label>
-            <label class="toggle">
-              <input id="toggleTrend" type="checkbox" />
+            <label class="settings-toggle-row">
               <span id="toggleTrendLabel">Spending Curve</span>
+              <input id="toggleTrend" type="checkbox" role="switch" />
             </label>
-            <label class="toggle">
-              <input id="toggleRisk" type="checkbox" />
+            <label class="settings-toggle-row">
               <span id="toggleRiskLabel">Risk Metrics</span>
+              <input id="toggleRisk" type="checkbox" role="switch" />
             </label>
-            <label class="toggle">
-              <input id="toggleDebug" type="checkbox" />
+            <label class="settings-toggle-row">
               <span id="toggleDebugLabel">Debug Panel</span>
-            </label>
-            <label class="toggle">
-              <input id="toggleRecentExpenses" type="checkbox" />
-              <span id="toggleRecentExpensesLabel">Recent Transactions Card</span>
+              <input id="toggleDebug" type="checkbox" role="switch" />
             </label>
           </div>
-          <button class="btn btn-solid" id="quickSettingsSaveBtn" type="submit">Save Settings</button>
-          <button class="btn btn-ghost" id="quickLogoutBtn" type="button">Logout</button>
+
+          <button class="btn btn-solid settings-save-btn" id="quickSettingsSaveBtn" type="submit">Save Settings</button>
         </form>
+
+        <!-- Section: Navigate -->
+        <p class="settings-section-label">Manage</p>
+        <div class="settings-nav-group">
+          <button class="settings-nav-row" id="settingsLinkAccounts" type="button" data-open-panel="accountsPanel">
+            <span class="settings-nav-icon">🏦</span>
+            <span class="settings-nav-label">Accounts</span>
+            <span class="settings-nav-chevron">›</span>
+          </button>
+          <button class="settings-nav-row" id="settingsLinkBudget" type="button" data-open-panel="budgetsPanel">
+            <span class="settings-nav-icon">📊</span>
+            <span class="settings-nav-label">Budget Plans</span>
+            <span class="settings-nav-chevron">›</span>
+          </button>
+          <button class="settings-nav-row" id="settingsLinkCategories" type="button" data-open-panel="categoriesPanel">
+            <span class="settings-nav-icon">🏷️</span>
+            <span class="settings-nav-label">Categories</span>
+            <span class="settings-nav-chevron">›</span>
+          </button>
+          <button class="settings-nav-row" id="settingsLinkReview" type="button" data-open-panel="reviewPanel">
+            <span class="settings-nav-icon">📅</span>
+            <span class="settings-nav-label">Monthly Review</span>
+            <span class="settings-nav-chevron">›</span>
+          </button>
+          <button class="settings-nav-row" id="settingsLinkAi" type="button" data-open-panel="settingsPanel">
+            <span class="settings-nav-icon">🤖</span>
+            <span class="settings-nav-label">Agent Access</span>
+            <span class="settings-nav-chevron">›</span>
+          </button>
+        </div>
+
+        <!-- Debug Panel -->
         <section id="debugPanel" class="debug-panel hidden">
           <div class="section-head">
             <h3 id="debugPanelTitle">Debug Panel</h3>
             <span id="debugCountHint" class="mono muted">0</span>
           </div>
           <div class="debug-controls">
-            <label class="toggle">
-              <input id="debugOnlyFailed" type="checkbox" />
+            <label class="settings-toggle-row">
               <span id="debugOnlyFailedLabel">Only Failed</span>
+              <input id="debugOnlyFailed" type="checkbox" role="switch" />
             </label>
             <label>
               <span id="debugFilterLabel">Filter</span>
@@ -699,12 +739,10 @@
             <div id="debugRuntimeList" class="list-block"></div>
           </article>
         </section>
-        <div class="secondary-links">
-          <button class="btn btn-ghost" id="settingsLinkBudget" type="button" data-open-panel="budgetsPanel">Advanced Budget</button>
-          <button class="btn btn-ghost" id="settingsLinkAccounts" type="button" data-open-panel="accountsPanel">Accounts</button>
-          <button class="btn btn-ghost" id="settingsLinkReview" type="button" data-open-panel="reviewPanel">Monthly Review</button>
-          <button class="btn btn-ghost" id="settingsLinkCategories" type="button" data-open-panel="categoriesPanel">Categories</button>
-          <button class="btn btn-ghost" id="settingsLinkAi" type="button" data-open-panel="settingsPanel">Agent Access</button>
+
+        <!-- Danger zone -->
+        <div class="settings-danger-zone">
+          <button class="btn settings-logout-btn" id="quickLogoutBtn" type="button">Log Out</button>
         </div>
       </article>
     </section>
@@ -719,31 +757,32 @@
         <form id="accountEditForm" class="sheet-form">
           <input name="account_id" type="hidden" />
           <label>
-            <span id="accountEditNameLabel">Account</span>
-            <input name="account_name" type="text" readonly />
+            <span id="accountEditNameLabel" class="field-eyebrow">Account</span>
+            <input name="account_name" type="text" readonly style="color:var(--ink-soft)" />
           </label>
           <label>
-            <span id="accountEditTypeLabel">Type</span>
+            <span id="accountEditTypeLabel" class="field-eyebrow">Type</span>
             <select name="type" required>
-              <option value="bank">bank</option>
-              <option value="cash">cash</option>
-              <option value="wise">wise</option>
-              <option value="crypto_wallet">crypto_wallet</option>
-              <option value="exchange">exchange</option>
-              <option value="alipay">alipay</option>
-              <option value="wechat">wechat</option>
-              <option value="restricted_cash">restricted_cash</option>
+              <option value="bank">🏦 Bank</option>
+              <option value="cash">💵 Cash</option>
+              <option value="wise">💸 Wise</option>
+              <option value="crypto_wallet">₿ Crypto</option>
+              <option value="exchange">📈 Exchange</option>
+              <option value="alipay">🅰 Alipay</option>
+              <option value="wechat">💬 WeChat</option>
+              <option value="restricted_cash">🔒 Restricted</option>
             </select>
           </label>
           <label>
-            <span id="accountEditBalanceLabel">Balance</span>
-            <input name="balance" type="number" step="0.01" required />
+            <span id="accountEditBalanceLabel" class="field-eyebrow">Current Balance</span>
+            <input name="balance" type="number" step="0.01" inputmode="decimal" required />
           </label>
-          <button class="btn btn-solid" id="accountEditSaveBtn" type="submit">Save Account</button>
+          <button class="btn btn-solid" id="accountEditSaveBtn" type="submit">Save Changes</button>
         </form>
-        <div class="tag-wrap">
-          <button class="btn" id="accountDeleteBtn" type="button">Delete Account</button>
-          <button class="btn btn-danger" id="accountForceDeleteBtn" type="button">Force Delete (with Transactions)</button>
+        <div class="account-edit-danger">
+          <p class="settings-section-label">Danger Zone</p>
+          <button class="btn account-delete-btn" id="accountDeleteBtn" type="button">Delete Account</button>
+          <button class="btn btn-danger" id="accountForceDeleteBtn" type="button">Force Delete (with all Transactions)</button>
         </div>
       </article>
     </section>

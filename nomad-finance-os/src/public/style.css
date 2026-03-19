@@ -20,6 +20,7 @@
 body {
   margin: 0;
   min-height: 100vh;
+  overflow-x: hidden;
   font-family: "Space Grotesk", sans-serif;
   color: var(--ink);
   background:
@@ -86,6 +87,8 @@ body.auth-required {
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
+  padding-left: max(14px, env(safe-area-inset-left) + 14px);
+  padding-right: max(14px, env(safe-area-inset-right) + 14px);
   border-bottom: 0;
   background: color-mix(in oklab, var(--bg-2), white 14%);
   backdrop-filter: blur(12px);
@@ -500,7 +503,11 @@ body.auth-required .fab {
 .layout {
   display: grid;
   gap: 14px;
-  padding: 14px 16px calc(80px + env(safe-area-inset-bottom));
+  padding-top: 14px;
+  padding-right: 20px;
+  padding-bottom: 80px;
+  padding-left: 20px;
+  overflow: visible;
 }
 
 .panel {
@@ -511,6 +518,70 @@ body.auth-required .fab {
   display: grid;
   gap: 14px;
   animation: fade-slide 200ms ease;
+}
+
+/* ── Dashboard sortable container ── */
+#dashboardSortable {
+  display: grid;
+  gap: 14px;
+}
+
+/* Draggable card wrapper */
+.dashboard-card {
+  position: relative;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Drag handle dot-grid — top-right, opacity 0 normally */
+.dashboard-card::before {
+  content: "⠿";
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  font-size: 1rem;
+  color: var(--ink-soft);
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+  letter-spacing: -2px;
+}
+
+.sort-active .dashboard-card::before,
+.dashboard-card:hover::before {
+  opacity: 0.3;
+}
+
+/* 80ms long-press visual lift */
+.press-ready {
+  transform: scale(1.025);
+  box-shadow: 0 8px 28px rgba(56,44,33,.16), 0 2px 8px rgba(56,44,33,.1) !important;
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 200ms ease !important;
+  z-index: 10;
+  position: relative;
+}
+
+/* Actively dragging */
+.is-dragging {
+  box-shadow: 0 16px 48px rgba(56,44,33,.24), 0 4px 14px rgba(56,44,33,.16) !important;
+  opacity: 0.97;
+  transform: scale(1.02) !important;
+  z-index: 200;
+  cursor: grabbing;
+}
+
+/* Placeholder slot while dragging */
+.drag-placeholder {
+  border-radius: 20px;
+  background: color-mix(in oklab, var(--line), transparent 55%);
+  border: 2px dashed color-mix(in oklab, var(--line), transparent 20%);
+  pointer-events: none;
+}
+
+.sort-active .dashboard-card:not(.is-dragging) {
+  transition: margin 180ms ease;
 }
 
 #capturePanel {
@@ -536,6 +607,15 @@ h3 {
 
 h2 {
   font-size: 1.1rem;
+}
+
+.dash-section-label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
 }
 
 h3 {
@@ -600,7 +680,6 @@ h3 {
 .hero-card {
   display: grid;
   gap: 10px;
-  border-left: 4px solid var(--accent);
 }
 
 .hero-top {
@@ -698,9 +777,6 @@ h3 {
 }
 
 /* Today Expenses Card */
-#todayExpensesCard {
-  border-left: 4px solid var(--danger);
-}
 
 .today-expenses-title {
   font-size: 1rem;
@@ -730,17 +806,39 @@ h3 {
 }
 
 #budgetPlanList {
-  margin-top: 6px;
+  margin-top: 14px;
+}
+
+/* .budget-head: section-head inside the budget card.
+   padding-right reserves space so the toggle button stays
+   clear of the ::before drag indicator at right:14px. */
+.budget-head {
+  padding-right: 30px;
 }
 
 .budget-view-toggle {
-  border-radius: 10px;
-  padding: 4px 8px;
-  min-width: 30px;
-  min-height: 28px;
-  font-size: 0.9rem;
-  line-height: 1;
-  opacity: 0.6;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  border: none;
+  background: rgba(56, 44, 33, 0.07);
+  color: var(--ink-soft);
+  cursor: pointer;
+  padding: 0;
+  transition: background 120ms ease, transform 120ms ease;
+}
+
+.budget-view-toggle:hover {
+  background: rgba(56, 44, 33, 0.13);
+  color: var(--ink);
+}
+
+.budget-view-toggle:active {
+  transform: scale(0.9);
 }
 
 .budget-plan-row {
@@ -2108,17 +2206,293 @@ body.sheet-open .topbar {
   font-size: 0.85rem;
 }
 
+/* ── Settings Sheet ────────────────────────────────────────────── */
+
+.settings-form {
+  display: grid;
+  gap: 6px;
+}
+
+.settings-section-label {
+  margin: 10px 0 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+}
+
+/* iOS-style grouped rows */
+.settings-group {
+  background: var(--paper);
+  border-radius: 14px;
+  box-shadow: 0 1px 4px rgba(56,44,33,.06), 0 4px 12px rgba(56,44,33,.05);
+  overflow: hidden;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 14px;
+  border-bottom: 1px solid color-mix(in oklab, var(--line), transparent 40%);
+}
+
+.settings-row:last-child {
+  border-bottom: none;
+}
+
+.settings-row-label {
+  font-size: 0.95rem;
+  flex: 1;
+}
+
+.settings-inline-select {
+  width: auto;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  text-align: right;
+  border-radius: 0;
+}
+
+.settings-inline-input {
+  width: auto;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  text-align: right;
+  border-radius: 0;
+}
+
+/* iOS-style toggle row */
+.settings-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 14px;
+  border-bottom: 1px solid color-mix(in oklab, var(--line), transparent 40%);
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.settings-group .settings-toggle-row:last-child {
+  border-bottom: none;
+}
+
+/* iOS toggle switch */
+.settings-toggle-row input[type="checkbox"],
+.debug-controls .settings-toggle-row input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  flex-shrink: 0;
+  width: 44px;
+  height: 26px;
+  border-radius: 13px;
+  background: #c8c0b4;
+  position: relative;
+  cursor: pointer;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  min-height: unset;
+  transition: background 220ms ease;
+}
+
+.settings-toggle-row input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: white;
+  top: 2px;
+  left: 2px;
+  transition: left 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+}
+
+.settings-toggle-row input[type="checkbox"]:checked {
+  background: var(--accent);
+}
+
+.settings-toggle-row input[type="checkbox"]:checked::after {
+  left: 20px;
+}
+
+.settings-save-btn {
+  margin-top: 6px;
+}
+
+/* Nav rows (→ Accounts, Budget etc.) */
+.settings-nav-group {
+  display: grid;
+  background: var(--paper);
+  border-radius: 14px;
+  box-shadow: 0 1px 4px rgba(56,44,33,.06), 0 4px 12px rgba(56,44,33,.05);
+  overflow: hidden;
+}
+
+.settings-nav-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid color-mix(in oklab, var(--line), transparent 40%);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: var(--ink);
+  transition: opacity 120ms ease;
+}
+
+.settings-nav-row:last-child {
+  border-bottom: none;
+}
+
+.settings-nav-row:active {
+  opacity: 0.6;
+  background: color-mix(in oklab, var(--line), transparent 50%);
+}
+
+.settings-nav-icon {
+  font-size: 1.1rem;
+  width: 26px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.settings-nav-label {
+  flex: 1;
+  font-size: 0.95rem;
+}
+
+.settings-nav-chevron {
+  color: var(--ink-soft);
+  font-size: 1.3rem;
+  opacity: 0.4;
+  line-height: 1;
+}
+
+/* Danger / logout */
+.settings-danger-zone {
+  margin-top: 16px;
+  padding-bottom: 8px;
+}
+
+.settings-logout-btn {
+  width: 100%;
+  justify-content: center;
+  color: var(--danger);
+  border-color: color-mix(in oklab, var(--danger), white 60%);
+}
+
+/* ── Accounts Panel ─────────────────────────────────────────────── */
+
+.account-create-form {
+  display: grid;
+  gap: 12px;
+}
+
+.account-form-title {
+  margin-bottom: -4px;
+}
+
+.account-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.field-eyebrow {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  margin-bottom: 4px;
+}
+
+.account-list-row {
+  cursor: pointer;
+}
+
+.account-row-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.account-type-icon {
+  font-size: 1.3rem;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(56,44,33,.06);
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.account-info {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.account-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-meta {
+  font-size: 0.78rem;
+}
+
+.account-balance {
+  font-size: 0.95rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* Account edit danger zone */
+.account-edit-danger {
+  margin-top: 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.account-delete-btn {
+  color: var(--danger);
+  border-color: color-mix(in oklab, var(--danger), white 60%);
+  width: 100%;
+  justify-content: center;
+}
+
+/* Legacy secondary-links kept for compatibility */
 .secondary-links {
   margin-top: 12px;
   display: grid;
   gap: 7px;
-}
-
-.secondary-links .btn {
-  text-align: left;
-  justify-content: flex-start;
-  padding-left: 14px;
-  border-radius: 12px;
 }
 
 .utility-close {
