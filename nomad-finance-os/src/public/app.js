@@ -3904,15 +3904,20 @@ function renderTodayExpensesCard(rows) {
   }
   listEl.innerHTML = todayRows.map((row) => {
     const title = formatRecentTransactionTitle(row);
-    const showOrig = row.currency_original && row.currency_original !== base;
+    const showOrig = row.currency_original && row.currency_original.toUpperCase() !== base.toUpperCase();
+    const signedBase = -Math.abs(Number(row.amount_base));
+    const signedOrig = -Math.abs(Number(row.amount_original));
     return `
-      <article class="list-row today-expense-row clickable" data-tx-id="${row.id}">
-        <div class="row-main">
-          <span class="today-row-title">${escapeHtml(title)}</span>
-          <span class="today-row-amount mono">${escapeHtml(formatMoney(row.amount_base))}<span class="today-row-unit">${escapeHtml(base)}</span></span>
+      <article class="incard-row clickable" data-tx-id="${row.id}">
+        <div class="tx-row-main">
+          <span class="tx-row-title">${escapeHtml(title)}</span>
+          <span class="tx-amount expense">${escapeHtml(formatMoney(signedBase))}<span class="tx-unit">${escapeHtml(base)}</span></span>
         </div>
-        ${showOrig ? `<div class="today-row-orig"><span class="today-row-unit">${escapeHtml(formatMoney(row.amount_original))} ${escapeHtml(row.currency_original)}</span></div>` : ''}
-        ${row.note ? `<div class="today-row-note">${escapeHtml(row.note)}</div>` : ''}
+        <div class="tx-row-sub">
+          <span class="tx-row-meta">${row.account_from_id ? escapeHtml(row.account_from_id) + ' · ' : ''}${escapeHtml(row.tx_date)}</span>
+          ${showOrig ? `<span class="tx-orig">${escapeHtml(formatMoney(signedOrig))} ${escapeHtml(row.currency_original)}</span>` : ''}
+        </div>
+        ${row.note ? `<div class="tx-note">${escapeHtml(row.note)}</div>` : ''}
       </article>`;
   }).join('');
 }
@@ -3922,25 +3927,33 @@ function renderRecentExpensesCard(rows) {
   if (!target) return;
   const txRows = (Array.isArray(rows) ? rows : []).slice(0, 5);
   if (!txRows.length) {
-    target.innerHTML = `<div class="list-row muted">${escapeHtml(t("emptyNoRecentExpense"))}</div>`;
+    target.innerHTML = `<div class="incard-empty muted">${escapeHtml(t("emptyNoRecentExpense"))}</div>`;
     return;
   }
   const base = state.settings?.base_currency || "USD";
   target.innerHTML = txRows
     .map((row) => {
-      const context = formatRecentTransactionContext(row);
+      const isExpense = row.type === "expense";
+      const isIncome = row.type === "income";
+      const title = formatRecentTransactionTitle(row);
+      const showOrig = row.currency_original && row.currency_original.toUpperCase() !== base.toUpperCase();
+      const signedBase = isExpense ? -Math.abs(Number(row.amount_base)) : isIncome ? Math.abs(Number(row.amount_base)) : Number(row.amount_base);
+      const signedOrig = isExpense ? -Math.abs(Number(row.amount_original)) : isIncome ? Math.abs(Number(row.amount_original)) : Number(row.amount_original);
+      const amountClass = isExpense ? "tx-amount expense" : isIncome ? "tx-amount income" : "tx-amount transfer";
+      const dateLabel = formatRecentExpenseDate(row.tx_date);
+      const account = isExpense ? row.account_from_id : isIncome ? row.account_to_id : null;
+      const meta = [account, dateLabel].filter(Boolean).join(" · ");
       return `
-      <article class="list-row recent-expense-row clickable" data-tx-id="${row.id}">
-        <div class="row-main">
-          <strong>${escapeHtml(formatRecentTransactionTitle(row))}</strong>
-          <span class="mono">${formatMoney(row.amount_base)} ${escapeHtml(base)}</span>
+      <article class="incard-row clickable" data-tx-id="${row.id}">
+        <div class="tx-row-main">
+          <span class="tx-row-title">${escapeHtml(title)}</span>
+          <span class="${amountClass}">${escapeHtml(formatMoney(signedBase))}<span class="tx-unit">${escapeHtml(base)}</span></span>
         </div>
-        <div class="row-main">
-          <span class="muted">${escapeHtml(formatRecentExpenseDate(row.tx_date))}</span>
-          <span class="muted">${formatMoney(row.amount_original)} ${escapeHtml(row.currency_original || "-")}</span>
+        <div class="tx-row-sub">
+          <span class="tx-row-meta">${escapeHtml(meta)}</span>
+          ${showOrig ? `<span class="tx-orig">${escapeHtml(formatMoney(signedOrig))} ${escapeHtml(row.currency_original)}</span>` : ""}
         </div>
-        ${context ? `<div class="muted mono">${escapeHtml(context)}</div>` : ""}
-        <div>${escapeHtml(row.note || "")}</div>
+        ${row.note ? `<div class="tx-note">${escapeHtml(row.note)}</div>` : ""}
       </article>`;
     })
     .join("");
