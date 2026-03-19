@@ -3312,16 +3312,18 @@ function renderPlannedBudgetCard(dashboard) {
         return `
           <article class="budget-plan-row">
             <div class="top">
-              <div class="budget-plan-name">
+              <span class="budget-plan-name">
                 <strong>${escapeHtml(withL1Emoji(row.category_l1))}</strong>
-                <span class="budget-plan-period muted">/ ${escapeHtml(periodLabel)}</span>
-              </div>
-              <span class="${row.overspend ? "overspend" : ratio >= 0.8 ? "warn" : "muted"}">
-                ${formatMoney(used)} / ${formatMoney(total)}<span class="mono" style="font-size:0.76em;opacity:0.75"> ${pct.toFixed(0)}%</span>
-                <span class="${remainClass}"> · ${escapeHtml(t("remaining"))}: ${remainText}</span>
+              </span>
+              <span class="budget-plan-amounts ${row.overspend ? "overspend" : ratio >= 0.8 ? "warn" : "muted"}">
+                ${formatMoney(used)}<span class="budget-plan-total"> / ${formatMoney(total)}</span>
               </span>
             </div>
             <div class="progress-wrap"><div class="progress-fill ${tone}" style="width:${pct}%"></div></div>
+            <div class="budget-plan-meta">
+              <span class="muted">${escapeHtml(periodLabel)}</span>
+              <span class="${remainClass}">${remaining >= 0 ? escapeHtml(t("remaining")) + ": " + remainText : "−" + formatMoney(Math.abs(remaining))}</span>
+            </div>
           </article>
         `;
       })
