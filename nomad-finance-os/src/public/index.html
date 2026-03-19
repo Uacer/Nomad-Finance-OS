@@ -38,11 +38,17 @@
       </article>
     </section>
     <header class="topbar minimal-topbar">
-      <button id="openSettingsBtn" class="icon-btn topbar-icon" type="button" aria-label="Open settings">⚙</button>
+      <button id="openSettingsBtn" class="icon-btn topbar-icon" type="button" aria-label="Open settings">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
       <label class="topbar-month">
         <span id="monthLabelText" class="sr-only">Month</span>
         <input id="monthInput" type="month" aria-label="Month" />
       </label>
+      <div class="topbar-right">
       <label class="topbar-base">
         <span id="topBaseCurrencyLabel" class="sr-only">Base Currency</span>
         <select id="topBaseCurrencySelect" aria-label="Base Currency">
@@ -54,6 +60,7 @@
           <option value="KRW">KRW</option>
         </select>
       </label>
+      </div>
       <input id="userIdInput" type="number" min="1" value="1" hidden />
       <button id="reloadBtn" class="hidden" type="button">Reload</button>
     </header>
@@ -71,7 +78,7 @@
 
     <main class="layout">
       <section id="dashboardPanel" class="panel active">
-        <h2 id="dashboardTitle">Dashboard</h2>
+        <h2 id="dashboardTitle">Summary</h2>
         <article class="card hero-card">
           <div class="hero-top">
             <div>
