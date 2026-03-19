@@ -3795,6 +3795,7 @@ async function loadTransactionsWithOptions(options = {}) {
   state.transactions = Array.isArray(rows) ? rows : [];
   if (!expenseOnly) {
     renderRecentExpensesCard(state.transactions);
+    renderTodayExpensesCard(state.transactions);
   }
   renderTransactionList(state.transactions, { expenseOnly });
   return state.transactions;
@@ -3851,6 +3852,36 @@ function renderTransactionList(rows, options = {}) {
         </article>`;
     })
     .join("");
+}
+
+function renderTodayExpensesCard(rows) {
+  const listEl = document.querySelector('#todayExpensesList');
+  const totalEl = document.querySelector('#todayExpensesTotal');
+  if (!listEl || !totalEl) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const base = state.settings?.base_currency || 'USD';
+  const todayRows = (Array.isArray(rows) ? rows : []).filter(
+    (r) => r.tx_date === today && r.type === 'expense'
+  );
+  const total = todayRows.reduce((s, r) => s + (Number(r.amount_base) || 0), 0);
+  totalEl.textContent = todayRows.length ? formatMoney(total) + ' ' + base : '';
+  if (!todayRows.length) {
+    listEl.innerHTML = '<div class="compact-row muted">No expenses today</div>';
+    return;
+  }
+  listEl.innerHTML = todayRows.map((row) => {
+    const title = formatRecentTransactionTitle(row);
+    const showOrig = row.currency_original && row.currency_original !== base;
+    return `
+      <article class="list-row recent-expense-row clickable" data-tx-id="${row.id}">
+        <div class="row-main">
+          <strong>${escapeHtml(title)}</strong>
+          <span class="mono">${formatMoney(row.amount_base)} ${escapeHtml(base)}</span>
+        </div>
+        ${showOrig ? '<div class="row-main"><span></span><span class="muted">' + formatMoney(row.amount_original) + ' ' + escapeHtml(row.currency_original) + '</span></div>' : ''}
+        ${row.note ? '<div class="muted">' + escapeHtml(row.note) + '</div>' : ''}
+      </article>`;
+  }).join('');
 }
 
 function renderRecentExpensesCard(rows) {
@@ -4343,6 +4374,7 @@ function applyI18n() {
     debugFilterInput.placeholder = t("debugFilterPlaceholder");
   }
   renderRecentExpensesCard(state.transactions || []);
+  renderTodayExpensesCard(state.transactions || []);
   renderAgentTokens();
   renderDebugPanel();
 }
