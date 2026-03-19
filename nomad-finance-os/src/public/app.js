@@ -895,6 +895,17 @@ function bindUI() {
     if (!Number.isInteger(id) || id <= 0) return;
     openTransactionDetailSheet(id);
   });
+  const todayExpensesListEl = document.getElementById("todayExpensesList");
+  if (todayExpensesListEl) {
+    todayExpensesListEl.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const row = event.target.closest("article[data-tx-id]");
+      if (!row) return;
+      const id = Number(row.getAttribute("data-tx-id"));
+      if (!Number.isInteger(id) || id <= 0) return;
+      openTransactionDetailSheet(id);
+    });
+  }
   const debugOnlyFailed = $("#debugOnlyFailed");
   if (debugOnlyFailed) {
     debugOnlyFailed.addEventListener("change", () => {
@@ -3558,11 +3569,18 @@ function populateTransactionDetailSheet(tx) {
   const sourceCurrency = String(tx.currency_original || baseCurrency).toUpperCase();
   const originalAmount = getSignedTransactionAmount(tx, "amount_original");
   const baseAmount = getSignedTransactionAmount(tx, "amount_base");
-  setText("transactionDetailAmountValue", `${formatSignedMoney(originalAmount)} ${sourceCurrency}`);
-  setText(
-    "transactionDetailAmountSub",
-    sourceCurrency === baseCurrency ? "" : `${formatSignedMoney(baseAmount)} ${baseCurrency}`
-  );
+  const hero = document.getElementById("txdHero");
+  if (hero) {
+    hero.dataset.type = tx.type || "expense";
+  }
+  const amountEl = document.getElementById("transactionDetailAmountValue");
+  if (amountEl) {
+    amountEl.innerHTML = `${escapeHtml(formatSignedMoney(originalAmount))}<span class="txd-amount-currency">${escapeHtml(sourceCurrency)}</span>`;
+  }
+  const subEl = document.getElementById("transactionDetailAmountSub");
+  if (subEl) {
+    subEl.textContent = sourceCurrency === baseCurrency ? "" : `${formatSignedMoney(baseAmount)} ${baseCurrency}`;
+  }
   setText("transactionDetailCategoryValue", formatTransactionDetailCategory(tx));
   setText("transactionDetailAccountValue", formatTransactionDetailAccount(tx));
   const detailTime = formatTransactionDetailTime(tx);
@@ -3866,7 +3884,9 @@ function renderTodayExpensesCard(rows) {
     (r) => r.tx_date === today && r.type === 'expense'
   );
   const total = todayRows.reduce((s, r) => s + (Number(r.amount_base) || 0), 0);
-  totalEl.textContent = todayRows.length ? formatMoney(total) + ' ' + base : '';
+  totalEl.innerHTML = todayRows.length
+    ? `${escapeHtml(formatMoney(total))}<span class="today-total-unit">${escapeHtml(base)}</span>`
+    : '';
   if (!todayRows.length) {
     listEl.innerHTML = '<div class="compact-row muted">No expenses today</div>';
     return;
@@ -3875,13 +3895,13 @@ function renderTodayExpensesCard(rows) {
     const title = formatRecentTransactionTitle(row);
     const showOrig = row.currency_original && row.currency_original !== base;
     return `
-      <article class="list-row recent-expense-row clickable" data-tx-id="${row.id}">
+      <article class="list-row today-expense-row clickable" data-tx-id="${row.id}">
         <div class="row-main">
-          <strong>${escapeHtml(title)}</strong>
-          <span class="mono">${formatMoney(row.amount_base)} ${escapeHtml(base)}</span>
+          <span class="today-row-title">${escapeHtml(title)}</span>
+          <span class="today-row-amount mono">${escapeHtml(formatMoney(row.amount_base))}<span class="today-row-unit">${escapeHtml(base)}</span></span>
         </div>
-        ${showOrig ? '<div class="row-main"><span></span><span class="muted">' + formatMoney(row.amount_original) + ' ' + escapeHtml(row.currency_original) + '</span></div>' : ''}
-        ${row.note ? '<div class="muted">' + escapeHtml(row.note) + '</div>' : ''}
+        ${showOrig ? `<div class="today-row-orig"><span class="today-row-unit">${escapeHtml(formatMoney(row.amount_original))} ${escapeHtml(row.currency_original)}</span></div>` : ''}
+        ${row.note ? `<div class="today-row-note">${escapeHtml(row.note)}</div>` : ''}
       </article>`;
   }).join('');
 }

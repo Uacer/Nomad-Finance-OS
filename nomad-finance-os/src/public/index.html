@@ -821,38 +821,41 @@
     <section id="transactionDetailSheet" class="sheet hidden" aria-hidden="true">
       <div class="sheet-backdrop" data-close-sheet="transactionDetailSheet"></div>
       <article class="sheet-card transaction-detail-sheet-card">
-        <div class="sheet-head">
-          <h3 id="transactionDetailTitle">Transaction Detail</h3>
-          <button class="btn btn-ghost" type="button" data-close-sheet="transactionDetailSheet">Close</button>
+        <!-- drag handle -->
+        <div class="txd-handle"></div>
+        <!-- top bar: close left, title center, edit right -->
+        <div class="txd-topbar">
+          <button class="txd-close-btn" type="button" data-close-sheet="transactionDetailSheet" aria-label="Close">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+          <span class="txd-title" id="transactionDetailTitle">Transaction</span>
+          <button class="txd-edit-btn" id="transactionDetailEditBtn" type="button">Edit</button>
         </div>
-        <div class="transaction-detail-actions">
-          <button class="btn" id="transactionDetailEditBtn" type="button">Edit</button>
-          <button class="btn btn-danger" id="transactionDetailDeleteBtn" type="button">Delete</button>
+        <!-- hero amount -->
+        <div class="txd-hero" id="txdHero">
+          <div class="txd-amount-number" id="transactionDetailAmountValue">-</div>
+          <div class="txd-amount-sub" id="transactionDetailAmountSub"></div>
         </div>
-        <article class="transaction-detail-card">
-          <div class="transaction-detail-row">
-            <span id="transactionDetailAmountLabel">Amount</span>
-            <div class="transaction-detail-value transaction-detail-amount">
-              <strong id="transactionDetailAmountValue">-</strong>
-              <span id="transactionDetailAmountSub" class="muted"></span>
+        <!-- detail rows -->
+        <div class="txd-rows">
+          <div class="txd-row">
+            <span class="txd-label" id="transactionDetailCategoryLabel">Category</span>
+            <span class="txd-value" id="transactionDetailCategoryValue">-</span>
+          </div>
+          <div class="txd-row">
+            <span class="txd-label" id="transactionDetailAccountLabel">Account</span>
+            <span class="txd-value" id="transactionDetailAccountValue">-</span>
+          </div>
+          <div class="txd-row">
+            <span class="txd-label" id="transactionDetailTimeLabel">Time</span>
+            <div class="txd-value-stack">
+              <span class="txd-value" id="transactionDetailTimeValue">-</span>
+              <span class="txd-sub" id="transactionDetailCreatedSub"></span>
             </div>
           </div>
-          <div class="transaction-detail-row">
-            <span id="transactionDetailCategoryLabel">Category</span>
-            <strong id="transactionDetailCategoryValue">-</strong>
-          </div>
-          <div class="transaction-detail-row">
-            <span id="transactionDetailAccountLabel">Account</span>
-            <strong id="transactionDetailAccountValue">-</strong>
-          </div>
-          <div class="transaction-detail-row">
-            <span id="transactionDetailTimeLabel">Time</span>
-            <div class="transaction-detail-value">
-              <strong id="transactionDetailTimeValue">-</strong>
-              <span id="transactionDetailCreatedSub" class="muted"></span>
-            </div>
-          </div>
-        </article>
+        </div>
+        <!-- delete -->
+        <button class="btn btn-danger txd-delete-btn" id="transactionDetailDeleteBtn" type="button">Delete Transaction</button>
       </article>
     </section>
 
