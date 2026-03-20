@@ -41,6 +41,7 @@ const state = {
     showRisk: false,
     showRecentExpenses: true,
     showToday: true,
+    showAccounts: false,
     showDebug: false,
     budgetPieView: false
   },
@@ -128,7 +129,7 @@ const I18N = {
     budgetStatus: "Budget Status (L1 only)",
     netWorthComposition: "🧩 Net Worth Composition",
     plannedBudget: "📋 Planned Budget",
-    recentExpenses: "Transactions",
+    recentExpenses: "🧾 Transactions",
     viewAllExpenses: "View All",
     budgetPlanSummary: "Planned {planned} · Spent {spent} · Remaining {remaining}",
     budgetViewToggleToPie: "Show pie view",
@@ -202,6 +203,7 @@ const I18N = {
     showRisk: "Risk Metrics",
     showRecentExpenses: "Recent Transactions Card",
     showToday: "Today Card",
+    showAccounts: "Accounts Card",
     showDebug: "Debug Panel",
     logout: "Logout",
     debugPanel: "Debug Panel",
@@ -369,7 +371,7 @@ const I18N = {
     budgetStatus: "预算进度（仅一级分类）",
     netWorthComposition: "🧩 净资产结构",
     plannedBudget: "📋 预算计划",
-    recentExpenses: "交易记录",
+    recentExpenses: "🧾 交易记录",
     viewAllExpenses: "查看全部",
     budgetPlanSummary: "计划 {planned} · 已花 {spent} · 剩余 {remaining}",
     budgetViewToggleToPie: "切换为饼图",
@@ -443,6 +445,7 @@ const I18N = {
     showRisk: "风险指标",
     showRecentExpenses: "最近交易卡片",
     showToday: "今日卡片",
+    showAccounts: "账户卡片",
     showDebug: "调试面板",
     logout: "退出登录",
     debugPanel: "调试面板",
@@ -779,6 +782,14 @@ function bindUI() {
       applyAdvancedVisibility();
     });
   }
+  const toggleAccounts = $("#toggleAccounts");
+  if (toggleAccounts) {
+    toggleAccounts.addEventListener("change", () => {
+      state.ui.showAccounts = toggleAccounts.checked;
+      persistUiState();
+      applyAdvancedVisibility();
+    });
+  }
   const budgetViewToggleBtn = $("#budgetPlanViewToggleBtn");
   if (budgetViewToggleBtn) {
     budgetViewToggleBtn.addEventListener("click", () => {
@@ -964,6 +975,39 @@ function bindUI() {
     if (!Number.isInteger(id) || id <= 0) return;
     openTransactionDetailSheet(id);
   });
+  const dashAccountsTitle = document.getElementById("dashboardAccountsTitle");
+  if (dashAccountsTitle) {
+    dashAccountsTitle.addEventListener("click", () => {
+      openUtilityPanel("accountsPanel");
+      const panel = document.getElementById("accountsPanel");
+      if (panel) {
+        panel.classList.add("panel-entering");
+        panel.addEventListener("animationend", () => panel.classList.remove("panel-entering"), { once: true });
+      }
+    });
+  }
+  const dashAccountsListEl = document.getElementById("dashboardAccountsList");
+  if (dashAccountsListEl) {
+    dashAccountsListEl.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const row = event.target.closest("[data-action='edit-account']");
+      if (!row) return;
+      const id = Number(row.getAttribute("data-id"));
+      if (!Number.isInteger(id) || id <= 0) return;
+      openAccountEditSheet(id);
+    });
+  }
+  const budgetPlanTitleBtn = document.getElementById("budgetPlanTitle");
+  if (budgetPlanTitleBtn) {
+    budgetPlanTitleBtn.addEventListener("click", () => {
+      openUtilityPanel("budgetsPanel");
+      const panel = document.getElementById("budgetsPanel");
+      if (panel) {
+        panel.classList.add("panel-entering");
+        panel.addEventListener("animationend", () => panel.classList.remove("panel-entering"), { once: true });
+      }
+    });
+  }
   const budgetPlanListEl = document.getElementById("budgetPlanList");
   if (budgetPlanListEl) {
     budgetPlanListEl.addEventListener("click", (event) => {
@@ -1531,19 +1575,29 @@ async function copyTextToClipboard(text) {
 function buildAgentSetupGuide(token) {
   const baseUrl = String(window.location?.origin || "").trim() || "http://localhost:5001";
   const safeToken = String(token || "<PASTE_AGENT_TOKEN_HERE>").trim() || "<PASTE_AGENT_TOKEN_HERE>";
+  const rawBase = "https://raw.githubusercontent.com/Uacer/Nomad-Finance-OS/main/skills/nomad-capture-ledger";
+  const skillDir = "~/.claude/skills/nomad-capture-ledger";
+
   return [
-    "# Nomad Finance OS Agent Setup",
-    "git clone https://github.com/Uacer/Nomad-Finance-OS.git",
-    "cd Nomad-Finance-OS/nomad-finance-os",
+    "# Nomad Finance OS — Ledger Agent Setup Brief",
     "",
-    `export NOMAD_API_BASE_URL=\"${baseUrl}\"`,
-    `export NOMAD_API_TOKEN=\"${safeToken}\"`,
+    "Please set up the nomad-capture-ledger skill for me and confirm when ready.",
     "",
-    "# Parse a draft",
-    "node skills/nomad-capture-ledger/scripts/capture_client.js capture-text --message \"午饭50元\"",
+    "## 1. Install skill",
     "",
-    "# Confirm posting",
-    "node skills/nomad-capture-ledger/scripts/capture_client.js confirm --extraction-id <EXTRACTION_ID>"
+    "```sh",
+    `mkdir -p ${skillDir}`,
+    `curl -fsSL "${rawBase}/SKILL.md" -o ${skillDir}/SKILL.md`,
+    "```",
+    "",
+    "## 2. Set credentials",
+    "",
+    "```sh",
+    `export NOMAD_API_BASE_URL="${baseUrl}"`,
+    `export NOMAD_API_TOKEN="${safeToken}"`,
+    "```",
+    "",
+    "Once set up, use the `nomad-capture-ledger` skill whenever I mention a transaction."
   ].join("\n");
 }
 
@@ -1939,7 +1993,6 @@ async function loadAll() {
       loadRisk()
     ]);
     await loadTrendData();
-    showToast(t("loadedUser", { id: String(state.userId) }));
   } catch (error) {
     showErrorToast(error);
   }
@@ -2001,6 +2054,8 @@ async function loadSettings() {
   if (toggleRecentExpenses) toggleRecentExpenses.checked = Boolean(state.ui.showRecentExpenses);
   const toggleTodayEl = $("#toggleToday");
   if (toggleTodayEl) toggleTodayEl.checked = Boolean(state.ui.showToday);
+  const toggleAccountsEl = $("#toggleAccounts");
+  if (toggleAccountsEl) toggleAccountsEl.checked = Boolean(state.ui.showAccounts);
   if (debugOnlyFailed) debugOnlyFailed.checked = Boolean(state.debug.onlyFailed);
   if (debugFilterInput) debugFilterInput.value = state.debug.filter || "";
   applyQuickEntryPreferencesForType(state.quickEntryType || "expense");
@@ -2046,6 +2101,7 @@ async function loadCategories() {
 async function loadAccounts() {
   state.accounts = (await api("/api/v1/accounts")) || [];
   renderAccounts();
+  renderDashboardAccountsCard();
   populateAccountSelects();
   populateTransactionEditAccountSelects();
   populateQuickEntryAccounts();
@@ -3759,6 +3815,28 @@ function renderAccounts() {
     .join("");
 }
 
+function renderDashboardAccountsCard() {
+  const target = $("#dashboardAccountsList");
+  if (!target) return;
+  const accounts = state.accounts || [];
+  if (!accounts.length) {
+    target.innerHTML = '<div class="muted" style="padding:8px 0;text-align:center;font-size:0.875rem">No accounts</div>';
+    return;
+  }
+  const typeIcon = { bank:"🏦", cash:"💵", wise:"💸", crypto_wallet:"₿", exchange:"📈", alipay:"🅰", wechat:"💬", restricted_cash:"🔒" };
+  target.innerHTML = accounts.map((row) => {
+    const icon = typeIcon[row.type] || "💼";
+    const fmt = (n) => new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(n);
+    const isNeg = Number(row.balance) < 0;
+    return `
+    <div class="account-dash-row clickable" data-action="edit-account" data-id="${row.id}">
+      <span class="account-type-icon">${icon}</span>
+      <span class="account-name">${escapeHtml(row.name)}</span>
+      <span class="account-balance mono${isNeg ? " overspend" : ""}">${fmt(row.balance)} ${escapeHtml(row.currency)}</span>
+    </div>`;
+  }).join("");
+}
+
 function openAccountEditSheet(accountId) {
   const account = (state.accounts || []).find((row) => row.id === accountId);
   if (!account) {
@@ -4306,21 +4384,27 @@ function renderTodayExpensesCard(rows) {
     return;
   }
   listEl.innerHTML = todayRows.map((row) => {
-    const title = formatRecentTransactionTitle(row);
     const showOrig = row.currency_original && row.currency_original.toUpperCase() !== base.toUpperCase();
     const signedBase = -Math.abs(Number(row.amount_base));
     const signedOrig = -Math.abs(Number(row.amount_original));
+    const icon = getL1EmojiSymbol(row.category_l1);
+    const l1 = row.category_l1 || '';
+    const l2 = row.category_l2 || '';
+    const titleText = l2 ? `${escapeHtml(l1)} / ${escapeHtml(l2)}` : escapeHtml(l1);
     return `
-      <article class="incard-row clickable" data-tx-id="${row.id}">
-        <div class="tx-row-main">
-          <span class="tx-row-title">${escapeHtml(title)}</span>
-          <span class="tx-amount expense">${escapeHtml(formatMoney(signedBase))}<span class="tx-unit">${escapeHtml(base)}</span></span>
+      <article class="incard-row tx-incard-row clickable" data-tx-id="${row.id}">
+        <span class="tx-icon">${icon}</span>
+        <div class="tx-incard-body">
+          <div class="tx-row-main">
+            <span class="tx-row-title">${titleText}</span>
+            <span class="tx-amount expense">${escapeHtml(formatMoney(signedBase))}<span class="tx-unit">${escapeHtml(base)}</span></span>
+          </div>
+          <div class="tx-row-sub">
+            <span class="tx-row-meta">${row.account_from_id ? escapeHtml(row.account_from_id) + ' · ' : ''}${escapeHtml(row.tx_date)}</span>
+            ${showOrig ? `<span class="tx-orig">${escapeHtml(formatMoney(signedOrig))} ${escapeHtml(row.currency_original)}</span>` : ''}
+          </div>
+          ${row.note ? `<div class="tx-note">${escapeHtml(row.note)}</div>` : ''}
         </div>
-        <div class="tx-row-sub">
-          <span class="tx-row-meta">${row.account_from_id ? escapeHtml(row.account_from_id) + ' · ' : ''}${escapeHtml(row.tx_date)}</span>
-          ${showOrig ? `<span class="tx-orig">${escapeHtml(formatMoney(signedOrig))} ${escapeHtml(row.currency_original)}</span>` : ''}
-        </div>
-        ${row.note ? `<div class="tx-note">${escapeHtml(row.note)}</div>` : ''}
       </article>`;
   }).join('');
 }
@@ -4338,7 +4422,6 @@ function renderRecentExpensesCard(rows) {
     .map((row) => {
       const isExpense = row.type === "expense";
       const isIncome = row.type === "income";
-      const title = formatRecentTransactionTitle(row);
       const showOrig = row.currency_original && row.currency_original.toUpperCase() !== base.toUpperCase();
       const signedBase = isExpense ? -Math.abs(Number(row.amount_base)) : isIncome ? Math.abs(Number(row.amount_base)) : Number(row.amount_base);
       const signedOrig = isExpense ? -Math.abs(Number(row.amount_original)) : isIncome ? Math.abs(Number(row.amount_original)) : Number(row.amount_original);
@@ -4346,17 +4429,36 @@ function renderRecentExpensesCard(rows) {
       const dateLabel = formatRecentExpenseDate(row.tx_date);
       const account = isExpense ? row.account_from_id : isIncome ? row.account_to_id : null;
       const meta = [account, dateLabel].filter(Boolean).join(" · ");
+      // icon: L1 emoji for expense, type emoji for others
+      let icon = "💸";
+      let titleText = "";
+      if (isExpense) {
+        icon = getL1EmojiSymbol(row.category_l1);
+        const l1 = row.category_l1 || "";
+        const l2 = row.category_l2 || "";
+        titleText = l2 ? `${escapeHtml(l1)} / ${escapeHtml(l2)}` : escapeHtml(l1);
+      } else if (isIncome) {
+        icon = "💰";
+        titleText = escapeHtml(txTypeLabel("income"));
+      } else {
+        icon = "🔁";
+        const reason = row.transfer_reason && row.transfer_reason !== "normal" ? ` · ${getTransferReasonLabel(row.transfer_reason)}` : "";
+        titleText = escapeHtml(txTypeLabel("transfer") + reason);
+      }
       return `
-      <article class="incard-row clickable" data-tx-id="${row.id}">
-        <div class="tx-row-main">
-          <span class="tx-row-title">${escapeHtml(title)}</span>
-          <span class="${amountClass}">${escapeHtml(formatMoney(signedBase))}<span class="tx-unit">${escapeHtml(base)}</span></span>
+      <article class="incard-row tx-incard-row clickable" data-tx-id="${row.id}">
+        <span class="tx-icon">${icon}</span>
+        <div class="tx-incard-body">
+          <div class="tx-row-main">
+            <span class="tx-row-title">${titleText}</span>
+            <span class="${amountClass}">${escapeHtml(formatMoney(signedBase))}<span class="tx-unit">${escapeHtml(base)}</span></span>
+          </div>
+          <div class="tx-row-sub">
+            <span class="tx-row-meta">${escapeHtml(meta)}</span>
+            ${showOrig ? `<span class="tx-orig">${escapeHtml(formatMoney(signedOrig))} ${escapeHtml(row.currency_original)}</span>` : ""}
+          </div>
+          ${row.note ? `<div class="tx-note">${escapeHtml(row.note)}</div>` : ""}
         </div>
-        <div class="tx-row-sub">
-          <span class="tx-row-meta">${escapeHtml(meta)}</span>
-          ${showOrig ? `<span class="tx-orig">${escapeHtml(formatMoney(signedOrig))} ${escapeHtml(row.currency_original)}</span>` : ""}
-        </div>
-        ${row.note ? `<div class="tx-note">${escapeHtml(row.note)}</div>` : ""}
       </article>`;
     })
     .join("");
@@ -4669,6 +4771,7 @@ function applyI18n() {
   setText("heroLiquidLegend", t("labelLiquid"));
   setText("heroRestrictedLegend", t("labelRestricted"));
   setText("budgetPlanTitle", t("plannedBudget"));
+  setText("dashboardAccountsTitle", t("accounts"));
   setText("recentExpensesTitle", t("recentExpenses"));
   setAttr("recentExpensesTitle", "title", t("recentExpenses"));
   setAttr("recentExpensesTitle", "aria-label", t("recentExpenses"));
@@ -4738,6 +4841,7 @@ function applyI18n() {
   setText("toggleDebugLabel", t("showDebug"));
   setText("toggleRecentExpensesLabel", t("showRecentExpenses"));
   setText("toggleTodayLabel", t("showToday"));
+  setText("toggleAccountsLabel", t("showAccounts"));
   setText("debugPanelTitle", t("debugPanel"));
   setText("debugOnlyFailedLabel", t("debugOnlyFailed"));
   setText("debugFilterLabel", t("debugFilter"));
@@ -4863,6 +4967,8 @@ function applyAdvancedVisibility() {
   if (recentExpensesCard) recentExpensesCard.classList.toggle("hidden", !state.ui.showRecentExpenses);
   const todayCard = $("#todayExpensesCard");
   if (todayCard) todayCard.classList.toggle("hidden", !state.ui.showToday);
+  const accountsCard = $("#dashboardAccountsCard");
+  if (accountsCard) accountsCard.classList.toggle("hidden", !state.ui.showAccounts);
   if (debugPanel) debugPanel.classList.toggle("hidden", !state.ui.showDebug);
 }
 
@@ -4876,6 +4982,7 @@ function loadUiState() {
     state.ui.showRisk = Boolean(parsed.showRisk);
     state.ui.showRecentExpenses = parsed.showRecentExpenses !== false;
     state.ui.showToday = parsed.showToday !== false;
+    state.ui.showAccounts = Boolean(parsed.showAccounts);
     state.ui.showDebug = Boolean(parsed.showDebug);
     state.ui.budgetPieView = Boolean(parsed.budgetPieView);
     if (parsed.debug) {
@@ -4908,6 +5015,7 @@ function persistUiState() {
         showRisk: state.ui.showRisk,
         showRecentExpenses: state.ui.showRecentExpenses,
         showToday: state.ui.showToday,
+        showAccounts: state.ui.showAccounts,
         showDebug: state.ui.showDebug,
         budgetPieView: state.ui.budgetPieView,
         trend: {

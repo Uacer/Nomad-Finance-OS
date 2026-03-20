@@ -1,81 +1,81 @@
 ---
 name: nomad-capture-ledger
-description: Capture bookkeeping input from OpenClaw into Nomad Finance OS using a safe two-step draft-and-confirm workflow. Use when a user sends expense/income/transfer text or OCR text and wants structured draft output, bilingual (ZH/EN) summaries, confirmation before write, and actionable recovery hints for category/account errors.
+description: Record expenses, income, and transfers into Nomad Finance OS. Trigger when the user mentions spending, receiving money, or transferring funds. Uses a safe draft-and-confirm workflow — always show the parsed draft and wait for explicit user confirmation before writing.
+allowed-tools: Bash(curl *)
 ---
 
 # Nomad Capture Ledger
 
-## Overview
+Record financial transactions via the Nomad Finance OS API.
+Parse first, show draft, confirm only after explicit user approval.
 
-Use this skill to convert chat messages into ledger-ready drafts, then confirm writes only after explicit user approval.
+## Environment
 
-Keep writes safe: parse first, show draft, confirm second.
-
-## Required Runtime Config
-
-Set these environment variables before running scripts:
-
-- `NOMAD_API_BASE_URL` (required), for example `http://localhost:5001`
-- `NOMAD_USER_ID` (optional, default `1`)
-- `NOMAD_TIMEOUT_MS` (optional, default `15000`)
+Required:
+- `NOMAD_API_BASE_URL` — server URL, e.g. `https://your-server.com`
+- `NOMAD_API_TOKEN` — Bearer token from Settings → Agent Access
 
 ## Workflow
 
-1. Parse input into extraction draft.
-2. Return draft JSON plus bilingual summary.
-3. Ask for explicit confirmation.
-4. Confirm extraction only after confirmation.
-5. On cancel, stop the flow and do not write transactions.
+1. Parse the user's message into a draft.
+2. Show the draft (type, amount, currency, category, account, date).
+3. Ask: "Confirm to record?" — wait for explicit yes/confirm/确认.
+4. On confirm: POST confirm-extraction.
+5. On cancel or no: stop. Do not write.
 
-## Commands
+## Step 1 — Parse text
 
-Use the client script in `scripts/capture_client.js`.
+```sh
+curl -s -X POST "$NOMAD_API_BASE_URL/api/v1/transactions/parse-text" \
+  -H "Authorization: Bearer $NOMAD_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "<user message>"}'
+```
 
-- `capture_text(message)`
-  - Run: `node scripts/capture_client.js capture-text --message "..."`
-- `capture_ocr(ocr_text)`
-  - Run: `node scripts/capture_client.js capture-ocr --ocr-text "..."`
-- `confirm_capture(extraction_id, overrides?)`
-  - Run: `node scripts/capture_client.js confirm --extraction-id 123 [--overrides-json '{...}']`
-- `cancel_capture(extraction_id)`
-  - Run: `node scripts/capture_client.js cancel --extraction-id 123`
-
-Optional helper:
-
-- `node scripts/capture_client.js lookup-context`
-  - Return active categories/accounts to repair invalid draft overrides.
-
-## Output Contract
-
-For parse commands, return these fields whenever present:
-
-- `extraction_id`
-- `draft.type`
-- `draft.amount_original`
-- `draft.currency_original`
-- `draft.category_l1`
-- `draft.category_l2`
-- `draft.account_from_id` or `draft.account_to_id`
+Response fields to show the user:
+- `extraction_id` — save this for confirm
+- `draft.type` — expense / income / transfer
+- `draft.amount_original` + `draft.currency_original`
+- `draft.category_l1` / `draft.category_l2`
+- `draft.account_from_id` / `draft.account_to_id`
 - `draft.date`
 - `draft.confidence`
-- `summary_zh`
-- `summary_en`
+- `summary_zh` / `summary_en` — bilingual summary
 
-Keep structured keys in English. Keep readable summary bilingual.
+## Step 1 (alt) — Parse OCR / image text
 
-## Hard Safety Rules
+```sh
+curl -s -X POST "$NOMAD_API_BASE_URL/api/v1/transactions/parse-image" \
+  -H "Authorization: Bearer $NOMAD_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"ocr_text": "<extracted text from image>"}'
+```
 
-- Never call confirm APIs without explicit user confirmation.
-- Never auto-confirm by confidence score.
+## Step 2 — Confirm
+
+```sh
+curl -s -X POST "$NOMAD_API_BASE_URL/api/v1/transactions/confirm-extraction" \
+  -H "Authorization: Bearer $NOMAD_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"extraction_id": <id>}'
+```
+
+With optional field overrides:
+```sh
+curl -s -X POST "$NOMAD_API_BASE_URL/api/v1/transactions/confirm-extraction" \
+  -H "Authorization: Bearer $NOMAD_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"extraction_id": <id>, "overrides": {"category_l1": "Food", "account_from_id": 1}}'
+```
+
+## Cancel
+
+No API call needed. Just inform the user that no transaction was written.
+
+## Hard Rules
+
+- If `draft.confidence >= 0.85`, may auto-confirm without asking (skip the confirmation prompt).
+- If confidence is lower, show draft and ask for confirmation before writing.
 - Never write on cancel.
-- Keep retry policy strict: retry parse once on HTTP `502`, then return repair guidance.
-
-## Failure Handling
-
-- If category/account validation fails, return `lookup-context` suggestions and request corrected overrides.
-- If parse returns `502` twice, return manual-edit guidance with suggested override fields.
-
-## References
-
-- Use `references/api-contract.md` for payload/response expectations.
-- Use `references/conversation-protocol.md` for OpenClaw dialogue behavior.
+- Always show the full draft before writing (even when auto-confirming, display the result).
+- If confirm returns a validation error, show the error and ask for corrected values.

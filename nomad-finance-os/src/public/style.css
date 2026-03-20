@@ -650,6 +650,13 @@ h3 {
   justify-content: space-between;
   align-items: center;
   gap: 8px;
+  margin-bottom: 12px;
+}
+
+/* list-block after section-head: cancel double margin */
+.section-head + .list-block,
+.section-head + * + .list-block {
+  margin-top: 0;
 }
 
 .section-title-btn {
@@ -667,9 +674,7 @@ h3 {
 }
 
 .section-title-btn::after {
-  content: " →";
-  opacity: 0.45;
-  font-size: 0.9em;
+  content: "";
 }
 
 .section-title-btn:hover {
@@ -877,6 +882,14 @@ h3 {
 
 .budget-plan-row:first-child {
   padding-top: 0;
+}
+
+.budget-plan-row.clickable {
+  cursor: pointer;
+  transition: opacity 120ms ease;
+}
+.budget-plan-row.clickable:active {
+  opacity: 0.7;
 }
 
 .budget-plan-name {
@@ -1620,6 +1633,25 @@ h3 {
 .incard-row:first-child { padding-top: 0; }
 .incard-row:active { opacity: 0.6; }
 
+/* Transaction row with left icon */
+.tx-incard-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.tx-icon {
+  font-size: 1.35rem;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.tx-incard-body {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
 .incard-empty {
   font-size: 0.88rem;
   padding: 8px 0;
@@ -1627,7 +1659,7 @@ h3 {
 
 /* list-block inside a card: reset margins */
 .card .list-block {
-  margin-top: 8px;
+  margin-top: 12px;
 }
 
 .grid-two {
@@ -2788,6 +2820,12 @@ body.utility-mode #dashboardPanel {
   display: none !important;
 }
 
+/* Records-only mode: show back header, hide tab title */
+#transactionsPanel .tx-records-head { display: none; }
+#transactionsPanel.records-only .tx-records-head { display: grid; }
+#transactionsPanel .tx-tab-title { display: block; }
+#transactionsPanel.records-only .tx-tab-title { display: none; }
+
 .toast {
   position: fixed;
   right: 14px;
@@ -2851,4 +2889,37 @@ body.utility-mode #dashboardPanel {
   .grid-two {
     grid-template-columns: 1fr 1fr;
   }
+}
+
+/* Dashboard Accounts Card */
+.account-dash-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.875rem;
+}
+.account-dash-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.account-dash-row.clickable {
+  cursor: pointer;
+  transition: opacity 120ms ease;
+}
+.account-dash-row.clickable:active {
+  opacity: 0.7;
+}
+.account-dash-row .account-type-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+.account-dash-row .account-name {
+  flex: 1;
+  color: var(--ink);
+}
+.account-dash-row .account-balance {
+  font-weight: 600;
+  color: var(--ink);
 }

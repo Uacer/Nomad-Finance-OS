@@ -111,16 +111,22 @@
         </article>
         <p class="dash-section-label">Pinned</p>
         <div id="dashboardSortable">
+        <article class="card dashboard-card hidden" id="dashboardAccountsCard" data-sort-id="dashboardAccountsCard">
+          <div class="section-head">
+            <button class="section-title-btn" id="dashboardAccountsTitle" type="button">Accounts</button>
+          </div>
+          <div id="dashboardAccountsList" class="list-block"></div>
+        </article>
         <article class="card dashboard-card" id="todayExpensesCard" data-sort-id="todayExpensesCard">
           <div class="section-head">
-            <h3 class="today-expenses-title">Today</h3>
+            <h3 class="today-expenses-title section-title-btn" id="todayCardTitle">☀️ Today</h3>
             <span class="today-expenses-total" id="todayExpensesTotal"></span>
           </div>
           <div id="todayExpensesList" class="list-block compact-list"></div>
         </article>
         <article class="card dashboard-card" data-sort-id="budgetPlanCard">
           <div class="section-head budget-head">
-            <h3 id="budgetPlanTitle">Planned Budget</h3>
+            <button class="section-title-btn" id="budgetPlanTitle" type="button">Planned Budget</button>
             <button
               id="budgetPlanViewToggleBtn"
               class="budget-view-toggle"
@@ -215,7 +221,12 @@
       </section>
 
       <section id="transactionsPanel" class="panel">
-        <h2>Transactions</h2>
+        <div class="panel-head sheet-head settings-subpage-head tx-records-head">
+          <button class="settings-back-btn panel-back-btn" id="txRecordsBackBtn" type="button">‹ Back</button>
+          <h3 id="txRecordsPanelTitle">Transactions</h3>
+          <div></div>
+        </div>
+        <h2 class="tx-tab-title">Transactions</h2>
         <form id="transactionForm" class="card tx-form">
           <div class="tx-form-section">
             <span class="tx-form-label">Basic</span>
@@ -778,6 +789,10 @@
 
           <p class="settings-section-label">Show on Dashboard</p>
           <div class="settings-group">
+            <label class="settings-toggle-row">
+              <span id="toggleAccountsLabel">Accounts Card</span>
+              <input id="toggleAccounts" type="checkbox" role="switch" />
+            </label>
             <label class="settings-toggle-row">
               <span id="toggleRecentExpensesLabel">Transactions Card</span>
               <input id="toggleRecentExpenses" type="checkbox" role="switch" />
