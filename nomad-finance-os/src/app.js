@@ -99,6 +99,7 @@ const ALLOWED_AGENT_SCOPES = new Set([
   "tags:read",
   "admin:rebuild-balances"
 ]);
+const CRYPTO_ACCOUNT_TYPES = new Set(["crypto_wallet", "exchange"]);
 
 function createApp(db) {
   const app = express();
@@ -904,6 +905,271 @@ function createApp(db) {
     }
     const result = rebuildUserBalances(db, req.userId);
     res.status(201).json(result);
+  });
+
+  app.get("/api/v1/crypto/token-prices", (req, res) => {
+    const rawSymbols = String(req.query.symbols || "").trim();
+    let symbols = [];
+    if (rawSymbols) {
+      try {
+        symbols = [
+          ...new Set(
+            rawSymbols
+              .split(",")
+              .map((item) => String(item || "").trim())
+              .filter(Boolean)
+              .map((item) => normalizeTokenSymbol(item))
+          )
+        ];
+      } catch (error) {
+        return res.status(400).json({ error: String(error.message || "Invalid symbols query.") });
+      }
+    }
+    let rows = [];
+    if (!symbols.length) {
+      rows = db
+        .prepare(
+          `
+            SELECT symbol, price, price_currency, source, as_of, updated_at
+            FROM crypto_token_prices
+            WHERE user_id = ?
+            ORDER BY symbol ASC
+          `
+        )
+        .all(req.userId);
+    } else {
+      const placeholders = symbols.map(() => "?").join(", ");
+      rows = db
+        .prepare(
+          `
+            SELECT symbol, price, price_currency, source, as_of, updated_at
+            FROM crypto_token_prices
+            WHERE user_id = ? AND symbol IN (${placeholders})
+            ORDER BY symbol ASC
+          `
+        )
+        .all(req.userId, ...symbols);
+    }
+    res.json(rows.map((row) => mapCryptoTokenPriceRow(row)));
+  });
+
+  app.post("/api/v1/crypto/token-prices", (req, res) => {
+    const schema = z.object({
+      symbol: z.string().min(1).max(24),
+      price: z.number().positive(),
+      price_currency: z.string().min(3).max(8).optional(),
+      source: z.string().trim().max(80).optional(),
+      as_of: z.string().trim().max(64).optional()
+    });
+    const parsed = schema.safeParse(req.body || {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.flatten() });
+    }
+    let symbol;
+    let priceCurrency;
+    try {
+      symbol = normalizeTokenSymbol(parsed.data.symbol);
+      priceCurrency = normalizeSupportedCurrency(parsed.data.price_currency || "USD", "price_currency");
+    } catch (error) {
+      return res.status(400).json({ error: String(error.message || "Invalid crypto token price payload.") });
+    }
+    const source = String(parsed.data.source || "manual").trim() || "manual";
+    const asOf = parsed.data.as_of ? String(parsed.data.as_of).trim() : null;
+    db.prepare(
+      `
+        INSERT INTO crypto_token_prices (
+          user_id, symbol, price, price_currency, source, as_of
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, symbol)
+        DO UPDATE SET
+          price = excluded.price,
+          price_currency = excluded.price_currency,
+          source = excluded.source,
+          as_of = excluded.as_of,
+          updated_at = CURRENT_TIMESTAMP
+      `
+    ).run(req.userId, symbol, Number(parsed.data.price), priceCurrency, source, asOf);
+    const row = db
+      .prepare(
+        `
+          SELECT symbol, price, price_currency, source, as_of, updated_at
+          FROM crypto_token_prices
+          WHERE user_id = ? AND symbol = ?
+        `
+      )
+      .get(req.userId, symbol);
+    logEvent(db, req.userId, "crypto_token_price_upserted", {
+      symbol,
+      price_currency: priceCurrency
+    });
+    res.status(201).json(mapCryptoTokenPriceRow(row));
+  });
+
+  app.get("/api/v1/crypto/accounts/:id/positions", (req, res) => {
+    const accountId = Number.parseInt(String(req.params.id), 10);
+    if (!Number.isInteger(accountId) || accountId <= 0) {
+      return res.status(400).json({ error: "Invalid account id." });
+    }
+    let account;
+    try {
+      account = ensureCryptoAccount(db, req.userId, accountId);
+    } catch (error) {
+      if (error?.code === "ACCOUNT_NOT_FOUND") {
+        return res.status(404).json({ error: String(error.message || "Account not found.") });
+      }
+      return res.status(400).json({ error: String(error.message || "Invalid crypto account.") });
+    }
+    const rows = db
+      .prepare(
+        `
+          SELECT
+            p.account_id,
+            p.symbol,
+            p.quantity,
+            p.updated_at AS position_updated_at,
+            pr.price,
+            pr.price_currency,
+            pr.source AS price_source,
+            pr.as_of,
+            pr.updated_at AS price_updated_at
+          FROM crypto_positions p
+          LEFT JOIN crypto_token_prices pr
+            ON pr.user_id = p.user_id AND pr.symbol = p.symbol
+          WHERE p.user_id = ? AND p.account_id = ?
+          ORDER BY p.symbol ASC
+        `
+      )
+      .all(req.userId, accountId);
+    res.json({
+      account_id: account.id,
+      account_name: account.name,
+      account_type: account.type,
+      account_currency: normalizeCurrency(account.currency || "USD"),
+      positions: rows.map((row) => mapCryptoPositionRow(row))
+    });
+  });
+
+  app.post("/api/v1/crypto/accounts/:id/positions", (req, res) => {
+    const accountId = Number.parseInt(String(req.params.id), 10);
+    if (!Number.isInteger(accountId) || accountId <= 0) {
+      return res.status(400).json({ error: "Invalid account id." });
+    }
+    const schema = z.object({
+      symbol: z.string().min(1).max(24),
+      quantity: z.number().finite().min(0)
+    });
+    const parsed = schema.safeParse(req.body || {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.flatten() });
+    }
+    let account;
+    let symbol;
+    try {
+      account = ensureCryptoAccount(db, req.userId, accountId);
+      symbol = normalizeTokenSymbol(parsed.data.symbol);
+    } catch (error) {
+      if (error?.code === "ACCOUNT_NOT_FOUND") {
+        return res.status(404).json({ error: String(error.message || "Account not found.") });
+      }
+      return res.status(400).json({ error: String(error.message || "Invalid crypto position payload.") });
+    }
+    const quantity = Number(parsed.data.quantity);
+    if (!Number.isFinite(quantity) || quantity < 0) {
+      return res.status(400).json({ error: "quantity must be greater than or equal to 0." });
+    }
+    if (quantity === 0) {
+      db.prepare("DELETE FROM crypto_positions WHERE user_id = ? AND account_id = ? AND symbol = ?").run(
+        req.userId,
+        accountId,
+        symbol
+      );
+      return res.json({ ok: true, account_id: accountId, symbol, quantity: 0, deleted: true });
+    }
+    db.prepare(
+      `
+        INSERT INTO crypto_positions (user_id, account_id, symbol, quantity)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(user_id, account_id, symbol)
+        DO UPDATE SET
+          quantity = excluded.quantity,
+          updated_at = CURRENT_TIMESTAMP
+      `
+    ).run(req.userId, accountId, symbol, quantity);
+    const row = db
+      .prepare(
+        `
+          SELECT
+            p.account_id,
+            p.symbol,
+            p.quantity,
+            p.updated_at AS position_updated_at,
+            pr.price,
+            pr.price_currency,
+            pr.source AS price_source,
+            pr.as_of,
+            pr.updated_at AS price_updated_at
+          FROM crypto_positions p
+          LEFT JOIN crypto_token_prices pr
+            ON pr.user_id = p.user_id AND pr.symbol = p.symbol
+          WHERE p.user_id = ? AND p.account_id = ? AND p.symbol = ?
+        `
+      )
+      .get(req.userId, accountId, symbol);
+    logEvent(db, req.userId, "crypto_position_upserted", {
+      account_id: accountId,
+      account_type: account.type,
+      symbol
+    });
+    res.status(201).json({
+      account_id: account.id,
+      account_name: account.name,
+      account_type: account.type,
+      account_currency: normalizeCurrency(account.currency || "USD"),
+      ...mapCryptoPositionRow(row)
+    });
+  });
+
+  app.delete("/api/v1/crypto/accounts/:id/positions/:symbol", (req, res) => {
+    const accountId = Number.parseInt(String(req.params.id), 10);
+    if (!Number.isInteger(accountId) || accountId <= 0) {
+      return res.status(400).json({ error: "Invalid account id." });
+    }
+    let symbol;
+    try {
+      ensureCryptoAccount(db, req.userId, accountId);
+      symbol = normalizeTokenSymbol(req.params.symbol);
+    } catch (error) {
+      if (error?.code === "ACCOUNT_NOT_FOUND") {
+        return res.status(404).json({ error: String(error.message || "Account not found.") });
+      }
+      return res.status(400).json({ error: String(error.message || "Invalid request.") });
+    }
+    const result = db
+      .prepare("DELETE FROM crypto_positions WHERE user_id = ? AND account_id = ? AND symbol = ?")
+      .run(req.userId, accountId, symbol);
+    if (!Number(result.changes || 0)) {
+      return res.status(404).json({ error: "Position not found." });
+    }
+    logEvent(db, req.userId, "crypto_position_deleted", {
+      account_id: accountId,
+      symbol
+    });
+    res.json({ ok: true, account_id: accountId, symbol });
+  });
+
+  app.get("/api/v1/crypto/portfolio", async (req, res) => {
+    const baseCurrency = getUserSettings(db, req.userId).base_currency;
+    try {
+      await ensureCryptoPortfolioFxCoverage(db, req.userId, baseCurrency);
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
+    try {
+      res.json(buildCryptoPortfolioPayload(db, req.userId, baseCurrency));
+    } catch (error) {
+      return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
+    }
   });
 
   app.get("/api/v1/tags", (req, res) => {
@@ -1765,6 +2031,156 @@ function getCategoriesMap(db, userId) {
   return map;
 }
 
+function normalizeTokenSymbol(value, fieldName = "symbol") {
+  const symbol = String(value || "").trim().toUpperCase();
+  if (!/^[A-Z0-9][A-Z0-9._-]{1,19}$/.test(symbol)) {
+    throw new Error(`${fieldName} must be 2-20 chars and match [A-Z0-9._-].`);
+  }
+  return symbol;
+}
+
+function ensureCryptoAccount(db, userId, accountId) {
+  const account = db
+    .prepare("SELECT id, name, type, currency FROM accounts WHERE user_id = ? AND id = ?")
+    .get(userId, accountId);
+  if (!account) {
+    const error = new Error("Account not found.");
+    error.code = "ACCOUNT_NOT_FOUND";
+    throw error;
+  }
+  if (!CRYPTO_ACCOUNT_TYPES.has(String(account.type || ""))) {
+    const error = new Error("Account must be crypto_wallet or exchange.");
+    error.code = "ACCOUNT_NOT_CRYPTO";
+    throw error;
+  }
+  return account;
+}
+
+function mapCryptoTokenPriceRow(row) {
+  return {
+    symbol: String(row.symbol || ""),
+    price: Number(row.price || 0),
+    price_currency: normalizeCurrency(row.price_currency || "USD"),
+    source: String(row.source || "manual"),
+    as_of: row.as_of || null,
+    updated_at: row.updated_at || null
+  };
+}
+
+function mapCryptoPositionRow(row) {
+  const quantity = Number(row.quantity || 0);
+  const priceRaw = Number(row.price);
+  const hasPrice = Number.isFinite(priceRaw) && priceRaw > 0;
+  const price = hasPrice ? priceRaw : null;
+  const priceCurrency = normalizeCurrency(row.price_currency || "USD");
+  const marketValueQuote = hasPrice ? Number((quantity * priceRaw).toFixed(8)) : null;
+  return {
+    symbol: String(row.symbol || ""),
+    quantity,
+    price,
+    price_currency: priceCurrency,
+    price_source: row.price_source || "manual",
+    price_as_of: row.as_of || null,
+    has_price: hasPrice,
+    market_value_quote: marketValueQuote,
+    position_updated_at: row.position_updated_at || null,
+    price_updated_at: row.price_updated_at || null
+  };
+}
+
+function buildCryptoPortfolioPayload(db, userId, baseCurrency) {
+  const base = normalizeCurrency(baseCurrency || "USD");
+  const rows = db
+    .prepare(
+      `
+        SELECT
+          p.account_id,
+          p.symbol,
+          p.quantity,
+          p.updated_at AS position_updated_at,
+          a.name AS account_name,
+          a.type AS account_type,
+          a.currency AS account_currency,
+          pr.price,
+          pr.price_currency,
+          pr.source AS price_source,
+          pr.as_of,
+          pr.updated_at AS price_updated_at
+        FROM crypto_positions p
+        JOIN accounts a ON a.id = p.account_id
+        LEFT JOIN crypto_token_prices pr
+          ON pr.user_id = p.user_id AND pr.symbol = p.symbol
+        WHERE p.user_id = ? AND a.user_id = ? AND a.type IN ('crypto_wallet', 'exchange')
+        ORDER BY p.symbol ASC, p.account_id ASC
+      `
+    )
+    .all(userId, userId);
+
+  let totalMarketValueBase = 0;
+  let pricedPositions = 0;
+  let unpricedPositions = 0;
+  const symbolMap = new Map();
+  const positions = rows.map((row) => {
+    const normalized = mapCryptoPositionRow(row);
+    let marketValueBase = null;
+    if (normalized.has_price && normalized.market_value_quote !== null) {
+      marketValueBase = convertCurrency(
+        normalized.market_value_quote,
+        normalized.price_currency,
+        base
+      );
+      totalMarketValueBase += marketValueBase;
+      pricedPositions += 1;
+    } else {
+      unpricedPositions += 1;
+    }
+    const symbol = normalized.symbol;
+    const aggregate = symbolMap.get(symbol) || {
+      symbol,
+      quantity: 0,
+      market_value_base: 0,
+      priced_positions: 0,
+      unpriced_positions: 0
+    };
+    aggregate.quantity += normalized.quantity;
+    if (marketValueBase !== null) {
+      aggregate.market_value_base += marketValueBase;
+      aggregate.priced_positions += 1;
+    } else {
+      aggregate.unpriced_positions += 1;
+    }
+    symbolMap.set(symbol, aggregate);
+    return {
+      account_id: row.account_id,
+      account_name: row.account_name,
+      account_type: row.account_type,
+      account_currency: normalizeCurrency(row.account_currency || "USD"),
+      ...normalized,
+      market_value_base: marketValueBase !== null ? Number(marketValueBase.toFixed(8)) : null
+    };
+  });
+
+  const bySymbol = [...symbolMap.values()]
+    .map((row) => ({
+      symbol: row.symbol,
+      quantity: Number(row.quantity.toFixed(8)),
+      market_value_base: Number(row.market_value_base.toFixed(8)),
+      priced_positions: row.priced_positions,
+      unpriced_positions: row.unpriced_positions
+    }))
+    .sort((a, b) => b.market_value_base - a.market_value_base || a.symbol.localeCompare(b.symbol));
+
+  return {
+    base_currency: base,
+    total_market_value_base: Number(totalMarketValueBase.toFixed(8)),
+    positions_count: positions.length,
+    priced_positions: pricedPositions,
+    unpriced_positions: unpricedPositions,
+    by_symbol: bySymbol,
+    positions
+  };
+}
+
 function isActiveL1(db, userId, categoryL1) {
   const row = db
     .prepare("SELECT id FROM expense_category_l1 WHERE user_id = ? AND name = ? AND active = 1")
@@ -2583,6 +2999,7 @@ function resolveRequiredScope(req) {
   if (path.startsWith("/api/v1/categories/")) return method === "GET" ? "categories:read" : "categories:write";
   if (path === "/api/v1/accounts") return method === "GET" ? "accounts:read" : "accounts:write";
   if (path.startsWith("/api/v1/accounts/")) return method === "GET" ? "accounts:read" : "accounts:write";
+  if (path.startsWith("/api/v1/crypto/")) return method === "GET" ? "accounts:read" : "accounts:write";
   if (path === "/api/v1/admin/rebuild-balances") return "admin:rebuild-balances";
   if (path === "/api/v1/tags") return "tags:read";
   if (path === "/api/v1/transactions/parse-text" || path === "/api/v1/transactions/parse-image") {
@@ -2729,6 +3146,20 @@ async function ensureBaseFxCoverage(db, userId, baseCurrency) {
   for (const currency of currencies) {
     if (!currency || currency === base) continue;
     pairs.push([currency, base]);
+  }
+  await ensureFxPairsLoaded(pairs);
+}
+
+async function ensureCryptoPortfolioFxCoverage(db, userId, baseCurrency) {
+  const base = normalizeCurrency(baseCurrency || "USD");
+  const rows = db
+    .prepare("SELECT DISTINCT price_currency FROM crypto_token_prices WHERE user_id = ?")
+    .all(userId);
+  const pairs = [];
+  for (const row of rows) {
+    const quote = normalizeCurrency(row.price_currency || "USD");
+    if (quote === base) continue;
+    pairs.push([quote, base]);
   }
   await ensureFxPairsLoaded(pairs);
 }

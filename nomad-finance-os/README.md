@@ -152,6 +152,12 @@ Sample cron entries are provided at `ops/cron/backup.cron`:
 - `POST /api/v1/accounts`
 - `GET /api/v1/accounts`
 - `POST /api/v1/admin/rebuild-balances`
+- `GET /api/v1/crypto/token-prices`
+- `POST /api/v1/crypto/token-prices`
+- `GET /api/v1/crypto/accounts/:id/positions`
+- `POST /api/v1/crypto/accounts/:id/positions`
+- `DELETE /api/v1/crypto/accounts/:id/positions/:symbol`
+- `GET /api/v1/crypto/portfolio`
 - `GET /api/v1/tags`
 - `POST /api/v1/transactions/parse-text`
 - `POST /api/v1/transactions/parse-image`

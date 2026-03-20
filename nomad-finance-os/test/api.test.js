@@ -1212,6 +1212,109 @@ test("crypto exposure never negative even when net worth is negative", async () 
   assert.ok(riskRes.body.crypto_exposure <= 1);
 });
 
+test("crypto token prices + positions support portfolio tracking in base currency", async () => {
+  await withMockedFxRate({ "USD->CNY": 7.2 }, async () => {
+    const { api } = createHarness();
+    const exchange = await createAccount(api, {
+      name: "Binance",
+      type: "exchange",
+      currency: "USD",
+      balance: 0
+    });
+    assert.ok(exchange.id > 0);
+
+    const settingsRes = await api.put("/api/v1/settings").send({ base_currency: "CNY" });
+    assert.equal(settingsRes.status, 200);
+    assert.equal(settingsRes.body.base_currency, "CNY");
+
+    const btcPrice = await api.post("/api/v1/crypto/token-prices").send({
+      symbol: "btc",
+      price: 90000,
+      price_currency: "USD"
+    });
+    assert.equal(btcPrice.status, 201);
+    assert.equal(btcPrice.body.symbol, "BTC");
+
+    const ethPrice = await api.post("/api/v1/crypto/token-prices").send({
+      symbol: "ETH",
+      price: 3000,
+      price_currency: "USD"
+    });
+    assert.equal(ethPrice.status, 201);
+    assert.equal(ethPrice.body.symbol, "ETH");
+
+    const btcPosition = await api.post(`/api/v1/crypto/accounts/${exchange.id}/positions`).send({
+      symbol: "BTC",
+      quantity: 0.1
+    });
+    assert.equal(btcPosition.status, 201);
+    assert.equal(btcPosition.body.symbol, "BTC");
+    assert.equal(Number(btcPosition.body.market_value_quote), 9000);
+
+    const ethPosition = await api.post(`/api/v1/crypto/accounts/${exchange.id}/positions`).send({
+      symbol: "ETH",
+      quantity: 2
+    });
+    assert.equal(ethPosition.status, 201);
+    assert.equal(ethPosition.body.symbol, "ETH");
+    assert.equal(Number(ethPosition.body.market_value_quote), 6000);
+
+    const unpricedPosition = await api.post(`/api/v1/crypto/accounts/${exchange.id}/positions`).send({
+      symbol: "SOL",
+      quantity: 5
+    });
+    assert.equal(unpricedPosition.status, 201);
+    assert.equal(unpricedPosition.body.symbol, "SOL");
+    assert.equal(unpricedPosition.body.has_price, false);
+
+    const priceList = await api.get("/api/v1/crypto/token-prices?symbols=btc,eth").send();
+    assert.equal(priceList.status, 200);
+    assert.equal(priceList.body.length, 2);
+    assert.deepEqual(
+      priceList.body.map((row) => row.symbol).sort(),
+      ["BTC", "ETH"]
+    );
+
+    const accountPositions = await api.get(`/api/v1/crypto/accounts/${exchange.id}/positions`).send();
+    assert.equal(accountPositions.status, 200);
+    assert.equal(accountPositions.body.account_type, "exchange");
+    assert.equal(accountPositions.body.positions.length, 3);
+    const sol = accountPositions.body.positions.find((row) => row.symbol === "SOL");
+    assert.ok(sol);
+    assert.equal(sol.has_price, false);
+    assert.equal(sol.market_value_quote, null);
+
+    const portfolioRes = await api.get("/api/v1/crypto/portfolio").send();
+    assert.equal(portfolioRes.status, 200);
+    assert.equal(portfolioRes.body.base_currency, "CNY");
+    assert.equal(portfolioRes.body.positions_count, 3);
+    assert.equal(portfolioRes.body.priced_positions, 2);
+    assert.equal(portfolioRes.body.unpriced_positions, 1);
+    assert.ok(portfolioRes.body.total_market_value_base > 107999 && portfolioRes.body.total_market_value_base < 108001);
+    const btcSummary = portfolioRes.body.by_symbol.find((row) => row.symbol === "BTC");
+    assert.ok(btcSummary);
+    assert.ok(Number(btcSummary.market_value_base) > 64799 && Number(btcSummary.market_value_base) < 64801);
+  });
+});
+
+test("crypto positions require account type crypto_wallet or exchange", async () => {
+  const { api } = createHarness();
+  const cash = await createAccount(api, {
+    name: "Cash",
+    type: "cash",
+    currency: "USD",
+    balance: 100
+  });
+  assert.ok(cash.id > 0);
+
+  const positionRes = await api.post(`/api/v1/crypto/accounts/${cash.id}/positions`).send({
+    symbol: "BTC",
+    quantity: 0.01
+  });
+  assert.equal(positionRes.status, 400);
+  assert.match(String(positionRes.body.error || ""), /crypto_wallet or exchange/i);
+});
+
 test("api requires auth when no session and no bypass header", async () => {
   const { rawApi } = createHarness();
   const res = await rawApi.get("/api/v1/settings").send();

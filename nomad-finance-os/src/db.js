@@ -19,6 +19,49 @@ function runMigrations(db) {
   ensureColumn(db, "budgets", "budget_currency", "TEXT");
   ensureColumn(db, "yearly_budgets", "budget_currency", "TEXT");
   db.exec(`
+    CREATE TABLE IF NOT EXISTS crypto_token_prices (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      symbol TEXT NOT NULL,
+      price NUMERIC NOT NULL,
+      price_currency TEXT NOT NULL DEFAULT 'USD',
+      source TEXT NOT NULL DEFAULT 'manual',
+      as_of TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, symbol),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_crypto_token_prices_user_id ON crypto_token_prices(user_id)
+  `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS crypto_positions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      account_id INTEGER NOT NULL,
+      symbol TEXT NOT NULL,
+      quantity NUMERIC NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, account_id, symbol),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+    )
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_crypto_positions_user_id ON crypto_positions(user_id)
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_crypto_positions_account_id ON crypto_positions(account_id)
+  `);
+  ensureColumn(db, "crypto_token_prices", "price_currency", "TEXT NOT NULL DEFAULT 'USD'");
+  ensureColumn(db, "crypto_token_prices", "source", "TEXT NOT NULL DEFAULT 'manual'");
+  ensureColumn(db, "crypto_token_prices", "as_of", "TEXT");
+  ensureColumn(db, "crypto_token_prices", "updated_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP");
+  ensureColumn(db, "crypto_positions", "updated_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP");
+  db.exec(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_nocase
     ON users(email COLLATE NOCASE)
     WHERE email IS NOT NULL
@@ -169,6 +212,26 @@ function runMigrations(db) {
     UPDATE yearly_budgets
     SET budget_currency = 'USD'
     WHERE budget_currency IS NULL OR trim(budget_currency) = ''
+  `);
+  db.exec(`
+    UPDATE crypto_token_prices
+    SET price_currency = 'USD'
+    WHERE price_currency IS NULL OR trim(price_currency) = ''
+  `);
+  db.exec(`
+    UPDATE crypto_token_prices
+    SET source = 'manual'
+    WHERE source IS NULL OR trim(source) = ''
+  `);
+  db.exec(`
+    UPDATE crypto_token_prices
+    SET updated_at = created_at
+    WHERE updated_at IS NULL OR trim(updated_at) = ''
+  `);
+  db.exec(`
+    UPDATE crypto_positions
+    SET updated_at = created_at
+    WHERE updated_at IS NULL OR trim(updated_at) = ''
   `);
 }
 

@@ -24,6 +24,38 @@ CREATE TABLE IF NOT EXISTS accounts (
 
 CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts(user_id);
 
+CREATE TABLE IF NOT EXISTS crypto_token_prices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    symbol TEXT NOT NULL,
+    price NUMERIC NOT NULL,
+    price_currency TEXT NOT NULL DEFAULT 'USD',
+    source TEXT NOT NULL DEFAULT 'manual',
+    as_of TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, symbol),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_crypto_token_prices_user_id ON crypto_token_prices(user_id);
+
+CREATE TABLE IF NOT EXISTS crypto_positions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    account_id INTEGER NOT NULL,
+    symbol TEXT NOT NULL,
+    quantity NUMERIC NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, account_id, symbol),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_crypto_positions_user_id ON crypto_positions(user_id);
+CREATE INDEX IF NOT EXISTS idx_crypto_positions_account_id ON crypto_positions(account_id);
+
 CREATE TABLE IF NOT EXISTS expense_category_l1 (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
