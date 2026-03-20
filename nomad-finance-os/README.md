@@ -175,6 +175,6 @@ Sample cron entries are provided at `ops/cron/backup.cron`:
 
 Auth modes:
 
-- Human web: email magic-link + `nfos_session` cookie
+- Human web: email verification code + `nfos_session` cookie
 - User agent: `Authorization: Bearer <agent_token>`
 - Dev-only bypass (must be explicitly enabled): `AUTH_ALLOW_DEV_BYPASS=true` + `x-user-id`

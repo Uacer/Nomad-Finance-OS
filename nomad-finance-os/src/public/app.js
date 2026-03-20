@@ -36,6 +36,7 @@ const state = {
     showTrend: false,
     showRisk: false,
     showRecentExpenses: true,
+    showToday: true,
     showDebug: false,
     budgetPieView: false
   },
@@ -173,16 +174,19 @@ const I18N = {
     totalAmount: "Total Amount",
     saveBudget: "Save Budget",
     settings: "⚙️ Settings",
+    navBackSettings: "‹ Settings",
     userId: "User ID",
     language: "Language",
     baseCurrency: "Base Currency",
     timezone: "Timezone",
     saveSettings: "Save Settings",
+    general: "General",
     advancedInsights: "Advanced Insights",
     showCashFlow: "Cash Flow Pulse",
     showTrend: "Spending Curve",
     showRisk: "Risk Metrics",
     showRecentExpenses: "Recent Transactions Card",
+    showToday: "Today Card",
     showDebug: "Debug Panel",
     logout: "Logout",
     debugPanel: "Debug Panel",
@@ -208,7 +212,13 @@ const I18N = {
     accounts: "🏦 Accounts",
     monthlyReview: "🗓️ Monthly Review",
     categories: "🧩 Categories",
+    navBudget: "Budget",
+    navAccounts: "Accounts",
+    navReview: "Monthly Review",
+    navCategories: "Categories",
+    navAgentAccess: "Agent Access",
     addL1Bottom: "✏️ Add L1",
+    addCategory: "Add Category",
     addL2Inline: "＋",
     emptyNoL2Categories: "No L2 categories",
     promptL1Name: "New L1 category name",
@@ -394,16 +404,19 @@ const I18N = {
     totalAmount: "预算总额",
     saveBudget: "保存预算",
     settings: "⚙️ 设置",
+    navBackSettings: "‹ 设置",
     userId: "用户 ID",
     language: "语言",
     baseCurrency: "基准货币",
     timezone: "时区",
     saveSettings: "保存设置",
+    general: "通用",
     advancedInsights: "高级洞察",
     showCashFlow: "现金流脉冲",
     showTrend: "支出曲线",
     showRisk: "风险指标",
     showRecentExpenses: "最近交易卡片",
+    showToday: "今日卡片",
     showDebug: "调试面板",
     logout: "退出登录",
     debugPanel: "调试面板",
@@ -429,7 +442,13 @@ const I18N = {
     accounts: "🏦 账户管理",
     monthlyReview: "🗓️ 月度回顾",
     categories: "🧩 分类管理",
+    navBudget: "预算",
+    navAccounts: "账户管理",
+    navReview: "月度回顾",
+    navCategories: "分类管理",
+    navAgentAccess: "Agent 接入",
     addL1Bottom: "✏️ 新增一级分类",
+    addCategory: "新增分类",
     addL2Inline: "＋",
     emptyNoL2Categories: "暂无二级分类",
     promptL1Name: "输入新的一级分类名称",
@@ -649,7 +668,7 @@ function bindUI() {
     budgetBtn.addEventListener("click", () => {
       const monthInput = $("#quickBudgetForm [name=month]");
       if (monthInput) monthInput.value = state.month;
-      openSheet("budgetSheet");
+      openSheet("budgetSheet", { preserveUtility: true });
     });
   }
   $("#quickEntryForm").addEventListener("submit", submitQuickEntryForm);
@@ -714,6 +733,14 @@ function bindUI() {
   if (toggleRecent) {
     toggleRecent.addEventListener("change", () => {
       state.ui.showRecentExpenses = toggleRecent.checked;
+      persistUiState();
+      applyAdvancedVisibility();
+    });
+  }
+  const toggleToday = $("#toggleToday");
+  if (toggleToday) {
+    toggleToday.addEventListener("change", () => {
+      state.ui.showToday = toggleToday.checked;
       persistUiState();
       applyAdvancedVisibility();
     });
@@ -820,6 +847,22 @@ function bindUI() {
   $("#quickBudgetForm").addEventListener("submit", submitQuickBudgetForm);
   $("#quickSettingsForm").addEventListener("submit", submitQuickSettingsForm);
   $("#accountEditForm").addEventListener("submit", submitAccountEditForm);
+  $("#budgetEditForm").addEventListener("submit", submitBudgetEditForm);
+  // Budget list click delegation (monthly + yearly)
+  for (const listId of ["budgetList", "yearlyBudgetList"]) {
+    const list = document.getElementById(listId);
+    if (list) list.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const row = event.target.closest("[data-action='edit-budget']");
+      if (!row) return;
+      openBudgetEditSheet(
+        String(row.getAttribute("data-scope") || "monthly"),
+        String(row.getAttribute("data-period") || ""),
+        String(row.getAttribute("data-category") || ""),
+        Number(row.getAttribute("data-amount") || 0)
+      );
+    });
+  }
   $("#transactionEditForm").addEventListener("submit", submitTransactionEditForm);
   $("#accountDeleteBtn").addEventListener("click", deleteCurrentAccount);
   $("#accountForceDeleteBtn").addEventListener("click", forceDeleteCurrentAccount);
@@ -873,9 +916,9 @@ function bindUI() {
   }
   $("#accountList").addEventListener("click", (event) => {
     if (!(event.target instanceof Element)) return;
-    const editBtn = event.target.closest("button[data-action='edit-account']");
-    if (!editBtn) return;
-    const id = Number(editBtn.getAttribute("data-id"));
+    const row = event.target.closest("[data-action='edit-account']");
+    if (!row) return;
+    const id = Number(row.getAttribute("data-id"));
     if (!Number.isInteger(id) || id <= 0) return;
     openAccountEditSheet(id);
   });
@@ -887,6 +930,20 @@ function bindUI() {
     if (!Number.isInteger(id) || id <= 0) return;
     openTransactionDetailSheet(id);
   });
+  const budgetPlanListEl = document.getElementById("budgetPlanList");
+  if (budgetPlanListEl) {
+    budgetPlanListEl.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const row = event.target.closest("[data-action='edit-budget']");
+      if (!row) return;
+      openBudgetEditSheet(
+        String(row.getAttribute("data-scope") || "monthly"),
+        String(row.getAttribute("data-period") || ""),
+        String(row.getAttribute("data-category") || ""),
+        Number(row.getAttribute("data-amount") || 0)
+      );
+    });
+  }
   $("#recentExpensesList").addEventListener("click", (event) => {
     if (!(event.target instanceof Element)) return;
     const row = event.target.closest("article[data-tx-id]");
@@ -1086,6 +1143,7 @@ function openSheet(id, options = {}) {
     if (userInput) userInput.value = String(state.userId);
     $("#quickSettingsForm [name=ui_language]").value = ensureUILanguage(state.settings?.ui_language || "en");
     syncDevBypassVisibility();
+    showSettingsPage("settingsPageMain", "back");
   }
   node.classList.remove("hidden");
   node.setAttribute("aria-hidden", "false");
@@ -1670,6 +1728,24 @@ async function loadSettings() {
     timezone: "UTC",
     ui_language: "en"
   };
+
+  // Auto-detect local timezone on first use (when server still has UTC default)
+  if (!state.settings.timezone || state.settings.timezone === "UTC") {
+    try {
+      const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (localTz && localTz !== "UTC") {
+        state.settings.timezone = localTz;
+        // Persist silently so it sticks next load
+        api("/api/v1/settings", {
+          method: "POST",
+          body: JSON.stringify({ ...state.settings, timezone: localTz })
+        }).catch(() => {});
+      }
+    } catch {
+      // Intl not available — keep UTC
+    }
+  }
+
   const uiLanguage = ensureUILanguage(state.settings.ui_language || "en");
   state.settings.ui_language = uiLanguage;
   const uiBase = ensureUICurrency(state.settings.base_currency || "USD");
@@ -1700,6 +1776,8 @@ async function loadSettings() {
   if (toggleTrend) toggleTrend.checked = Boolean(state.ui.showTrend);
   if (toggleDebug) toggleDebug.checked = Boolean(state.ui.showDebug);
   if (toggleRecentExpenses) toggleRecentExpenses.checked = Boolean(state.ui.showRecentExpenses);
+  const toggleTodayEl = $("#toggleToday");
+  if (toggleTodayEl) toggleTodayEl.checked = Boolean(state.ui.showToday);
   if (debugOnlyFailed) debugOnlyFailed.checked = Boolean(state.debug.onlyFailed);
   if (debugFilterInput) debugFilterInput.value = state.debug.filter || "";
   applyQuickEntryPreferencesForType(state.quickEntryType || "expense");
@@ -1763,6 +1841,7 @@ function populateL1Selects() {
     $("#transactionForm [name=category_l1]"),
     $("#budgetForm [name=category_l1]"),
     $("#yearlyBudgetForm [name=category_l1]"),
+    $("#budgetInlineForm [name=category_l1]"),
     $("#l2Form [name=l1_name]")
   ].filter(Boolean);
   for (const select of selects) {
@@ -3320,8 +3399,10 @@ function renderPlannedBudgetCard(dashboard) {
         const tone = ratio >= 1 ? "overspend" : ratio >= 0.8 ? "warn" : "normal";
         const remainClass = remaining < 0 || row.overspend ? "overspend" : "muted";
         const remainText = remaining < 0 ? `-${formatMoney(Math.abs(remaining))}` : formatMoney(remaining);
+        const scope = row.year !== undefined ? "yearly" : "monthly";
+        const period = scope === "yearly" ? String(row.year) : String(row.month || state.month);
         return `
-          <article class="budget-plan-row">
+          <article class="budget-plan-row clickable" data-action="edit-budget" data-scope="${scope}" data-period="${escapeHtml(period)}" data-category="${escapeHtml(row.category_l1)}" data-amount="${total}">
             <div class="top">
               <span class="budget-plan-name">
                 <strong>${escapeHtml(withL1Emoji(row.category_l1))}</strong>
@@ -3541,6 +3622,94 @@ async function forceDeleteCurrentAccount() {
   } catch (error) {
     showErrorToast(error);
   }
+}
+
+function openBudgetEditSheet(scope, period, category_l1, totalAmount) {
+  const form = $("#budgetEditForm");
+  if (!(form instanceof HTMLFormElement)) return;
+  form.elements.scope.value = scope;
+  form.elements.period.value = period;
+  form.elements.category_l1_orig.value = category_l1;
+  form.elements.scope_display.value = scope === "yearly" ? t("yearly") : t("monthly");
+  form.elements.period_display.value = period;
+  form.elements.category_display.value = withL1Emoji(category_l1);
+  form.elements.total_amount.value = String(totalAmount);
+  openSheet("budgetEditSheet", { preserveUtility: true });
+}
+
+async function submitBudgetEditForm(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  if (!(form instanceof HTMLFormElement)) return;
+  const fd = new FormData(form);
+  const scope = String(fd.get("scope") || "");
+  const period = String(fd.get("period") || "");
+  const category_l1 = String(fd.get("category_l1_orig") || "");
+  const total_amount = Number(fd.get("total_amount"));
+  if (!Number.isFinite(total_amount) || total_amount < 0) { showToast(t("invalidAmount"), true); return; }
+  try {
+    if (total_amount === 0) {
+      // Treat 0 as "remove budget"
+      if (scope === "yearly") {
+        await api("/api/v1/budgets/yearly", { method: "DELETE", body: JSON.stringify({ year: Number(period), category_l1 }) });
+      } else {
+        await api("/api/v1/budgets", { method: "DELETE", body: JSON.stringify({ month: period, category_l1 }) });
+      }
+    } else if (scope === "yearly") {
+      await api("/api/v1/budgets/yearly", { method: "POST", body: JSON.stringify({ year: Number(period), category_l1, total_amount }) });
+    } else {
+      await api("/api/v1/budgets", { method: "POST", body: JSON.stringify({ month: period, category_l1, total_amount }) });
+    }
+    showToast(t("budgetUpdated"));
+    closeSheet("budgetEditSheet");
+    try { await Promise.all([loadBudgets(), loadYearlyBudgets(), loadDashboard()]); } catch (e) { showRefreshFailureToast(e); }
+  } catch (error) { showErrorToast(error); }
+}
+
+async function deleteBudget() {
+  const form = $("#budgetEditForm");
+  if (!(form instanceof HTMLFormElement)) return;
+  const scope = String(form.elements.scope.value || "");
+  const period = String(form.elements.period.value || "");
+  const category_l1 = String(form.elements.category_l1_orig.value || "");
+  try {
+    if (scope === "yearly") {
+      await api("/api/v1/budgets/yearly", { method: "DELETE", body: JSON.stringify({ year: Number(period), category_l1 }) });
+    } else {
+      await api("/api/v1/budgets", { method: "DELETE", body: JSON.stringify({ month: period, category_l1 }) });
+    }
+    showToast(t("budgetUpdated"));
+    closeSheet("budgetEditSheet");
+    try { await Promise.all([loadBudgets(), loadYearlyBudgets(), loadDashboard()]); } catch (e) { showRefreshFailureToast(e); }
+  } catch (error) { showErrorToast(error); }
+}
+
+async function submitBudgetInlineForm(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  if (!(form instanceof HTMLFormElement)) return;
+  const fd = new FormData(form);
+  const scope = String(fd.get("scope") || "monthly");
+  const category_l1 = String(fd.get("category_l1") || "");
+  const total_amount = Number(fd.get("total_amount"));
+  if (!category_l1 || !total_amount || !Number.isFinite(total_amount)) { showToast(t("invalidAmount"), true); return; }
+  try {
+    if (scope === "yearly") {
+      const year = Number(fd.get("year"));
+      await api("/api/v1/budgets/yearly", { method: "POST", body: JSON.stringify({ year, category_l1, total_amount }) });
+    } else {
+      const month = String(fd.get("month") || state.month);
+      await api("/api/v1/budgets", { method: "POST", body: JSON.stringify({ month, category_l1, total_amount }) });
+    }
+    showToast(t("budgetUpdated"));
+    form.reset();
+    $("#budgetCreateWrap")?.classList.add("hidden");
+    const monthInput = form.elements.month;
+    if (monthInput) monthInput.value = state.month;
+    const yearInput = form.elements.year;
+    if (yearInput) yearInput.value = String(new Date().getFullYear());
+    try { await Promise.all([loadBudgets(), loadYearlyBudgets(), loadDashboard()]); } catch (e) { showRefreshFailureToast(e); }
+  } catch (error) { showErrorToast(error); }
 }
 
 async function getLinkedTransactionCount(accountId) {
@@ -4038,38 +4207,44 @@ async function loadBudgets() {
   $("#budgetForm [name=month]").value = state.month;
   $("#quickBudgetForm [name=month]").value = state.month;
   const target = $("#budgetList");
-  if (!rows.length) {
-    target.innerHTML = `<div class="list-row muted">${escapeHtml(t("emptyNoMonthlyBudget"))}</div>`;
-    const quickTarget = $("#quickBudgetList");
-    if (quickTarget) quickTarget.innerHTML = `<div class="list-row muted">${escapeHtml(t("emptyNoQuickBudget"))}</div>`;
-    return;
-  }
-  target.innerHTML = rows
-    .map(
-      (row) => `
-      <article class="list-row">
+
+  // Merge API rows with ALL active L1 categories
+  const activeL1 = Object.entries(state.categories || {})
+    .filter(([, cfg]) => cfg.active)
+    .map(([name]) => name);
+  const budgetMap = new Map((rows || []).map((r) => [r.category_l1, r]));
+  const merged = activeL1.map((name) => {
+    const b = budgetMap.get(name);
+    return b ? { ...b, configured: true } : { category_l1: name, month: state.month, total_amount: 0, spent_amount: 0, remaining_amount: 0, configured: false };
+  });
+
+  target.innerHTML = merged
+    .map((row) => `
+      <article class="list-row clickable" data-action="edit-budget" data-scope="monthly" data-period="${escapeHtml(row.month)}" data-category="${escapeHtml(row.category_l1)}" data-amount="${Number(row.total_amount)}">
         <div class="row-main">
           <strong>${escapeHtml(withL1Emoji(row.category_l1))}</strong>
-          <span class="${row.overspend ? "overspend" : "muted"}">${formatMoney(row.spent_amount)} / ${formatMoney(row.total_amount)}</span>
+          ${row.configured
+            ? `<span class="${row.overspend ? "overspend" : "muted"}">${formatMoney(row.spent_amount)} / ${formatMoney(row.total_amount)}</span>`
+            : `<span class="muted">—</span>`}
         </div>
-        <div class="muted">${escapeHtml(t("remaining"))}: ${formatMoney(row.remaining_amount)}</div>
-      </article>`
-    )
+        ${row.configured ? `<div class="muted">${escapeHtml(t("remaining"))}: ${formatMoney(row.remaining_amount)}</div>` : ""}
+      </article>`)
     .join("");
+
+  // Dashboard quick list — only configured (amount > 0)
   const quickTarget = $("#quickBudgetList");
   if (quickTarget) {
-    quickTarget.innerHTML = rows
-      .map(
-        (row) => `
+    const configured = (rows || []).filter((r) => Number(r.total_amount) > 0);
+    quickTarget.innerHTML = configured.length
+      ? configured.map((row) => `
         <article class="list-row">
           <div class="row-main">
             <strong>${escapeHtml(withL1Emoji(row.category_l1))}</strong>
             <span class="${row.overspend ? "overspend" : "muted"}">${formatMoney(row.spent_amount)} / ${formatMoney(row.total_amount)}</span>
           </div>
           <div class="muted">${escapeHtml(t("remaining"))}: ${formatMoney(row.remaining_amount)}</div>
-        </article>`
-      )
-      .join("");
+        </article>`).join("")
+      : `<div class="list-row muted">${escapeHtml(t("emptyNoQuickBudget"))}</div>`;
   }
 }
 
@@ -4077,21 +4252,28 @@ async function loadYearlyBudgets() {
   const year = Number(state.month.slice(0, 4));
   const rows = await api(`/api/v1/budgets/yearly?year=${year}`);
   const target = $("#yearlyBudgetList");
-  if (!rows.length) {
-    target.innerHTML = `<div class="list-row muted">${escapeHtml(t("emptyNoYearlyBudget"))}</div>`;
-    return;
-  }
-  target.innerHTML = rows
-    .map(
-      (row) => `
-      <article class="list-row">
+
+  // Merge API rows with ALL active L1 categories
+  const activeL1 = Object.entries(state.categories || {})
+    .filter(([, cfg]) => cfg.active)
+    .map(([name]) => name);
+  const budgetMap = new Map((rows || []).map((r) => [r.category_l1, r]));
+  const merged = activeL1.map((name) => {
+    const b = budgetMap.get(name);
+    return b ? { ...b, configured: true } : { category_l1: name, year, total_amount: 0, spent_amount: 0, remaining_amount: 0, configured: false };
+  });
+
+  target.innerHTML = merged
+    .map((row) => `
+      <article class="list-row clickable" data-action="edit-budget" data-scope="yearly" data-period="${escapeHtml(String(row.year))}" data-category="${escapeHtml(row.category_l1)}" data-amount="${Number(row.total_amount)}">
         <div class="row-main">
           <strong>${escapeHtml(withL1Emoji(row.category_l1))}</strong>
-          <span class="${row.overspend ? "overspend" : "muted"}">${formatMoney(row.spent_amount)} / ${formatMoney(row.total_amount)}</span>
+          ${row.configured
+            ? `<span class="${row.overspend ? "overspend" : "muted"}">${formatMoney(row.spent_amount)} / ${formatMoney(row.total_amount)}</span>`
+            : `<span class="muted">—</span>`}
         </div>
-        <div class="muted">${escapeHtml(t("remaining"))}: ${formatMoney(row.remaining_amount)}</div>
-      </article>`
-    )
+        ${row.configured ? `<div class="muted">${escapeHtml(t("remaining"))}: ${formatMoney(row.remaining_amount)}</div>` : ""}
+      </article>`)
     .join("");
 }
 
@@ -4310,6 +4492,8 @@ function applyI18n() {
   setText("quickBudgetTotalLabel", t("totalAmount"));
   setText("quickBudgetSaveBtn", t("saveBudget"));
   setText("settingsSheetTitle", t("settings"));
+  setText("settingsGeneralNavLabel", t("general"));
+  setText("settingsGeneralPageTitle", t("general"));
   setText("quickSettingsUserLabel", t("userId"));
   setText("quickSettingsLangLabel", t("language"));
   setText("quickSettingsBaseLabel", t("baseCurrency"));
@@ -4320,6 +4504,7 @@ function applyI18n() {
   setText("toggleRiskLabel", t("showRisk"));
   setText("toggleDebugLabel", t("showDebug"));
   setText("toggleRecentExpensesLabel", t("showRecentExpenses"));
+  setText("toggleTodayLabel", t("showToday"));
   setText("debugPanelTitle", t("debugPanel"));
   setText("debugOnlyFailedLabel", t("debugOnlyFailed"));
   setText("debugFilterLabel", t("debugFilter"));
@@ -4329,14 +4514,15 @@ function applyI18n() {
   setText("debugRuntimeTitle", t("debugRuntime"));
   setText("quickSettingsSaveBtn", t("saveSettings"));
   setText("quickLogoutBtn", t("logout"));
-  setText("settingsLinkBudget", t("advancedBudget"));
-  setText("settingsLinkAccounts", t("accounts"));
-  setText("settingsLinkReview", t("monthlyReview"));
-  setText("settingsLinkCategories", t("categories"));
+  setText("settingsLinkBudgetLabel", t("navBudget"));
+  setText("settingsLinkAccountsLabel", t("navAccounts"));
+  setText("settingsLinkReviewLabel", t("navReview"));
+  setText("settingsLinkCategoriesLabel", t("navCategories"));
   setText("addL1BottomBtn", t("addL1Bottom"));
+  setText("budgetAddCategoryLabel", t("addCategory"));
   setText("categoryPromptParentLabel", t("categoryPromptParentLabel"));
   setText("categoryPromptEmojiLabel", t("categoryPromptEmojiLabel"));
-  setText("settingsLinkAi", t("agentAccess"));
+  setText("settingsLinkAiLabel", t("navAgentAccess"));
   setText("agentTokenTitle", t("agentTokensTitle"));
   setText("agentTokenListTitle", t("agentTokensTitle"));
   setText("agentTokenHint", t("agentTokensHint"));
@@ -4380,6 +4566,10 @@ function applyI18n() {
   setText("closeUtilityBtn", "←");
   const utilityBtn = $("#closeUtilityBtn");
   if (utilityBtn) utilityBtn.setAttribute("aria-label", t("back"));
+  // Panel back buttons — translated "‹ Settings" / "‹ 设置"
+  for (const btn of document.querySelectorAll(".panel-back-btn")) {
+    btn.textContent = t("navBackSettings");
+  }
   const quickNote = document.querySelector("#quickEntryForm [name=note]");
   if (quickNote) {
     quickNote.placeholder = ensureUILanguage(state.settings?.ui_language) === "zh" ? "可选" : "optional";
@@ -4438,6 +4628,8 @@ function applyAdvancedVisibility() {
   if (trendCard) trendCard.classList.toggle("hidden", !state.ui.showTrend);
   if (riskCard) riskCard.classList.toggle("hidden", !state.ui.showRisk);
   if (recentExpensesCard) recentExpensesCard.classList.toggle("hidden", !state.ui.showRecentExpenses);
+  const todayCard = $("#todayExpensesCard");
+  if (todayCard) todayCard.classList.toggle("hidden", !state.ui.showToday);
   if (debugPanel) debugPanel.classList.toggle("hidden", !state.ui.showDebug);
 }
 
@@ -4450,6 +4642,7 @@ function loadUiState() {
     state.ui.showTrend = Boolean(parsed.showTrend);
     state.ui.showRisk = Boolean(parsed.showRisk);
     state.ui.showRecentExpenses = parsed.showRecentExpenses !== false;
+    state.ui.showToday = parsed.showToday !== false;
     state.ui.showDebug = Boolean(parsed.showDebug);
     state.ui.budgetPieView = Boolean(parsed.budgetPieView);
     if (parsed.debug) {
@@ -4481,6 +4674,7 @@ function persistUiState() {
         showTrend: state.ui.showTrend,
         showRisk: state.ui.showRisk,
         showRecentExpenses: state.ui.showRecentExpenses,
+        showToday: state.ui.showToday,
         showDebug: state.ui.showDebug,
         budgetPieView: state.ui.budgetPieView,
         trend: {
@@ -4753,3 +4947,122 @@ function initDashboardDrag() {
 }
 
 document.addEventListener("DOMContentLoaded", initDashboardDrag);
+
+// ── Settings page navigation ──────────────────────────────────────
+function showSettingsPage(pageId, direction = "forward") {
+  const pages = document.querySelectorAll(".settings-page");
+  pages.forEach((p) => {
+    p.classList.add("hidden");
+    p.classList.remove("anim-forward", "anim-back");
+  });
+  const target = document.getElementById(pageId);
+  if (!target) return;
+  target.classList.remove("hidden");
+  const animClass = direction === "back" ? "anim-back" : "anim-forward";
+  target.classList.add(animClass);
+  // remove animation class after it finishes so it can replay
+  target.addEventListener("animationend", () => target.classList.remove(animClass), { once: true });
+}
+
+function navigateFromSettings(panelId) {
+  state.utilityReturnSheet = "settingsSheet";
+  openUtilityPanel(panelId);
+  const panel = document.getElementById(panelId);
+  if (panel) {
+    panel.classList.add("panel-entering");
+    panel.addEventListener("animationend", () => panel.classList.remove("panel-entering"), { once: true });
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const openGeneral = document.getElementById("settingsOpenGeneral");
+  if (openGeneral) openGeneral.addEventListener("click", () => showSettingsPage("settingsPageGeneral", "forward"));
+
+  const backFromGeneral = document.getElementById("settingsBackFromGeneral");
+  if (backFromGeneral) backFromGeneral.addEventListener("click", () => showSettingsPage("settingsPageMain", "back"));
+
+  const openWidgets = document.getElementById("settingsOpenWidgets");
+  if (openWidgets) openWidgets.addEventListener("click", () => showSettingsPage("settingsPageWidgets", "forward"));
+
+  const backFromWidgets = document.getElementById("settingsBackFromWidgets");
+  if (backFromWidgets) backFromWidgets.addEventListener("click", () => showSettingsPage("settingsPageMain", "back"));
+
+  const navMap = {
+    settingsLinkAccounts:   "accountsPanel",
+    settingsLinkBudget:     "budgetsPanel",
+    settingsLinkCategories: "categoriesPanel",
+    settingsLinkReview:     "reviewPanel",
+    settingsLinkAi:         "settingsPanel",
+  };
+  for (const [id, panelId] of Object.entries(navMap)) {
+    const btn = document.getElementById(id);
+    if (btn) btn.addEventListener("click", () => navigateFromSettings(panelId));
+  }
+
+  // Panel back buttons — same behavior as #closeUtilityBtn
+  for (const btn of document.querySelectorAll(".panel-back-btn")) {
+    btn.addEventListener("click", () => {
+      const returnSheet = state.utilityReturnSheet || "";
+      closeUtilityPanel();
+      if (returnSheet) {
+        state.utilityReturnSheet = "";
+        openSheet(returnSheet);
+      }
+    });
+  }
+});
+
+// ── Panel form toggles ────────────────────────────────────────────
+document.addEventListener("DOMContentLoaded", () => {
+  function bindToggle(btnId, wrapId, resetFn) {
+    const btn = document.getElementById(btnId);
+    const wrap = document.getElementById(wrapId);
+    if (!btn || !wrap) return;
+    btn.addEventListener("click", () => {
+      const isHidden = wrap.classList.contains("hidden");
+      wrap.classList.toggle("hidden", !isHidden);
+      if (!isHidden && resetFn) resetFn();
+    });
+  }
+
+  // Accounts
+  bindToggle("toggleAccountFormBtn", "accountCreateWrap", () => {
+    const f = document.getElementById("accountForm");
+    if (f) f.reset();
+  });
+
+
+  // Agent token
+  bindToggle("toggleAgentFormBtn", "agentCreateWrap", () => {
+    const f = document.getElementById("agentTokenForm");
+    if (f) f.reset();
+  });
+
+  // Budget scope toggle (Monthly / Yearly)
+  const monthlyBtn = document.getElementById("budgetToggleMonthly");
+  const yearlyBtn = document.getElementById("budgetToggleYearly");
+  const monthlyCard = document.getElementById("budgetMonthlyCard");
+  const yearlyCard = document.getElementById("budgetYearlyCard");
+  if (monthlyBtn && yearlyBtn && monthlyCard && yearlyCard) {
+    monthlyBtn.addEventListener("click", () => {
+      monthlyBtn.classList.add("active");
+      yearlyBtn.classList.remove("active");
+      monthlyCard.classList.remove("hidden");
+      yearlyCard.classList.add("hidden");
+    });
+    yearlyBtn.addEventListener("click", () => {
+      yearlyBtn.classList.add("active");
+      monthlyBtn.classList.remove("active");
+      yearlyCard.classList.remove("hidden");
+      monthlyCard.classList.add("hidden");
+    });
+  }
+
+  // Budget panel — add category button (syncs with Categories panel)
+  const budgetAddCatBtn = document.getElementById("budgetAddCategoryBtn");
+  if (budgetAddCatBtn) {
+    budgetAddCatBtn.addEventListener("click", () => {
+      void createL1CategoryInline();
+    });
+  }
+});

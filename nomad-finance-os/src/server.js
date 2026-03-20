@@ -17,7 +17,7 @@ const fxRefreshIntervalMs = Math.max(
 );
 
 const port = Number.parseInt(process.env.PORT || "5001", 10);
-app.listen(port, () => {
+app.listen(port, "0.0.0.0", () => {
   console.log(`Nomad Finance OS API running on http://localhost:${port}`);
   void runFxRefresh("startup");
   const timer = setInterval(() => {

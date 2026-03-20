@@ -60,7 +60,7 @@ async function withMockedFetchJson(jsonPayload, fn) {
   }
 }
 
-async function signInViaMagicLink(rawApi, email = "agent-user@example.com") {
+async function signInViaEmailCode(rawApi, email = "agent-user@example.com") {
   const previousResendKey = process.env.RESEND_API_KEY;
   const previousResendFrom = process.env.RESEND_FROM_EMAIL;
   process.env.RESEND_API_KEY = "re_test_key";
@@ -82,16 +82,18 @@ async function signInViaMagicLink(rawApi, email = "agent-user@example.com") {
   try {
     const syntheticIp = `198.18.0.${Math.max(1, Math.floor(Math.random() * 200))}`;
     const requestRes = await rawApi
-      .post("/api/v1/auth/magic-link/request")
+      .post("/api/v1/auth/code/request")
       .set("x-forwarded-for", syntheticIp)
       .send({ email });
     assert.equal(requestRes.status, 200);
     const text = String(lastEmailPayload?.text || "");
-    const linkMatch = text.match(/https?:\/\/\S+\/auth\/magic-link\/verify\?token=[^\s]+/);
-    assert.ok(linkMatch && linkMatch[0], "magic link should exist in resend payload");
-    const verifyUrl = new URL(linkMatch[0]);
-    const verifyRes = await rawApi.get(`${verifyUrl.pathname}${verifyUrl.search}`).send();
-    assert.equal(verifyRes.status, 302);
+    const codeMatch = text.match(/\b\d{6}\b/);
+    assert.ok(codeMatch && codeMatch[0], "verification code should exist in resend payload");
+    const verifyRes = await rawApi.post("/api/v1/auth/code/verify").send({
+      email,
+      code: codeMatch[0]
+    });
+    assert.equal(verifyRes.status, 200);
     const sessionRes = await rawApi.get("/api/v1/auth/session").send();
     assert.equal(sessionRes.status, 200);
     assert.equal(sessionRes.body.authenticated, true);
@@ -1216,7 +1218,7 @@ test("api requires auth when no session and no bypass header", async () => {
   assert.equal(res.status, 401);
 });
 
-test("magic link request -> verify -> session login -> logout flow", async () => {
+test("email code request -> verify -> session login -> logout flow", async () => {
   const previousResendKey = process.env.RESEND_API_KEY;
   const previousResendFrom = process.env.RESEND_FROM_EMAIL;
   process.env.RESEND_API_KEY = "re_test_key";
@@ -1238,18 +1240,20 @@ test("magic link request -> verify -> session login -> logout flow", async () =>
 
   try {
     const { rawApi } = createHarness();
-    const requestRes = await rawApi.post("/api/v1/auth/magic-link/request").send({
+    const requestRes = await rawApi.post("/api/v1/auth/code/request").send({
       email: "TeSt+login@example.com"
     });
     assert.equal(requestRes.status, 200);
     assert.ok(lastEmailPayload);
     const text = String(lastEmailPayload.text || "");
-    const linkMatch = text.match(/https?:\/\/\S+\/auth\/magic-link\/verify\?token=[^\s]+/);
-    assert.ok(linkMatch && linkMatch[0], "magic link should exist in resend payload");
+    const codeMatch = text.match(/\b\d{6}\b/);
+    assert.ok(codeMatch && codeMatch[0], "verification code should exist in resend payload");
 
-    const verifyUrl = new URL(linkMatch[0]);
-    const verifyRes = await rawApi.get(`${verifyUrl.pathname}${verifyUrl.search}`).send();
-    assert.equal(verifyRes.status, 302);
+    const verifyRes = await rawApi.post("/api/v1/auth/code/verify").send({
+      email: "test+login@example.com",
+      code: codeMatch[0]
+    });
+    assert.equal(verifyRes.status, 200);
     assert.match(String(verifyRes.headers["set-cookie"] || ""), /nfos_session=/);
 
     const sessionRes = await rawApi.get("/api/v1/auth/session").send();
@@ -1260,7 +1264,10 @@ test("magic link request -> verify -> session login -> logout flow", async () =>
     const protectedRes = await rawApi.get("/api/v1/settings").send();
     assert.equal(protectedRes.status, 200);
 
-    const repeatVerify = await rawApi.get(`${verifyUrl.pathname}${verifyUrl.search}`).send();
+    const repeatVerify = await rawApi.post("/api/v1/auth/code/verify").send({
+      email: "test+login@example.com",
+      code: codeMatch[0]
+    });
     assert.equal(repeatVerify.status, 400);
 
     const logoutRes = await rawApi.post("/api/v1/auth/logout").send();
@@ -1289,7 +1296,7 @@ test("magic link request -> verify -> session login -> logout flow", async () =>
 
 test("session user can create/list/revoke agent tokens", async () => {
   const { rawApi } = createHarness({ allowDevBypass: false });
-  await signInViaMagicLink(rawApi, "token-owner@example.com");
+  await signInViaEmailCode(rawApi, "token-owner@example.com");
 
   const createRes = await rawApi.post("/api/v1/auth/agent-tokens").send({
     name: "My Agent"
@@ -1318,7 +1325,7 @@ test("session user can create/list/revoke agent tokens", async () => {
 
 test("bearer token supports parse -> confirm flow with default scopes", async () => {
   const { app, rawApi } = createHarness({ allowDevBypass: false });
-  await signInViaMagicLink(rawApi, "parse-owner@example.com");
+  await signInViaEmailCode(rawApi, "parse-owner@example.com");
 
   const cashRes = await rawApi.post("/api/v1/accounts").send({
     name: "Cash",
@@ -1369,7 +1376,7 @@ test("bearer token supports parse -> confirm flow with default scopes", async ()
 
 test("bearer token scope restricts write access", async () => {
   const { app, rawApi } = createHarness({ allowDevBypass: false });
-  await signInViaMagicLink(rawApi, "scope-owner@example.com");
+  await signInViaEmailCode(rawApi, "scope-owner@example.com");
 
   const tokenRes = await rawApi.post("/api/v1/auth/agent-tokens").send({
     name: "ReadOnly Agent",
@@ -1396,7 +1403,7 @@ test("bearer token scope restricts write access", async () => {
 
 test("bearer token is isolated by user and revoked token is rejected", async () => {
   const { app, rawApi } = createHarness({ allowDevBypass: false });
-  const userA = await signInViaMagicLink(rawApi, "user-a@example.com");
+  const userA = await signInViaEmailCode(rawApi, "user-a@example.com");
   const aAccount = await rawApi.post("/api/v1/accounts").send({
     name: "A Wallet",
     type: "cash",
@@ -1408,7 +1415,7 @@ test("bearer token is isolated by user and revoked token is rejected", async () 
   assert.equal(tokenRes.status, 201);
 
   const rawApiB = request.agent(app);
-  const userB = await signInViaMagicLink(rawApiB, "user-b@example.com");
+  const userB = await signInViaEmailCode(rawApiB, "user-b@example.com");
   assert.notEqual(userA.id, userB.id);
   const bAccount = await rawApiB.post("/api/v1/accounts").send({
     name: "B Wallet",

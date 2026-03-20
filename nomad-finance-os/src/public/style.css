@@ -2369,15 +2369,20 @@ body.sheet-open .topbar {
 }
 
 .settings-nav-icon {
-  font-size: 1.1rem;
-  width: 26px;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  font-size: 1.15rem;
+  line-height: 1;
   flex-shrink: 0;
 }
 
 .settings-nav-label {
   flex: 1;
   font-size: 0.95rem;
+  letter-spacing: -0.01em;
 }
 
 .settings-nav-chevron {
@@ -2385,6 +2390,76 @@ body.sheet-open .topbar {
   font-size: 1.3rem;
   opacity: 0.4;
   line-height: 1;
+}
+
+/* ── Settings page navigation ── */
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.settings-page.hidden {
+  display: none;
+}
+
+@keyframes settings-slide-in {
+  from { transform: translateX(28px); opacity: 0.7; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+@keyframes settings-slide-back {
+  from { transform: translateX(-28px); opacity: 0.7; }
+  to   { transform: translateX(0);     opacity: 1; }
+}
+
+.settings-page.anim-forward {
+  animation: settings-slide-in 220ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+.settings-page.anim-back {
+  animation: settings-slide-back 220ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+@keyframes settings-page-exit {
+  from { transform: translateX(0);    opacity: 1; }
+  to   { transform: translateX(-24px); opacity: 0; }
+}
+
+.settings-page.anim-exit {
+  animation: settings-page-exit 220ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+/* Utility panel entering from settings — same curve as settings-slide-in */
+.panel.panel-entering {
+  animation: settings-slide-in 220ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+/* Sub-page header: back btn | title (center) | spacer */
+.settings-subpage-head {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+}
+
+.settings-subpage-head h3 {
+  text-align: center;
+}
+
+.settings-back-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 0;
+  text-align: left;
+  font-family: inherit;
+}
+
+.settings-back-btn:active {
+  opacity: 0.6;
 }
 
 /* Danger / logout */
@@ -2398,6 +2473,113 @@ body.sheet-open .topbar {
   justify-content: center;
   color: var(--danger);
   border-color: color-mix(in oklab, var(--danger), white 60%);
+}
+
+/* ── Panel common ────────────────────────────────────────────────── */
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.panel-head h2 {
+  margin: 0;
+}
+
+.panel-add-btn {
+  flex-shrink: 0;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.panel-add-btn:active {
+  opacity: 0.8;
+  transform: scale(0.96);
+}
+
+.panel-form-wrap {
+  animation: fade-slide 200ms ease;
+}
+
+.panel-form-wrap.hidden {
+  display: none;
+}
+
+.panel-form-eyebrow {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+}
+
+.panel-inline-form {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  background: var(--paper);
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(56,44,33,.07), 0 8px 28px rgba(56,44,33,.06);
+}
+
+.budget-scope-toggle {
+  display: flex;
+  background: var(--paper);
+  border-radius: 12px;
+  padding: 3px;
+  gap: 2px;
+  box-shadow: 0 1px 4px rgba(56,44,33,.07);
+}
+.budget-scope-btn {
+  flex: 1;
+  padding: 7px 0;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+.budget-scope-btn.active {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.budget-add-category-btn {
+  width: 100%;
+  padding: 13px;
+  border: 1.5px dashed var(--line);
+  border-radius: 14px;
+  background: none;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+.budget-add-category-btn:active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.small {
+  font-size: 0.82rem;
 }
 
 /* ── Accounts Panel ─────────────────────────────────────────────── */
@@ -2518,9 +2700,10 @@ body.utility-mode .panel.utility-open {
   inset: 0;
   z-index: 55;
   overflow: auto;
-  padding: 76px 14px 20px;
+  padding: 14px 14px 20px;
   background: var(--bg-2);
   align-content: start;
+  gap: 12px;
 }
 
 body.utility-mode .panel.utility-open > h2,
@@ -2528,8 +2711,8 @@ body.utility-mode .panel.utility-open > h3,
 body.utility-mode .panel.utility-open > .hint,
 body.utility-mode .panel.utility-open > form,
 body.utility-mode .panel.utility-open > article,
-body.utility-mode .panel.utility-open > div,
-body.utility-mode .panel.utility-open > button {
+body.utility-mode .panel.utility-open > div:not(.panel-head),
+body.utility-mode .panel.utility-open > button:not(.panel-add-btn) {
   background: var(--paper);
   border: none;
   border-radius: 18px;
@@ -2537,9 +2720,33 @@ body.utility-mode .panel.utility-open > button {
   box-shadow: 0 2px 8px rgba(56,44,33,.07);
 }
 
+/* Panel header inside utility panel — uses sheet-head + settings-subpage-head, override card styles */
+body.utility-mode .panel.utility-open > .panel-head {
+  background: var(--bg-2) !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 0 8px !important;
+  margin-bottom: 0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+body.utility-mode .panel.utility-open > .panel-head h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0;
+  text-align: center;
+}
+body.utility-mode .panel.utility-open > .panel-head .panel-add-btn {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 0.84rem;
+  justify-self: end;
+}
+
+/* Hide global utility close button — each panel now has its own back button */
 body.utility-mode .utility-close {
-  top: 14px;
-  left: 12px;
+  display: none !important;
 }
 
 body.sheet-open .utility-close {
@@ -2603,6 +2810,16 @@ body.utility-mode #dashboardPanel {
     border-radius: 22px;
     bottom: 20px;
     border: none;
+  }
+
+  /* Settings sheet: full-screen on desktop */
+  #settingsSheet .sheet-card {
+    left: 0;
+    width: 100%;
+    transform: none;
+    border-radius: 0;
+    bottom: 0;
+    max-width: none;
   }
 
   .grid-two {

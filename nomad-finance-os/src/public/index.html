@@ -292,152 +292,164 @@
         <div id="transactionList" class="list-block"></div>
       </section>
 
-      <section id="budgetsPanel" class="panel">
-        <h2>Budgets</h2>
-        <p class="hint">Budget = spending limit by category and period (monthly/yearly).</p>
-        <div class="grid-two">
-          <form id="budgetForm" class="card form-grid">
-            <h3 class="grid-span">Monthly Budget</h3>
+      <!-- ── Accounts Panel ── -->
+      <section id="accountsPanel" class="panel">
+        <div class="panel-head sheet-head settings-subpage-head">
+          <button class="settings-back-btn panel-back-btn" id="accountsBackBtn" type="button">‹ Settings</button>
+          <h3 id="accountsPanelTitle">Accounts</h3>
+          <button class="panel-add-btn" id="toggleAccountFormBtn" type="button">＋ Add</button>
+        </div>
+        <div id="accountList" class="list-block"></div>
+        <div id="accountCreateWrap" class="panel-form-wrap hidden">
+          <form id="accountForm" class="card account-create-form">
+            <p class="panel-form-eyebrow">New Account</p>
             <label>
-              Month
-              <input name="month" type="month" required />
+              <span class="field-eyebrow">Name</span>
+              <input name="name" type="text" placeholder="e.g. SCB Savings" required autocomplete="off" />
             </label>
-            <label>
-              Category L1
-              <select name="category_l1"></select>
-            </label>
-            <label>
-              Total Amount
-              <input name="total_amount" type="number" step="0.01" required />
-            </label>
-            <div class="actions">
-              <button class="btn btn-solid" type="submit">Upsert</button>
+            <div class="account-form-row">
+              <label>
+                <span class="field-eyebrow">Type</span>
+                <select name="type" required>
+                  <option value="bank">🏦 Bank</option>
+                  <option value="cash">💵 Cash</option>
+                  <option value="wise">💸 Wise</option>
+                  <option value="crypto_wallet">₿ Crypto</option>
+                  <option value="exchange">📈 Exchange</option>
+                  <option value="alipay">🅰 Alipay</option>
+                  <option value="wechat">💬 WeChat</option>
+                  <option value="restricted_cash">🔒 Restricted</option>
+                </select>
+              </label>
+              <label>
+                <span class="field-eyebrow">Currency</span>
+                <select name="currency" required>
+                  <option value="CNY">CNY</option>
+                  <option value="EUR">EUR</option>
+                  <option value="THB">THB</option>
+                  <option value="USD" selected>USD</option>
+                  <option value="JPY">JPY</option>
+                  <option value="KRW">KRW</option>
+                </select>
+              </label>
             </div>
-          </form>
-          <form id="yearlyBudgetForm" class="card form-grid">
-            <h3 class="grid-span">Yearly Budget</h3>
             <label>
-              Year
-              <input name="year" type="number" min="2000" max="2100" required />
+              <span class="field-eyebrow">Opening Balance</span>
+              <input name="balance" type="number" step="0.01" value="0" inputmode="decimal" />
             </label>
-            <label>
-              Category L1
-              <select name="category_l1"></select>
-            </label>
-            <label>
-              Total Amount
-              <input name="total_amount" type="number" step="0.01" required />
-            </label>
-            <div class="actions">
-              <button class="btn btn-solid" type="submit">Upsert</button>
-            </div>
+            <button class="btn btn-solid" type="submit">Create Account</button>
           </form>
         </div>
-        <article class="card">
-          <h3>Monthly Budgets</h3>
+      </section>
+
+      <!-- ── Budget Panel ── -->
+      <section id="budgetsPanel" class="panel">
+        <div class="panel-head sheet-head settings-subpage-head">
+          <button class="settings-back-btn panel-back-btn" id="budgetsBackBtn" type="button">‹ Settings</button>
+          <h3 id="budgetsPanelTitle">Budget</h3>
+          <div></div>
+        </div>
+
+        <!-- Monthly / Yearly segment toggle -->
+        <div class="budget-scope-toggle">
+          <button class="budget-scope-btn active" id="budgetToggleMonthly" type="button">
+            <span id="budgetMonthlyTitle">Monthly</span>
+          </button>
+          <button class="budget-scope-btn" id="budgetToggleYearly" type="button">
+            <span id="budgetYearlyTitle">Yearly</span>
+          </button>
+        </div>
+
+        <article class="card" id="budgetMonthlyCard">
           <div id="budgetList" class="list-block"></div>
         </article>
-        <article class="card">
-          <h3>Yearly Budgets</h3>
+
+        <article class="card hidden" id="budgetYearlyCard">
           <div id="yearlyBudgetList" class="list-block"></div>
         </article>
-      </section>
 
-      <section id="accountsPanel" class="panel">
-        <h2>Accounts</h2>
-        <form id="accountForm" class="card account-create-form">
-          <h3 class="account-form-title">New Account</h3>
-          <label>
-            <span class="field-eyebrow">Name</span>
-            <input name="name" type="text" placeholder="e.g. SCB Savings" required />
-          </label>
-          <div class="account-form-row">
-            <label>
-              <span class="field-eyebrow">Type</span>
-              <select name="type" required>
-                <option value="bank">🏦 Bank</option>
-                <option value="cash">💵 Cash</option>
-                <option value="wise">💸 Wise</option>
-                <option value="crypto_wallet">₿ Crypto</option>
-                <option value="exchange">📈 Exchange</option>
-                <option value="alipay">🅰 Alipay</option>
-                <option value="wechat">💬 WeChat</option>
-                <option value="restricted_cash">🔒 Restricted</option>
-              </select>
-            </label>
-            <label>
-              <span class="field-eyebrow">Currency</span>
-              <select name="currency" required>
-                <option value="CNY">CNY</option>
-                <option value="EUR">EUR</option>
-                <option value="THB">THB</option>
-                <option value="USD" selected>USD</option>
-                <option value="JPY">JPY</option>
-                <option value="KRW">KRW</option>
-              </select>
-            </label>
-          </div>
-          <label>
-            <span class="field-eyebrow">Opening Balance</span>
-            <input name="balance" type="number" step="0.01" value="0" inputmode="decimal" />
-          </label>
-          <button class="btn btn-solid" type="submit" style="margin-top:4px">Create Account</button>
+        <!-- Bottom add category button -->
+        <button class="budget-add-category-btn" id="budgetAddCategoryBtn" type="button">
+          ＋ <span id="budgetAddCategoryLabel">Add Category</span>
+        </button>
+
+        <!-- hidden form refs (used by budget sheet / legacy) -->
+        <form id="budgetForm" class="hidden" aria-hidden="true">
+          <input name="month" type="month" />
+          <select name="category_l1"></select>
+          <input name="total_amount" type="number" step="0.01" />
         </form>
-        <div id="accountList" class="list-block"></div>
+        <form id="yearlyBudgetForm" class="hidden" aria-hidden="true">
+          <input name="year" type="number" />
+          <select name="category_l1"></select>
+          <input name="total_amount" type="number" step="0.01" />
+        </form>
       </section>
 
+      <!-- ── Categories Panel ── -->
+      <section id="categoriesPanel" class="panel">
+        <div class="panel-head sheet-head settings-subpage-head">
+          <button class="settings-back-btn panel-back-btn" id="categoriesBackBtn" type="button">‹ Settings</button>
+          <h3 id="categoriesPanelTitle">Categories</h3>
+          <button id="addL1BottomBtn" class="panel-add-btn" type="button">＋ Add</button>
+        </div>
+        <div id="categoryTree" class="list-block"></div>
+      </section>
+
+      <!-- ── Monthly Review Panel ── -->
       <section id="reviewPanel" class="panel">
-        <h2>Monthly Review</h2>
-        <button id="generateReviewBtn" class="btn btn-solid">Generate Snapshot</button>
-        <article class="card">
-          <h3>Summary</h3>
-          <p id="reviewSummary"></p>
+        <div class="panel-head sheet-head settings-subpage-head">
+          <button class="settings-back-btn panel-back-btn" id="reviewBackBtn" type="button">‹ Settings</button>
+          <h3 id="reviewPanelTitle">Monthly Review</h3>
+          <button id="generateReviewBtn" class="panel-add-btn" type="button">Refresh</button>
+        </div>
+        <article class="card review-summary-card">
+          <h3 id="reviewSummaryTitle">Summary</h3>
+          <p id="reviewSummary" class="review-summary-text muted"></p>
         </article>
         <article class="card">
-          <h3>Expense Structure L1</h3>
+          <h3 id="reviewL1Title">Expense Breakdown</h3>
           <div id="reviewL1"></div>
         </article>
         <article class="card">
-          <h3>Top 5 Expense Transactions</h3>
+          <h3 id="reviewTopTitle">Top Expenses</h3>
           <div id="reviewTop"></div>
         </article>
       </section>
 
-      <section id="categoriesPanel" class="panel">
-        <h2>Categories</h2>
-        <div id="categoryTree" class="list-block"></div>
-        <div class="category-bottom-actions">
-          <button id="addL1BottomBtn" class="btn btn-ghost category-add-l1-btn" type="button">✏️ Add L1</button>
-        </div>
-      </section>
-
+      <!-- ── Agent Access Panel ── -->
       <section id="settingsPanel" class="panel">
-        <h2>Settings & Agent Access</h2>
-        <form id="agentTokenForm" class="card form-grid">
-          <h3 id="agentTokenTitle" class="grid-span">Agent API Tokens</h3>
-          <p class="grid-span muted" id="agentTokenHint">
-            Create a token for your own agent. The plain token is shown only once.
-          </p>
-          <label>
-            <span id="agentTokenNameLabel">Token Name</span>
-            <input name="name" type="text" maxlength="80" placeholder="My Telegram Agent" required />
-          </label>
-          <div class="actions">
-            <button id="agentTokenCreateBtn" class="btn btn-solid" type="submit">Create Token</button>
-          </div>
-        </form>
+        <div class="panel-head sheet-head settings-subpage-head">
+          <button class="settings-back-btn panel-back-btn" id="agentBackBtn" type="button">‹ Settings</button>
+          <h3 id="agentPanelTitle">Agent Access</h3>
+          <button class="panel-add-btn" id="toggleAgentFormBtn" type="button">＋ Token</button>
+        </div>
+
         <article class="card">
-          <h3 id="agentQuickstartTitle">Agent Quickstart</h3>
-          <p class="muted" id="agentQuickstartHint">
-            Copy one setup block for another agent to download the skill and start calling this API.
-          </p>
-          <div class="actions">
-            <button id="agentQuickstartCopyBtn" class="btn btn-ghost" type="button">Copy Agent Setup</button>
+          <div class="section-head">
+            <h3 id="agentTokenListTitle">Active Tokens</h3>
           </div>
-        </article>
-        <article class="card">
-          <h3 id="agentTokenListTitle">Existing Agent Tokens</h3>
           <div id="agentTokenList" class="list-block"></div>
+        </article>
+
+        <div id="agentCreateWrap" class="panel-form-wrap hidden">
+          <form id="agentTokenForm" class="card panel-inline-form">
+            <p class="panel-form-eyebrow" id="agentTokenTitle">New Token</p>
+            <p class="muted small" id="agentTokenHint">Token is shown only once after creation.</p>
+            <label>
+              <span class="field-eyebrow" id="agentTokenNameLabel">Token Name</span>
+              <input name="name" type="text" maxlength="80" placeholder="e.g. Telegram Bot" required autocomplete="off" />
+            </label>
+            <button id="agentTokenCreateBtn" class="btn btn-solid" type="submit">Create Token</button>
+          </form>
+        </div>
+
+        <article class="card">
+          <div class="section-head">
+            <h3 id="agentQuickstartTitle">Quickstart</h3>
+          </div>
+          <p class="muted small" id="agentQuickstartHint">Copy a setup block for your agent to call this API.</p>
+          <button id="agentQuickstartCopyBtn" class="btn btn-ghost" type="button" style="margin-top:8px">Copy Agent Setup</button>
         </article>
       </section>
     </main>
@@ -614,50 +626,147 @@
     <section id="settingsSheet" class="sheet hidden" aria-hidden="true">
       <div class="sheet-backdrop" data-close-sheet="settingsSheet"></div>
       <article class="sheet-card">
-        <div class="sheet-head">
-          <h3 id="settingsSheetTitle">Settings</h3>
-          <button class="btn btn-ghost" type="button" data-close-sheet="settingsSheet">Close</button>
-        </div>
 
-        <form id="quickSettingsForm" class="settings-form">
-          <label id="quickSettingsUserRow" class="hidden">
-            <span id="quickSettingsUserLabel">User ID</span>
-            <input name="user_id" type="number" min="1" value="1" />
-          </label>
-
-          <!-- Section: Preferences -->
-          <p class="settings-section-label" id="quickSettingsLangLabel">Preferences</p>
-          <div class="settings-group">
-            <div class="settings-row">
-              <span class="settings-row-label">Language</span>
-              <select name="ui_language" class="settings-inline-select">
-                <option value="en">English</option>
-                <option value="zh">中文</option>
-              </select>
-            </div>
-            <div class="settings-row">
-              <span class="settings-row-label" id="quickSettingsBaseLabel">Base Currency</span>
-              <select name="base_currency" class="settings-inline-select">
-                <option value="CNY">CNY</option>
-                <option value="EUR">EUR</option>
-                <option value="THB">THB</option>
-                <option value="USD" selected>USD</option>
-                <option value="JPY">JPY</option>
-                <option value="KRW">KRW</option>
-              </select>
-            </div>
-            <div class="settings-row">
-              <span class="settings-row-label" id="quickSettingsTimezoneLabel">Timezone</span>
-              <input name="timezone" type="text" value="UTC" class="settings-inline-input" />
-            </div>
+        <!-- ── PAGE: Main ── -->
+        <div class="settings-page" id="settingsPageMain">
+          <div class="sheet-head">
+            <h3 id="settingsSheetTitle">Settings</h3>
+            <button class="btn btn-ghost" type="button" data-close-sheet="settingsSheet">Close</button>
           </div>
 
-          <!-- Section: Dashboard Widgets -->
-          <p class="settings-section-label" id="quickSettingsAdvancedLabel">Dashboard Widgets</p>
+          <div class="settings-nav-group">
+            <button class="settings-nav-row" id="settingsOpenGeneral" type="button">
+              <span class="settings-nav-icon">🌐</span>
+              <span class="settings-nav-label" id="settingsGeneralNavLabel">General</span>
+              <span class="settings-nav-chevron">›</span>
+            </button>
+            <button class="settings-nav-row" id="settingsOpenWidgets" type="button">
+              <span class="settings-nav-icon">📊</span>
+              <span class="settings-nav-label" id="quickSettingsAdvancedLabel">Dashboard Widgets</span>
+              <span class="settings-nav-chevron">›</span>
+            </button>
+            <button class="settings-nav-row" id="settingsLinkAccounts" type="button">
+              <span class="settings-nav-icon">🏦</span>
+              <span class="settings-nav-label" id="settingsLinkAccountsLabel">Accounts</span>
+              <span class="settings-nav-chevron">›</span>
+            </button>
+            <button class="settings-nav-row" id="settingsLinkBudget" type="button">
+              <span class="settings-nav-icon">📋</span>
+              <span class="settings-nav-label" id="settingsLinkBudgetLabel">Budget Plans</span>
+              <span class="settings-nav-chevron">›</span>
+            </button>
+            <button class="settings-nav-row" id="settingsLinkCategories" type="button">
+              <span class="settings-nav-icon">🏷️</span>
+              <span class="settings-nav-label" id="settingsLinkCategoriesLabel">Categories</span>
+              <span class="settings-nav-chevron">›</span>
+            </button>
+            <button class="settings-nav-row" id="settingsLinkReview" type="button">
+              <span class="settings-nav-icon">📅</span>
+              <span class="settings-nav-label" id="settingsLinkReviewLabel">Monthly Review</span>
+              <span class="settings-nav-chevron">›</span>
+            </button>
+            <button class="settings-nav-row" id="settingsLinkAi" type="button">
+              <span class="settings-nav-icon">🤖</span>
+              <span class="settings-nav-label" id="settingsLinkAiLabel">Agent Access</span>
+              <span class="settings-nav-chevron">›</span>
+            </button>
+          </div>
+
+          <!-- Debug Panel (hidden until toggled) -->
+          <section id="debugPanel" class="debug-panel hidden">
+            <div class="section-head">
+              <h3 id="debugPanelTitle">Debug Panel</h3>
+              <span id="debugCountHint" class="mono muted">0</span>
+            </div>
+            <div class="debug-controls">
+              <label class="settings-toggle-row">
+                <span id="debugOnlyFailedLabel">Only Failed</span>
+                <input id="debugOnlyFailed" type="checkbox" role="switch" />
+              </label>
+              <label>
+                <span id="debugFilterLabel">Filter</span>
+                <input id="debugFilterInput" type="text" placeholder="accounts" />
+              </label>
+            </div>
+            <div class="tag-wrap">
+              <button class="btn" id="debugCopyBtn" type="button">Copy Diagnostics</button>
+              <button class="btn btn-ghost" id="debugClearBtn" type="button">Clear</button>
+            </div>
+            <article class="debug-block">
+              <h3 id="debugRequestsTitle">Requests</h3>
+              <div id="debugRequestList" class="list-block"></div>
+            </article>
+            <article class="debug-block">
+              <h3 id="debugRuntimeTitle">Runtime Errors</h3>
+              <div id="debugRuntimeList" class="list-block"></div>
+            </article>
+          </section>
+
+          <div class="settings-danger-zone">
+            <button class="btn settings-logout-btn" id="quickLogoutBtn" type="button">Log Out</button>
+          </div>
+        </div>
+
+        <!-- ── PAGE: General ── -->
+        <div class="settings-page hidden" id="settingsPageGeneral">
+          <div class="sheet-head settings-subpage-head">
+            <button class="settings-back-btn" id="settingsBackFromGeneral" type="button">‹ Settings</button>
+            <h3 id="settingsGeneralPageTitle">General</h3>
+            <div></div>
+          </div>
+
+          <form id="quickSettingsForm" class="settings-form">
+            <label id="quickSettingsUserRow" class="hidden">
+              <span id="quickSettingsUserLabel">User ID</span>
+              <input name="user_id" type="number" min="1" value="1" />
+            </label>
+
+            <div class="settings-group">
+              <div class="settings-row">
+                <span class="settings-row-label">Language</span>
+                <select name="ui_language" class="settings-inline-select">
+                  <option value="en">English</option>
+                  <option value="zh">中文</option>
+                </select>
+              </div>
+              <div class="settings-row">
+                <span class="settings-row-label" id="quickSettingsBaseLabel">Base Currency</span>
+                <select name="base_currency" class="settings-inline-select">
+                  <option value="CNY">CNY</option>
+                  <option value="EUR">EUR</option>
+                  <option value="THB">THB</option>
+                  <option value="USD" selected>USD</option>
+                  <option value="JPY">JPY</option>
+                  <option value="KRW">KRW</option>
+                </select>
+              </div>
+              <div class="settings-row">
+                <span class="settings-row-label" id="quickSettingsTimezoneLabel">Timezone</span>
+                <input name="timezone" type="text" value="UTC" class="settings-inline-input" />
+              </div>
+            </div>
+
+            <button class="btn btn-solid settings-save-btn" id="quickSettingsSaveBtn" type="submit">Save Settings</button>
+          </form>
+        </div>
+
+        <!-- ── PAGE: Dashboard Widgets ── -->
+        <div class="settings-page hidden" id="settingsPageWidgets">
+          <div class="sheet-head settings-subpage-head">
+            <button class="settings-back-btn" id="settingsBackFromWidgets" type="button">‹ Settings</button>
+            <h3>Dashboard Widgets</h3>
+            <div></div>
+          </div>
+
+          <p class="settings-section-label">Show on Dashboard</p>
           <div class="settings-group">
             <label class="settings-toggle-row">
               <span id="toggleRecentExpensesLabel">Transactions Card</span>
               <input id="toggleRecentExpenses" type="checkbox" role="switch" />
+            </label>
+            <label class="settings-toggle-row">
+              <span id="toggleTodayLabel">Today Card</span>
+              <input id="toggleToday" type="checkbox" role="switch" />
             </label>
             <label class="settings-toggle-row">
               <span id="toggleCashFlowLabel">Cash Flow Pulse</span>
@@ -676,74 +785,8 @@
               <input id="toggleDebug" type="checkbox" role="switch" />
             </label>
           </div>
-
-          <button class="btn btn-solid settings-save-btn" id="quickSettingsSaveBtn" type="submit">Save Settings</button>
-        </form>
-
-        <!-- Section: Navigate -->
-        <p class="settings-section-label">Manage</p>
-        <div class="settings-nav-group">
-          <button class="settings-nav-row" id="settingsLinkAccounts" type="button" data-open-panel="accountsPanel">
-            <span class="settings-nav-icon">🏦</span>
-            <span class="settings-nav-label">Accounts</span>
-            <span class="settings-nav-chevron">›</span>
-          </button>
-          <button class="settings-nav-row" id="settingsLinkBudget" type="button" data-open-panel="budgetsPanel">
-            <span class="settings-nav-icon">📊</span>
-            <span class="settings-nav-label">Budget Plans</span>
-            <span class="settings-nav-chevron">›</span>
-          </button>
-          <button class="settings-nav-row" id="settingsLinkCategories" type="button" data-open-panel="categoriesPanel">
-            <span class="settings-nav-icon">🏷️</span>
-            <span class="settings-nav-label">Categories</span>
-            <span class="settings-nav-chevron">›</span>
-          </button>
-          <button class="settings-nav-row" id="settingsLinkReview" type="button" data-open-panel="reviewPanel">
-            <span class="settings-nav-icon">📅</span>
-            <span class="settings-nav-label">Monthly Review</span>
-            <span class="settings-nav-chevron">›</span>
-          </button>
-          <button class="settings-nav-row" id="settingsLinkAi" type="button" data-open-panel="settingsPanel">
-            <span class="settings-nav-icon">🤖</span>
-            <span class="settings-nav-label">Agent Access</span>
-            <span class="settings-nav-chevron">›</span>
-          </button>
         </div>
 
-        <!-- Debug Panel -->
-        <section id="debugPanel" class="debug-panel hidden">
-          <div class="section-head">
-            <h3 id="debugPanelTitle">Debug Panel</h3>
-            <span id="debugCountHint" class="mono muted">0</span>
-          </div>
-          <div class="debug-controls">
-            <label class="settings-toggle-row">
-              <span id="debugOnlyFailedLabel">Only Failed</span>
-              <input id="debugOnlyFailed" type="checkbox" role="switch" />
-            </label>
-            <label>
-              <span id="debugFilterLabel">Filter</span>
-              <input id="debugFilterInput" type="text" placeholder="accounts" />
-            </label>
-          </div>
-          <div class="tag-wrap">
-            <button class="btn" id="debugCopyBtn" type="button">Copy Diagnostics</button>
-            <button class="btn btn-ghost" id="debugClearBtn" type="button">Clear</button>
-          </div>
-          <article class="debug-block">
-            <h3 id="debugRequestsTitle">Requests</h3>
-            <div id="debugRequestList" class="list-block"></div>
-          </article>
-          <article class="debug-block">
-            <h3 id="debugRuntimeTitle">Runtime Errors</h3>
-            <div id="debugRuntimeList" class="list-block"></div>
-          </article>
-        </section>
-
-        <!-- Danger zone -->
-        <div class="settings-danger-zone">
-          <button class="btn settings-logout-btn" id="quickLogoutBtn" type="button">Log Out</button>
-        </div>
       </article>
     </section>
 
@@ -784,6 +827,39 @@
           <button class="btn account-delete-btn" id="accountDeleteBtn" type="button">Delete Account</button>
           <button class="btn btn-danger" id="accountForceDeleteBtn" type="button">Force Delete (with all Transactions)</button>
         </div>
+      </article>
+    </section>
+
+    <section id="budgetEditSheet" class="sheet hidden" aria-hidden="true">
+      <div class="sheet-backdrop" data-close-sheet="budgetEditSheet"></div>
+      <article class="sheet-card">
+        <div class="sheet-head">
+          <h3 id="budgetEditTitle">Edit Budget</h3>
+          <button class="btn btn-ghost" type="button" data-close-sheet="budgetEditSheet">Close</button>
+        </div>
+        <form id="budgetEditForm" class="sheet-form">
+          <input name="scope" type="hidden" />
+          <input name="period" type="hidden" />
+          <input name="category_l1_orig" type="hidden" />
+          <label>
+            <span class="field-eyebrow" id="budgetEditScopeLabel">Scope</span>
+            <input name="scope_display" type="text" readonly style="color:var(--ink-soft)" />
+          </label>
+          <label>
+            <span class="field-eyebrow" id="budgetEditPeriodLabel">Period</span>
+            <input name="period_display" type="text" readonly style="color:var(--ink-soft)" />
+          </label>
+          <label>
+            <span class="field-eyebrow" id="budgetEditCatLabel">Category</span>
+            <input name="category_display" type="text" readonly style="color:var(--ink-soft)" />
+          </label>
+          <label>
+            <span class="field-eyebrow" id="budgetEditAmtLabel">Amount</span>
+            <input name="total_amount" type="number" step="0.01" min="0" required />
+          </label>
+          <p class="muted small" id="budgetEditHint">Set amount to 0 to remove this budget.</p>
+          <button class="btn btn-solid" id="budgetEditSaveBtn" type="submit">Save</button>
+        </form>
       </article>
     </section>
 

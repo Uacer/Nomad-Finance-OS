@@ -24,6 +24,28 @@ function runMigrations(db) {
     WHERE email IS NOT NULL
   `);
   db.exec(`
+    CREATE TABLE IF NOT EXISTS auth_email_codes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      email_normalized TEXT NOT NULL,
+      code_hash TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      used_at TEXT,
+      revoked INTEGER NOT NULL DEFAULT 0,
+      requested_ip TEXT NOT NULL DEFAULT '',
+      user_agent TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_auth_email_codes_user ON auth_email_codes(user_id, created_at DESC)
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_auth_email_codes_lookup
+    ON auth_email_codes(email_normalized, code_hash, created_at DESC)
+  `);
+  db.exec(`
     CREATE TABLE IF NOT EXISTS auth_magic_links (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
@@ -86,6 +108,13 @@ function runMigrations(db) {
   ensureColumn(db, "auth_magic_links", "email_normalized", "TEXT");
   ensureColumn(db, "auth_magic_links", "revoked", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "auth_magic_links", "requested_ip", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "auth_email_codes", "code_hash", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "auth_email_codes", "expires_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP");
+  ensureColumn(db, "auth_email_codes", "used_at", "TEXT");
+  ensureColumn(db, "auth_email_codes", "email_normalized", "TEXT");
+  ensureColumn(db, "auth_email_codes", "revoked", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, "auth_email_codes", "requested_ip", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "auth_email_codes", "user_agent", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "auth_sessions", "revoked", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "auth_sessions", "last_seen_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP");
   ensureColumn(db, "auth_api_tokens", "name", "TEXT NOT NULL DEFAULT ''");
