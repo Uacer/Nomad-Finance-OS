@@ -20,6 +20,7 @@
 body {
   margin: 0;
   min-height: 100vh;
+  overflow-x: hidden;
   font-family: "Space Grotesk", sans-serif;
   color: var(--ink);
   background:
@@ -77,28 +78,6 @@ body.auth-required {
   gap: 10px;
 }
 
-.auth-field {
-  display: grid;
-  gap: 6px;
-}
-
-.auth-inline-link {
-  border: 0;
-  background: transparent;
-  color: var(--ink-soft);
-  text-decoration: underline;
-  cursor: pointer;
-  padding: 0;
-  margin: 0;
-  font: inherit;
-}
-
-.auth-inline-link:disabled {
-  text-decoration: none;
-  cursor: default;
-  opacity: 0.65;
-}
-
 .topbar {
   position: sticky;
   top: 0;
@@ -108,6 +87,8 @@ body.auth-required {
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
+  padding-left: max(14px, env(safe-area-inset-left) + 14px);
+  padding-right: max(14px, env(safe-area-inset-right) + 14px);
   border-bottom: 0;
   background: color-mix(in oklab, var(--bg-2), white 14%);
   backdrop-filter: blur(12px);
@@ -522,7 +503,11 @@ body.auth-required .fab {
 .layout {
   display: grid;
   gap: 14px;
-  padding: 14px 16px calc(80px + env(safe-area-inset-bottom));
+  padding-top: 14px;
+  padding-right: 20px;
+  padding-bottom: 80px;
+  padding-left: 20px;
+  overflow: visible;
 }
 
 .panel {
@@ -533,6 +518,70 @@ body.auth-required .fab {
   display: grid;
   gap: 14px;
   animation: fade-slide 200ms ease;
+}
+
+/* ── Dashboard sortable container ── */
+#dashboardSortable {
+  display: grid;
+  gap: 14px;
+}
+
+/* Draggable card wrapper */
+.dashboard-card {
+  position: relative;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Drag handle dot-grid — top-right, opacity 0 normally */
+.dashboard-card::before {
+  content: "⠿";
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  font-size: 1rem;
+  color: var(--ink-soft);
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+  letter-spacing: -2px;
+}
+
+.sort-active .dashboard-card::before,
+.dashboard-card:hover::before {
+  opacity: 0.3;
+}
+
+/* 80ms long-press visual lift */
+.press-ready {
+  transform: scale(1.025);
+  box-shadow: 0 8px 28px rgba(56,44,33,.16), 0 2px 8px rgba(56,44,33,.1) !important;
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 200ms ease !important;
+  z-index: 10;
+  position: relative;
+}
+
+/* Actively dragging */
+.is-dragging {
+  box-shadow: 0 16px 48px rgba(56,44,33,.24), 0 4px 14px rgba(56,44,33,.16) !important;
+  opacity: 0.97;
+  transform: scale(1.02) !important;
+  z-index: 200;
+  cursor: grabbing;
+}
+
+/* Placeholder slot while dragging */
+.drag-placeholder {
+  border-radius: 20px;
+  background: color-mix(in oklab, var(--line), transparent 55%);
+  border: 2px dashed color-mix(in oklab, var(--line), transparent 20%);
+  pointer-events: none;
+}
+
+.sort-active .dashboard-card:not(.is-dragging) {
+  transition: margin 180ms ease;
 }
 
 #capturePanel {
@@ -558,6 +607,15 @@ h3 {
 
 h2 {
   font-size: 1.1rem;
+}
+
+.dash-section-label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
 }
 
 h3 {
@@ -587,7 +645,9 @@ h3 {
 }
 
 .section-title-btn::after {
-  content: "";
+  content: " →";
+  opacity: 0.45;
+  font-size: 0.9em;
 }
 
 .section-title-btn:hover {
@@ -620,7 +680,6 @@ h3 {
 .hero-card {
   display: grid;
   gap: 10px;
-  border-left: 4px solid var(--accent);
 }
 
 .hero-top {
@@ -717,73 +776,7 @@ h3 {
   font-size: 1.1rem;
 }
 
-/* ── Dashboard sortable container ── */
-#dashboardSortable {
-  display: grid;
-  gap: 14px;
-}
-
-/* Drag handle — three-dot grip shown on hover/long-press */
-.dashboard-card {
-  position: relative;
-  /* Prevent text selection and iOS callout during long-press drag */
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-touch-callout: none;
-}
-
-.dashboard-card::before {
-  content: "⠿";
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  font-size: 1rem;
-  color: var(--ink-soft);
-  opacity: 0;
-  transition: opacity 200ms ease;
-  pointer-events: none;
-  letter-spacing: -2px;
-}
-
-.sort-active .dashboard-card::before,
-.dashboard-card:hover::before {
-  opacity: 0.3;
-}
-
-/* 80ms into long-press: card gently lifts to signal "ready to drag" */
-.press-ready {
-  transform: scale(1.025);
-  box-shadow: 0 8px 28px rgba(56,44,33,.16), 0 2px 8px rgba(56,44,33,.1) !important;
-  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1),
-              box-shadow 200ms ease !important;
-  z-index: 10;
-  position: relative;
-}
-
-.is-dragging {
-  box-shadow: 0 16px 48px rgba(56,44,33,.24), 0 4px 14px rgba(56,44,33,.16) !important;
-  opacity: 0.97;
-  transform: scale(1.02) !important;
-  z-index: 200;
-  cursor: grabbing;
-}
-
-.drag-placeholder {
-  border-radius: 20px;
-  background: color-mix(in oklab, var(--line), transparent 55%);
-  border: 2px dashed color-mix(in oklab, var(--line), transparent 20%);
-  box-sizing: border-box;
-  transition: height 120ms ease;
-}
-
-.sort-active .dashboard-card:not(.is-dragging) {
-  transition: margin 180ms ease;
-}
-
 /* Today Expenses Card */
-#todayExpensesCard {
-  border-left: 4px solid var(--danger);
-}
 
 .today-expenses-title {
   font-size: 1rem;
@@ -798,16 +791,8 @@ h3 {
   color: var(--danger);
 }
 
-#todayExpensesCard #todayExpensesList,
-#recentExpensesCard #recentExpensesList {
-  margin-top: 14px;
-}
-
-/* Section head: more breathing room below title */
-.card > .section-head {
-  margin-bottom: 2px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid color-mix(in oklab, var(--line), transparent 50%);
+#todayExpensesCard #todayExpensesList {
+  margin-top: 8px;
 }
 
 .infographic-grid {
@@ -816,7 +801,7 @@ h3 {
 }
 
 .budget-plan-summary {
-  margin-top: 14px;
+  margin-top: 4px;
   font-size: 0.84rem;
 }
 
@@ -824,26 +809,27 @@ h3 {
   margin-top: 14px;
 }
 
-.budget-plan-card {
-  position: relative;
+/* .budget-head: section-head inside the budget card.
+   padding-right reserves space so the toggle button stays
+   clear of the ::before drag indicator at right:14px. */
+.budget-head {
+  padding-right: 30px;
 }
 
 .budget-view-toggle {
-  position: absolute;
-  top: 14px;
-  right: 14px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 10px;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
   border: none;
   background: rgba(56, 44, 33, 0.07);
   color: var(--ink-soft);
   cursor: pointer;
-  transition: background 120ms ease, transform 120ms ease;
   padding: 0;
+  transition: background 120ms ease, transform 120ms ease;
 }
 
 .budget-view-toggle:hover {
@@ -852,8 +838,7 @@ h3 {
 }
 
 .budget-view-toggle:active {
-  transform: scale(0.92);
-  background: rgba(56, 44, 33, 0.18);
+  transform: scale(0.9);
 }
 
 .budget-plan-row {
@@ -1191,10 +1176,6 @@ h3 {
 
 .muted {
   color: var(--ink-soft);
-}
-
-.auth-message-error {
-  color: var(--danger);
 }
 
 .overspend {
@@ -2225,17 +2206,475 @@ body.sheet-open .topbar {
   font-size: 0.85rem;
 }
 
+/* ── Settings Sheet ────────────────────────────────────────────── */
+
+.settings-form {
+  display: grid;
+  gap: 6px;
+}
+
+.settings-section-label {
+  margin: 10px 0 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+}
+
+/* iOS-style grouped rows */
+.settings-group {
+  background: var(--paper);
+  border-radius: 14px;
+  box-shadow: 0 1px 4px rgba(56,44,33,.06), 0 4px 12px rgba(56,44,33,.05);
+  overflow: hidden;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 14px;
+  border-bottom: 1px solid color-mix(in oklab, var(--line), transparent 40%);
+}
+
+.settings-row:last-child {
+  border-bottom: none;
+}
+
+.settings-row-label {
+  font-size: 0.95rem;
+  flex: 1;
+}
+
+.settings-inline-select {
+  width: auto;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  text-align: right;
+  border-radius: 0;
+}
+
+.settings-inline-input {
+  width: auto;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  text-align: right;
+  border-radius: 0;
+}
+
+/* iOS-style toggle row */
+.settings-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 14px;
+  border-bottom: 1px solid color-mix(in oklab, var(--line), transparent 40%);
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.settings-group .settings-toggle-row:last-child {
+  border-bottom: none;
+}
+
+/* iOS toggle switch */
+.settings-toggle-row input[type="checkbox"],
+.debug-controls .settings-toggle-row input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  flex-shrink: 0;
+  width: 44px;
+  height: 26px;
+  border-radius: 13px;
+  background: #c8c0b4;
+  position: relative;
+  cursor: pointer;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  min-height: unset;
+  transition: background 220ms ease;
+}
+
+.settings-toggle-row input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: white;
+  top: 2px;
+  left: 2px;
+  transition: left 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+}
+
+.settings-toggle-row input[type="checkbox"]:checked {
+  background: var(--accent);
+}
+
+.settings-toggle-row input[type="checkbox"]:checked::after {
+  left: 20px;
+}
+
+.settings-save-btn {
+  margin-top: 6px;
+}
+
+/* Nav rows (→ Accounts, Budget etc.) */
+.settings-nav-group {
+  display: grid;
+  background: var(--paper);
+  border-radius: 14px;
+  box-shadow: 0 1px 4px rgba(56,44,33,.06), 0 4px 12px rgba(56,44,33,.05);
+  overflow: hidden;
+}
+
+.settings-nav-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid color-mix(in oklab, var(--line), transparent 40%);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: var(--ink);
+  transition: opacity 120ms ease;
+}
+
+.settings-nav-row:last-child {
+  border-bottom: none;
+}
+
+.settings-nav-row:active {
+  opacity: 0.6;
+  background: color-mix(in oklab, var(--line), transparent 50%);
+}
+
+.settings-nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  font-size: 1.15rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.settings-nav-label {
+  flex: 1;
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+}
+
+.settings-nav-chevron {
+  color: var(--ink-soft);
+  font-size: 1.3rem;
+  opacity: 0.4;
+  line-height: 1;
+}
+
+/* ── Settings page navigation ── */
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.settings-page.hidden {
+  display: none;
+}
+
+@keyframes settings-slide-in {
+  from { transform: translateX(28px); opacity: 0.7; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+@keyframes settings-slide-back {
+  from { transform: translateX(-28px); opacity: 0.7; }
+  to   { transform: translateX(0);     opacity: 1; }
+}
+
+.settings-page.anim-forward {
+  animation: settings-slide-in 220ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+.settings-page.anim-back {
+  animation: settings-slide-back 220ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+@keyframes settings-page-exit {
+  from { transform: translateX(0);    opacity: 1; }
+  to   { transform: translateX(-24px); opacity: 0; }
+}
+
+.settings-page.anim-exit {
+  animation: settings-page-exit 220ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+/* Utility panel entering from settings — same curve as settings-slide-in */
+.panel.panel-entering {
+  animation: settings-slide-in 220ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+/* Sub-page header: back btn | title (center) | spacer */
+.settings-subpage-head {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+}
+
+.settings-subpage-head h3 {
+  text-align: center;
+}
+
+.settings-back-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 0;
+  text-align: left;
+  font-family: inherit;
+}
+
+.settings-back-btn:active {
+  opacity: 0.6;
+}
+
+/* Danger / logout */
+.settings-danger-zone {
+  margin-top: 16px;
+  padding-bottom: 8px;
+}
+
+.settings-logout-btn {
+  width: 100%;
+  justify-content: center;
+  color: var(--danger);
+  border-color: color-mix(in oklab, var(--danger), white 60%);
+}
+
+/* ── Panel common ────────────────────────────────────────────────── */
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.panel-head h2 {
+  margin: 0;
+}
+
+.panel-add-btn {
+  flex-shrink: 0;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.panel-add-btn:active {
+  opacity: 0.8;
+  transform: scale(0.96);
+}
+
+.panel-form-wrap {
+  animation: fade-slide 200ms ease;
+}
+
+.panel-form-wrap.hidden {
+  display: none;
+}
+
+.panel-form-eyebrow {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+}
+
+.panel-inline-form {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  background: var(--paper);
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(56,44,33,.07), 0 8px 28px rgba(56,44,33,.06);
+}
+
+.budget-scope-toggle {
+  display: flex;
+  background: var(--paper);
+  border-radius: 12px;
+  padding: 3px;
+  gap: 2px;
+  box-shadow: 0 1px 4px rgba(56,44,33,.07);
+}
+.budget-scope-btn {
+  flex: 1;
+  padding: 7px 0;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+.budget-scope-btn.active {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.budget-add-category-btn {
+  width: 100%;
+  padding: 13px;
+  border: 1.5px dashed var(--line);
+  border-radius: 14px;
+  background: none;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+.budget-add-category-btn:active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.small {
+  font-size: 0.82rem;
+}
+
+/* ── Accounts Panel ─────────────────────────────────────────────── */
+
+.account-create-form {
+  display: grid;
+  gap: 12px;
+}
+
+.account-form-title {
+  margin-bottom: -4px;
+}
+
+.account-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.field-eyebrow {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  margin-bottom: 4px;
+}
+
+.account-list-row {
+  cursor: pointer;
+}
+
+.account-row-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.account-type-icon {
+  font-size: 1.3rem;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(56,44,33,.06);
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.account-info {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.account-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-meta {
+  font-size: 0.78rem;
+}
+
+.account-balance {
+  font-size: 0.95rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* Account edit danger zone */
+.account-edit-danger {
+  margin-top: 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.account-delete-btn {
+  color: var(--danger);
+  border-color: color-mix(in oklab, var(--danger), white 60%);
+  width: 100%;
+  justify-content: center;
+}
+
+/* Legacy secondary-links kept for compatibility */
 .secondary-links {
   margin-top: 12px;
   display: grid;
   gap: 7px;
-}
-
-.secondary-links .btn {
-  text-align: left;
-  justify-content: flex-start;
-  padding-left: 14px;
-  border-radius: 12px;
 }
 
 .utility-close {
@@ -2261,9 +2700,10 @@ body.utility-mode .panel.utility-open {
   inset: 0;
   z-index: 55;
   overflow: auto;
-  padding: 76px 14px 20px;
+  padding: 14px 14px 20px;
   background: var(--bg-2);
   align-content: start;
+  gap: 12px;
 }
 
 body.utility-mode .panel.utility-open > h2,
@@ -2271,8 +2711,8 @@ body.utility-mode .panel.utility-open > h3,
 body.utility-mode .panel.utility-open > .hint,
 body.utility-mode .panel.utility-open > form,
 body.utility-mode .panel.utility-open > article,
-body.utility-mode .panel.utility-open > div,
-body.utility-mode .panel.utility-open > button {
+body.utility-mode .panel.utility-open > div:not(.panel-head),
+body.utility-mode .panel.utility-open > button:not(.panel-add-btn) {
   background: var(--paper);
   border: none;
   border-radius: 18px;
@@ -2280,9 +2720,33 @@ body.utility-mode .panel.utility-open > button {
   box-shadow: 0 2px 8px rgba(56,44,33,.07);
 }
 
+/* Panel header inside utility panel — uses sheet-head + settings-subpage-head, override card styles */
+body.utility-mode .panel.utility-open > .panel-head {
+  background: var(--bg-2) !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 0 8px !important;
+  margin-bottom: 0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+body.utility-mode .panel.utility-open > .panel-head h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0;
+  text-align: center;
+}
+body.utility-mode .panel.utility-open > .panel-head .panel-add-btn {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 0.84rem;
+  justify-self: end;
+}
+
+/* Hide global utility close button — each panel now has its own back button */
 body.utility-mode .utility-close {
-  top: 14px;
-  left: 12px;
+  display: none !important;
 }
 
 body.sheet-open .utility-close {
@@ -2346,6 +2810,16 @@ body.utility-mode #dashboardPanel {
     border-radius: 22px;
     bottom: 20px;
     border: none;
+  }
+
+  /* Settings sheet: full-screen on desktop */
+  #settingsSheet .sheet-card {
+    left: 0;
+    width: 100%;
+    transform: none;
+    border-radius: 0;
+    bottom: 0;
+    max-width: none;
   }
 
   .grid-two {

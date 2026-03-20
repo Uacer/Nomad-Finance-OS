@@ -20,11 +20,7 @@ const state = {
     authenticated: false,
     user: null,
     allowDevBypass: false,
-    devBypass: false,
-    pendingEmail: "",
-    step: "email_step",
-    submitting: false,
-    resendCooldownSec: 0
+    devBypass: false
   },
   latestExtractionId: null,
   latestExtractionDraft: null,
@@ -40,6 +36,7 @@ const state = {
     showTrend: false,
     showRisk: false,
     showRecentExpenses: true,
+    showToday: true,
     showDebug: false,
     budgetPieView: false
   },
@@ -126,7 +123,7 @@ const I18N = {
     riskMetrics: "⚠️ Risk Metrics",
     budgetStatus: "Budget Status (L1 only)",
     netWorthComposition: "🧩 Net Worth Composition",
-    plannedBudget: "Planned Budget",
+    plannedBudget: "📋 Planned Budget",
     recentExpenses: "Transactions",
     viewAllExpenses: "View All",
     budgetPlanSummary: "Planned {planned} · Spent {spent} · Remaining {remaining}",
@@ -142,22 +139,11 @@ const I18N = {
     addIncome: "💰 Add Income",
     addTransfer: "🔁 Add Transfer",
     authTitle: "Nomad Finance OS",
-    authSubtitle: "Sign in with your email verification code.",
+    authSubtitle: "Sign in with your email magic link.",
     authEmailLabel: "Email",
-    authContinueBtn: "Continue",
-    authCodeLabel: "Verification Code",
-    authHint: "We'll send a 6-digit code that expires in 10 minutes.",
-    authSent: "Verification code sent. Check your inbox.",
-    authResendSent: "Verification code resent.",
-    authCodeSentTo: "Code sent to {email}. Enter it below.",
-    authResendIn: "{seconds}s before you can resend code.",
-    authResendBtn: "Resend verification code",
-    authSignedIn: "Signed in successfully.",
-    authCodeInvalid: "Verification code is invalid or expired.",
-    authTooMany: "Too many attempts. Please try again later.",
-    authEmailFailed: "Email delivery failed. Please try again.",
-    authRequestFailed: "Failed to request verification code.",
-    authVerifyFailed: "Verification failed. Please try again.",
+    authSendBtn: "Send Magic Link",
+    authHint: "We'll send a sign-in link that expires in 15 minutes.",
+    authSent: "Magic link sent. Check your inbox.",
     authSessionExpired: "Session expired. Please sign in again.",
     close: "Close",
     date: "Date",
@@ -188,16 +174,19 @@ const I18N = {
     totalAmount: "Total Amount",
     saveBudget: "Save Budget",
     settings: "⚙️ Settings",
+    navBackSettings: "‹ Settings",
     userId: "User ID",
     language: "Language",
     baseCurrency: "Base Currency",
     timezone: "Timezone",
     saveSettings: "Save Settings",
+    general: "General",
     advancedInsights: "Advanced Insights",
     showCashFlow: "Cash Flow Pulse",
     showTrend: "Spending Curve",
     showRisk: "Risk Metrics",
     showRecentExpenses: "Recent Transactions Card",
+    showToday: "Today Card",
     showDebug: "Debug Panel",
     logout: "Logout",
     debugPanel: "Debug Panel",
@@ -223,7 +212,13 @@ const I18N = {
     accounts: "🏦 Accounts",
     monthlyReview: "🗓️ Monthly Review",
     categories: "🧩 Categories",
+    navBudget: "Budget",
+    navAccounts: "Accounts",
+    navReview: "Monthly Review",
+    navCategories: "Categories",
+    navAgentAccess: "Agent Access",
     addL1Bottom: "✏️ Add L1",
+    addCategory: "Add Category",
     addL2Inline: "＋",
     emptyNoL2Categories: "No L2 categories",
     promptL1Name: "New L1 category name",
@@ -358,7 +353,7 @@ const I18N = {
     riskMetrics: "⚠️ 风险指标",
     budgetStatus: "预算进度（仅一级分类）",
     netWorthComposition: "🧩 净资产结构",
-    plannedBudget: "预算计划",
+    plannedBudget: "📋 预算计划",
     recentExpenses: "交易记录",
     viewAllExpenses: "查看全部",
     budgetPlanSummary: "计划 {planned} · 已花 {spent} · 剩余 {remaining}",
@@ -374,22 +369,11 @@ const I18N = {
     addIncome: "💰 新增收入",
     addTransfer: "🔁 新增转账",
     authTitle: "Nomad Finance OS",
-    authSubtitle: "使用邮箱验证码登录。",
+    authSubtitle: "使用邮箱 Magic Link 登录。",
     authEmailLabel: "邮箱",
-    authContinueBtn: "继续",
-    authCodeLabel: "验证码",
-    authHint: "我们会发送一个 10 分钟内有效的 6 位验证码。",
-    authSent: "验证码已发送，请检查邮箱。",
-    authResendSent: "验证码已重新发送。",
-    authCodeSentTo: "验证码已发送到 {email}，请输入验证码。",
-    authResendIn: "{seconds}s 后可重新发送验证码。",
-    authResendBtn: "重新发送验证码",
-    authSignedIn: "登录成功。",
-    authCodeInvalid: "验证码无效或已过期。",
-    authTooMany: "操作过于频繁，请稍后再试。",
-    authEmailFailed: "邮件发送失败，请稍后重试。",
-    authRequestFailed: "验证码发送失败，请重试。",
-    authVerifyFailed: "验证码校验失败，请重试。",
+    authSendBtn: "发送登录链接",
+    authHint: "我们会发送一个 15 分钟内有效的登录链接。",
+    authSent: "登录链接已发送，请检查邮箱。",
     authSessionExpired: "登录已过期，请重新登录。",
     close: "关闭",
     date: "日期",
@@ -420,16 +404,19 @@ const I18N = {
     totalAmount: "预算总额",
     saveBudget: "保存预算",
     settings: "⚙️ 设置",
+    navBackSettings: "‹ 设置",
     userId: "用户 ID",
     language: "语言",
     baseCurrency: "基准货币",
     timezone: "时区",
     saveSettings: "保存设置",
+    general: "通用",
     advancedInsights: "高级洞察",
     showCashFlow: "现金流脉冲",
     showTrend: "支出曲线",
     showRisk: "风险指标",
     showRecentExpenses: "最近交易卡片",
+    showToday: "今日卡片",
     showDebug: "调试面板",
     logout: "退出登录",
     debugPanel: "调试面板",
@@ -455,7 +442,13 @@ const I18N = {
     accounts: "🏦 账户管理",
     monthlyReview: "🗓️ 月度回顾",
     categories: "🧩 分类管理",
+    navBudget: "预算",
+    navAccounts: "账户管理",
+    navReview: "月度回顾",
+    navCategories: "分类管理",
+    navAgentAccess: "Agent 接入",
     addL1Bottom: "✏️ 新增一级分类",
+    addCategory: "新增分类",
     addL2Inline: "＋",
     emptyNoL2Categories: "暂无二级分类",
     promptL1Name: "输入新的一级分类名称",
@@ -581,13 +574,11 @@ const I18N = {
 };
 
 const FX_QUOTE_CACHE = new Map();
-const AUTH_RESEND_COOLDOWN_SECONDS = 60;
 const MONEY_FORMATTER = new Intl.NumberFormat(undefined, {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2
 });
 let quickEntryLimitReqSeq = 0;
-let authResendTimer = null;
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -606,15 +597,9 @@ function bindUI() {
     syncControlState();
     await loadAll();
   });
-  const authGateForm = $("#authGateForm");
-  if (authGateForm) {
-    authGateForm.addEventListener("submit", submitAuthGateForm);
-  }
-  const authResendBtn = $("#authResendBtn");
-  if (authResendBtn) {
-    authResendBtn.addEventListener("click", () => {
-      void resendAuthCode();
-    });
+  const magicLinkForm = $("#magicLinkRequestForm");
+  if (magicLinkForm) {
+    magicLinkForm.addEventListener("submit", submitMagicLinkRequestForm);
   }
   const quickLogoutBtn = $("#quickLogoutBtn");
   if (quickLogoutBtn) {
@@ -683,7 +668,7 @@ function bindUI() {
     budgetBtn.addEventListener("click", () => {
       const monthInput = $("#quickBudgetForm [name=month]");
       if (monthInput) monthInput.value = state.month;
-      openSheet("budgetSheet");
+      openSheet("budgetSheet", { preserveUtility: true });
     });
   }
   $("#quickEntryForm").addEventListener("submit", submitQuickEntryForm);
@@ -748,6 +733,14 @@ function bindUI() {
   if (toggleRecent) {
     toggleRecent.addEventListener("change", () => {
       state.ui.showRecentExpenses = toggleRecent.checked;
+      persistUiState();
+      applyAdvancedVisibility();
+    });
+  }
+  const toggleToday = $("#toggleToday");
+  if (toggleToday) {
+    toggleToday.addEventListener("change", () => {
+      state.ui.showToday = toggleToday.checked;
       persistUiState();
       applyAdvancedVisibility();
     });
@@ -854,6 +847,22 @@ function bindUI() {
   $("#quickBudgetForm").addEventListener("submit", submitQuickBudgetForm);
   $("#quickSettingsForm").addEventListener("submit", submitQuickSettingsForm);
   $("#accountEditForm").addEventListener("submit", submitAccountEditForm);
+  $("#budgetEditForm").addEventListener("submit", submitBudgetEditForm);
+  // Budget list click delegation (monthly + yearly)
+  for (const listId of ["budgetList", "yearlyBudgetList"]) {
+    const list = document.getElementById(listId);
+    if (list) list.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const row = event.target.closest("[data-action='edit-budget']");
+      if (!row) return;
+      openBudgetEditSheet(
+        String(row.getAttribute("data-scope") || "monthly"),
+        String(row.getAttribute("data-period") || ""),
+        String(row.getAttribute("data-category") || ""),
+        Number(row.getAttribute("data-amount") || 0)
+      );
+    });
+  }
   $("#transactionEditForm").addEventListener("submit", submitTransactionEditForm);
   $("#accountDeleteBtn").addEventListener("click", deleteCurrentAccount);
   $("#accountForceDeleteBtn").addEventListener("click", forceDeleteCurrentAccount);
@@ -907,9 +916,9 @@ function bindUI() {
   }
   $("#accountList").addEventListener("click", (event) => {
     if (!(event.target instanceof Element)) return;
-    const editBtn = event.target.closest("button[data-action='edit-account']");
-    if (!editBtn) return;
-    const id = Number(editBtn.getAttribute("data-id"));
+    const row = event.target.closest("[data-action='edit-account']");
+    if (!row) return;
+    const id = Number(row.getAttribute("data-id"));
     if (!Number.isInteger(id) || id <= 0) return;
     openAccountEditSheet(id);
   });
@@ -921,6 +930,20 @@ function bindUI() {
     if (!Number.isInteger(id) || id <= 0) return;
     openTransactionDetailSheet(id);
   });
+  const budgetPlanListEl = document.getElementById("budgetPlanList");
+  if (budgetPlanListEl) {
+    budgetPlanListEl.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const row = event.target.closest("[data-action='edit-budget']");
+      if (!row) return;
+      openBudgetEditSheet(
+        String(row.getAttribute("data-scope") || "monthly"),
+        String(row.getAttribute("data-period") || ""),
+        String(row.getAttribute("data-category") || ""),
+        Number(row.getAttribute("data-amount") || 0)
+      );
+    });
+  }
   $("#recentExpensesList").addEventListener("click", (event) => {
     if (!(event.target instanceof Element)) return;
     const row = event.target.closest("article[data-tx-id]");
@@ -1120,6 +1143,7 @@ function openSheet(id, options = {}) {
     if (userInput) userInput.value = String(state.userId);
     $("#quickSettingsForm [name=ui_language]").value = ensureUILanguage(state.settings?.ui_language || "en");
     syncDevBypassVisibility();
+    showSettingsPage("settingsPageMain", "back");
   }
   node.classList.remove("hidden");
   node.setAttribute("aria-hidden", "false");
@@ -1596,7 +1620,6 @@ function showAuthGate() {
     gate.setAttribute("aria-hidden", "false");
   }
   document.body.classList.add("auth-required");
-  renderAuthGate();
   syncDevBypassVisibility();
 }
 
@@ -1607,109 +1630,8 @@ function hideAuthGate() {
     gate.setAttribute("aria-hidden", "true");
   }
   document.body.classList.remove("auth-required");
-  resetAuthFormState();
-}
-
-function setAuthMessage(message, options = {}) {
-  const node = $("#authMessage");
-  if (!node) return;
-  node.textContent = String(message || "");
-  node.classList.toggle("auth-message-error", Boolean(options.error && message));
-}
-
-function renderAuthGate() {
-  const isCodeStep = state.auth.step === "code_step";
-  const emailInput = $("#authEmailInput");
-  const codeField = $("#authCodeField");
-  const codeInput = $("#authCodeInput");
-  const continueBtn = $("#authContinueBtn");
-  const resendLine = $("#authResendLine");
-  const resendText = $("#authResendText");
-  const resendBtn = $("#authResendBtn");
-
-  if (codeField) codeField.classList.toggle("hidden", !isCodeStep);
-
-  if (emailInput instanceof HTMLInputElement) {
-    if (isCodeStep && state.auth.pendingEmail) {
-      emailInput.value = String(state.auth.pendingEmail);
-    }
-    emailInput.readOnly = isCodeStep;
-  }
-
-  if (codeInput instanceof HTMLInputElement) {
-    codeInput.required = isCodeStep;
-  }
-
-  if (continueBtn instanceof HTMLButtonElement) {
-    continueBtn.textContent = t("authContinueBtn");
-    continueBtn.disabled = Boolean(state.auth.submitting);
-  }
-
-  if (resendLine) resendLine.classList.toggle("hidden", !isCodeStep);
-  if (isCodeStep) {
-    const cooldownSec = Math.max(0, Number(state.auth.resendCooldownSec || 0));
-    if (cooldownSec > 0) {
-      if (resendText) resendText.textContent = t("authResendIn", { seconds: String(cooldownSec) });
-      if (resendBtn instanceof HTMLButtonElement) {
-        resendBtn.classList.add("hidden");
-        resendBtn.disabled = true;
-      }
-    } else {
-      if (resendText) resendText.textContent = "";
-      if (resendBtn instanceof HTMLButtonElement) {
-        resendBtn.classList.remove("hidden");
-        resendBtn.disabled = Boolean(state.auth.submitting);
-      }
-    }
-  } else {
-    if (resendText) resendText.textContent = "";
-    if (resendBtn instanceof HTMLButtonElement) {
-      resendBtn.classList.add("hidden");
-      resendBtn.disabled = true;
-    }
-  }
-}
-
-function stopAuthResendCooldown(resetState = false) {
-  if (authResendTimer) {
-    clearInterval(authResendTimer);
-    authResendTimer = null;
-  }
-  if (resetState) {
-    state.auth.resendCooldownSec = 0;
-  }
-}
-
-function startAuthResendCooldown(seconds = AUTH_RESEND_COOLDOWN_SECONDS) {
-  stopAuthResendCooldown(false);
-  state.auth.resendCooldownSec = Math.max(0, Math.floor(Number(seconds) || 0));
-  renderAuthGate();
-  if (state.auth.resendCooldownSec <= 0) return;
-  authResendTimer = setInterval(() => {
-    state.auth.resendCooldownSec = Math.max(0, Number(state.auth.resendCooldownSec || 0) - 1);
-    if (state.auth.resendCooldownSec <= 0) {
-      stopAuthResendCooldown(false);
-    }
-    renderAuthGate();
-  }, 1000);
-}
-
-function resetAuthFormState() {
-  stopAuthResendCooldown(true);
-  state.auth.pendingEmail = "";
-  state.auth.step = "email_step";
-  state.auth.submitting = false;
-  const emailInput = $("#authEmailInput");
-  if (emailInput instanceof HTMLInputElement) {
-    emailInput.value = "";
-    emailInput.readOnly = false;
-  }
-  const codeInput = $("#authCodeInput");
-  if (codeInput instanceof HTMLInputElement) {
-    codeInput.value = "";
-  }
-  setAuthMessage("");
-  renderAuthGate();
+  const authMessage = $("#authMessage");
+  if (authMessage) authMessage.textContent = "";
 }
 
 function syncDevBypassVisibility() {
@@ -1723,121 +1645,39 @@ function syncDevBypassVisibility() {
   }
 }
 
-function buildAuthRequestError(response, payload) {
-  const detail =
-    typeof payload?.error === "string"
-      ? payload.error
-      : payload?.error
-        ? JSON.stringify(payload.error)
-        : `${response.status} ${response.statusText}`;
-  const error = new Error(detail);
-  error.status = response.status;
-  return error;
-}
-
-function resolveAuthErrorMessage(error, phase) {
-  const status = Number(error?.status || 0);
-  if (status === 429) return t("authTooMany");
-  if (status === 502) return t("authEmailFailed");
-  if (phase === "verify" && status === 400) return t("authCodeInvalid");
-  if (phase === "request") return t("authRequestFailed");
-  if (phase === "verify") return t("authVerifyFailed");
-  return String(error?.message || t("authVerifyFailed"));
-}
-
-async function requestAuthCode(email, options = {}) {
-  const asResend = Boolean(options.asResend);
-  const response = await fetch("/api/v1/auth/code/request", {
-    method: "POST",
-    credentials: "same-origin",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email })
-  });
-  const payload = await safeJson(response);
-  if (!response.ok) {
-    throw buildAuthRequestError(response, payload);
-  }
-  state.auth.pendingEmail = String(email || "").trim();
-  state.auth.step = "code_step";
-  startAuthResendCooldown();
-  setAuthMessage(t("authCodeSentTo", { email: state.auth.pendingEmail }));
-  renderAuthGate();
-  const codeInput = $("#authCodeInput");
-  if (codeInput instanceof HTMLInputElement) codeInput.focus();
-  showToast(asResend ? t("authResendSent") : t("authSent"));
-}
-
-async function submitAuthGateForm(event) {
+async function submitMagicLinkRequestForm(event) {
   event.preventDefault();
   const form = event.currentTarget;
   if (!(form instanceof HTMLFormElement)) return;
-  if (state.auth.submitting) return;
+  const button = $("#authRequestBtn");
+  const authMessage = $("#authMessage");
   const fd = new FormData(form);
   const email = String(fd.get("email") || "").trim();
-  const isCodeStep = state.auth.step === "code_step";
-  const code = String(fd.get("code") || "")
-    .trim()
-    .replace(/\s+/g, "");
-
   if (!email) return;
-  if (isCodeStep && !code) return;
-
-  state.auth.submitting = true;
-  setAuthMessage("");
-  renderAuthGate();
+  if (button instanceof HTMLButtonElement) button.disabled = true;
   try {
-    if (!isCodeStep) {
-      await requestAuthCode(email, { asResend: false });
-      return;
-    }
-
-    const verifyRes = await fetch("/api/v1/auth/code/verify", {
+    const response = await fetch("/api/v1/auth/magic-link/request", {
       method: "POST",
       credentials: "same-origin",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: state.auth.pendingEmail || email, code })
+      body: JSON.stringify({ email })
     });
-    const verifyPayload = await safeJson(verifyRes);
-    if (!verifyRes.ok) {
-      throw buildAuthRequestError(verifyRes, verifyPayload);
+    const payload = await safeJson(response);
+    if (!response.ok) {
+      const detail =
+        typeof payload?.error === "string"
+          ? payload.error
+          : payload?.error
+            ? JSON.stringify(payload.error)
+            : `${response.status} ${response.statusText}`;
+      throw new Error(detail);
     }
-    setAuthMessage("");
-    await loadAuthSession();
-    if (!state.auth.authenticated) {
-      throw new Error(t("authVerifyFailed"));
-    }
-    hideAuthGate();
-    showToast(t("authSignedIn"));
-    await loadAll();
+    if (authMessage) authMessage.textContent = t("authSent");
+    showToast(t("authSent"));
   } catch (error) {
-    const message = resolveAuthErrorMessage(error, isCodeStep ? "verify" : "request");
-    setAuthMessage(message, { error: true });
-    showToast(message, true);
+    showToast(String(error?.message || "Failed to request magic link."), true);
   } finally {
-    state.auth.submitting = false;
-    renderAuthGate();
-  }
-}
-
-async function resendAuthCode() {
-  if (state.auth.step !== "code_step") return;
-  if (state.auth.submitting) return;
-  if (Number(state.auth.resendCooldownSec || 0) > 0) return;
-  const email = String(state.auth.pendingEmail || "").trim();
-  if (!email) return;
-
-  state.auth.submitting = true;
-  setAuthMessage("");
-  renderAuthGate();
-  try {
-    await requestAuthCode(email, { asResend: true });
-  } catch (error) {
-    const message = resolveAuthErrorMessage(error, "request");
-    setAuthMessage(message, { error: true });
-    showToast(message, true);
-  } finally {
-    state.auth.submitting = false;
-    renderAuthGate();
+    if (button instanceof HTMLButtonElement) button.disabled = false;
   }
 }
 
@@ -1853,14 +1693,9 @@ async function logoutCurrentSession() {
   state.auth.authenticated = false;
   state.auth.user = null;
   state.auth.devBypass = false;
-  state.auth.pendingEmail = "";
-  state.auth.step = "email_step";
-  state.auth.submitting = false;
-  stopAuthResendCooldown(true);
   closeSheet("settingsSheet");
   closeAllSheets();
   closeUtilityPanel();
-  setAuthMessage("");
   showAuthGate();
 }
 
@@ -1893,6 +1728,24 @@ async function loadSettings() {
     timezone: "UTC",
     ui_language: "en"
   };
+
+  // Auto-detect local timezone on first use (when server still has UTC default)
+  if (!state.settings.timezone || state.settings.timezone === "UTC") {
+    try {
+      const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (localTz && localTz !== "UTC") {
+        state.settings.timezone = localTz;
+        // Persist silently so it sticks next load
+        api("/api/v1/settings", {
+          method: "POST",
+          body: JSON.stringify({ ...state.settings, timezone: localTz })
+        }).catch(() => {});
+      }
+    } catch {
+      // Intl not available — keep UTC
+    }
+  }
+
   const uiLanguage = ensureUILanguage(state.settings.ui_language || "en");
   state.settings.ui_language = uiLanguage;
   const uiBase = ensureUICurrency(state.settings.base_currency || "USD");
@@ -1923,6 +1776,8 @@ async function loadSettings() {
   if (toggleTrend) toggleTrend.checked = Boolean(state.ui.showTrend);
   if (toggleDebug) toggleDebug.checked = Boolean(state.ui.showDebug);
   if (toggleRecentExpenses) toggleRecentExpenses.checked = Boolean(state.ui.showRecentExpenses);
+  const toggleTodayEl = $("#toggleToday");
+  if (toggleTodayEl) toggleTodayEl.checked = Boolean(state.ui.showToday);
   if (debugOnlyFailed) debugOnlyFailed.checked = Boolean(state.debug.onlyFailed);
   if (debugFilterInput) debugFilterInput.value = state.debug.filter || "";
   applyQuickEntryPreferencesForType(state.quickEntryType || "expense");
@@ -1986,6 +1841,7 @@ function populateL1Selects() {
     $("#transactionForm [name=category_l1]"),
     $("#budgetForm [name=category_l1]"),
     $("#yearlyBudgetForm [name=category_l1]"),
+    $("#budgetInlineForm [name=category_l1]"),
     $("#l2Form [name=l1_name]")
   ].filter(Boolean);
   for (const select of selects) {
@@ -3512,9 +3368,7 @@ function renderPlannedBudgetCard(dashboard) {
   if (!summary || !list || !pieView || !toggleBtn) return;
 
   const showPie = Boolean(state.ui.budgetPieView);
-  toggleBtn.innerHTML = showPie
-    ? `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><rect x="2" y="3.5" width="11" height="1.6" rx="0.8" fill="currentColor"/><rect x="2" y="6.7" width="11" height="1.6" rx="0.8" fill="currentColor"/><rect x="2" y="9.9" width="11" height="1.6" rx="0.8" fill="currentColor"/></svg>`
-    : `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><path d="M7.5 1.5v6h6a6 6 0 1 1-6-6Z" fill="currentColor" opacity="0.45"/><path d="M7.5 1.5a6 6 0 0 1 6 6h-6V1.5Z" fill="currentColor"/></svg>`;
+  toggleBtn.textContent = showPie ? "≣" : "◔";
   const toggleLabel = showPie ? t("budgetViewToggleToList") : t("budgetViewToggleToPie");
   toggleBtn.setAttribute("aria-label", toggleLabel);
   toggleBtn.setAttribute("title", toggleLabel);
@@ -3545,8 +3399,10 @@ function renderPlannedBudgetCard(dashboard) {
         const tone = ratio >= 1 ? "overspend" : ratio >= 0.8 ? "warn" : "normal";
         const remainClass = remaining < 0 || row.overspend ? "overspend" : "muted";
         const remainText = remaining < 0 ? `-${formatMoney(Math.abs(remaining))}` : formatMoney(remaining);
+        const scope = row.year !== undefined ? "yearly" : "monthly";
+        const period = scope === "yearly" ? String(row.year) : String(row.month || state.month);
         return `
-          <article class="budget-plan-row">
+          <article class="budget-plan-row clickable" data-action="edit-budget" data-scope="${scope}" data-period="${escapeHtml(period)}" data-category="${escapeHtml(row.category_l1)}" data-amount="${total}">
             <div class="top">
               <span class="budget-plan-name">
                 <strong>${escapeHtml(withL1Emoji(row.category_l1))}</strong>
@@ -3646,26 +3502,29 @@ function renderBudgetPieView(monthlyRows, yearlyRows, baseCurrency) {
 function renderAccounts() {
   const target = $("#accountList");
   if (!state.accounts.length) {
-    target.innerHTML = '<div class="list-row muted">No accounts yet.</div>';
+    target.innerHTML = '<div class="list-row muted" style="padding:16px;text-align:center">No accounts yet. Create one above.</div>';
     return;
   }
+  const typeIcon = { bank:"🏦", cash:"💵", wise:"💸", crypto_wallet:"₿", exchange:"📈", alipay:"🅰", wechat:"💬", restricted_cash:"🔒" };
+  const typeLabel = { bank:"Bank", cash:"Cash", wise:"Wise", crypto_wallet:"Crypto", exchange:"Exchange", alipay:"Alipay", wechat:"WeChat", restricted_cash:"Restricted" };
   target.innerHTML = state.accounts
-    .map(
-      (row) => `
-      <article class="list-row">
-        <div class="row-main">
-          <strong>${escapeHtml(row.name)}</strong>
-          <span class="mono">${formatMoney(row.balance)} ${row.currency}</span>
+    .map((row) => {
+      const icon = typeIcon[row.type] || "💼";
+      const label = typeLabel[row.type] || row.type;
+      const bal = formatMoney(row.balance);
+      const isNeg = Number(row.balance) < 0;
+      return `
+      <article class="list-row clickable account-list-row" data-action="edit-account" data-id="${row.id}">
+        <div class="account-row-inner">
+          <span class="account-type-icon">${icon}</span>
+          <div class="account-info">
+            <span class="account-name">${escapeHtml(row.name)}</span>
+            <span class="account-meta muted">${escapeHtml(label)} · ${escapeHtml(row.currency)}</span>
+          </div>
+          <span class="account-balance mono${isNeg ? " overspend" : ""}">${bal}</span>
         </div>
-        <div class="muted">type: ${row.type}</div>
-        <div class="row-main">
-          <span class="muted mono">id: ${row.id}</span>
-          <button class="btn btn-ghost" type="button" data-action="edit-account" data-id="${row.id}">${escapeHtml(
-            t("edit")
-          )}</button>
-        </div>
-      </article>`
-    )
+      </article>`;
+    })
     .join("");
 }
 
@@ -3763,6 +3622,94 @@ async function forceDeleteCurrentAccount() {
   } catch (error) {
     showErrorToast(error);
   }
+}
+
+function openBudgetEditSheet(scope, period, category_l1, totalAmount) {
+  const form = $("#budgetEditForm");
+  if (!(form instanceof HTMLFormElement)) return;
+  form.elements.scope.value = scope;
+  form.elements.period.value = period;
+  form.elements.category_l1_orig.value = category_l1;
+  form.elements.scope_display.value = scope === "yearly" ? t("yearly") : t("monthly");
+  form.elements.period_display.value = period;
+  form.elements.category_display.value = withL1Emoji(category_l1);
+  form.elements.total_amount.value = String(totalAmount);
+  openSheet("budgetEditSheet", { preserveUtility: true });
+}
+
+async function submitBudgetEditForm(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  if (!(form instanceof HTMLFormElement)) return;
+  const fd = new FormData(form);
+  const scope = String(fd.get("scope") || "");
+  const period = String(fd.get("period") || "");
+  const category_l1 = String(fd.get("category_l1_orig") || "");
+  const total_amount = Number(fd.get("total_amount"));
+  if (!Number.isFinite(total_amount) || total_amount < 0) { showToast(t("invalidAmount"), true); return; }
+  try {
+    if (total_amount === 0) {
+      // Treat 0 as "remove budget"
+      if (scope === "yearly") {
+        await api("/api/v1/budgets/yearly", { method: "DELETE", body: JSON.stringify({ year: Number(period), category_l1 }) });
+      } else {
+        await api("/api/v1/budgets", { method: "DELETE", body: JSON.stringify({ month: period, category_l1 }) });
+      }
+    } else if (scope === "yearly") {
+      await api("/api/v1/budgets/yearly", { method: "POST", body: JSON.stringify({ year: Number(period), category_l1, total_amount }) });
+    } else {
+      await api("/api/v1/budgets", { method: "POST", body: JSON.stringify({ month: period, category_l1, total_amount }) });
+    }
+    showToast(t("budgetUpdated"));
+    closeSheet("budgetEditSheet");
+    try { await Promise.all([loadBudgets(), loadYearlyBudgets(), loadDashboard()]); } catch (e) { showRefreshFailureToast(e); }
+  } catch (error) { showErrorToast(error); }
+}
+
+async function deleteBudget() {
+  const form = $("#budgetEditForm");
+  if (!(form instanceof HTMLFormElement)) return;
+  const scope = String(form.elements.scope.value || "");
+  const period = String(form.elements.period.value || "");
+  const category_l1 = String(form.elements.category_l1_orig.value || "");
+  try {
+    if (scope === "yearly") {
+      await api("/api/v1/budgets/yearly", { method: "DELETE", body: JSON.stringify({ year: Number(period), category_l1 }) });
+    } else {
+      await api("/api/v1/budgets", { method: "DELETE", body: JSON.stringify({ month: period, category_l1 }) });
+    }
+    showToast(t("budgetUpdated"));
+    closeSheet("budgetEditSheet");
+    try { await Promise.all([loadBudgets(), loadYearlyBudgets(), loadDashboard()]); } catch (e) { showRefreshFailureToast(e); }
+  } catch (error) { showErrorToast(error); }
+}
+
+async function submitBudgetInlineForm(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  if (!(form instanceof HTMLFormElement)) return;
+  const fd = new FormData(form);
+  const scope = String(fd.get("scope") || "monthly");
+  const category_l1 = String(fd.get("category_l1") || "");
+  const total_amount = Number(fd.get("total_amount"));
+  if (!category_l1 || !total_amount || !Number.isFinite(total_amount)) { showToast(t("invalidAmount"), true); return; }
+  try {
+    if (scope === "yearly") {
+      const year = Number(fd.get("year"));
+      await api("/api/v1/budgets/yearly", { method: "POST", body: JSON.stringify({ year, category_l1, total_amount }) });
+    } else {
+      const month = String(fd.get("month") || state.month);
+      await api("/api/v1/budgets", { method: "POST", body: JSON.stringify({ month, category_l1, total_amount }) });
+    }
+    showToast(t("budgetUpdated"));
+    form.reset();
+    $("#budgetCreateWrap")?.classList.add("hidden");
+    const monthInput = form.elements.month;
+    if (monthInput) monthInput.value = state.month;
+    const yearInput = form.elements.year;
+    if (yearInput) yearInput.value = String(new Date().getFullYear());
+    try { await Promise.all([loadBudgets(), loadYearlyBudgets(), loadDashboard()]); } catch (e) { showRefreshFailureToast(e); }
+  } catch (error) { showErrorToast(error); }
 }
 
 async function getLinkedTransactionCount(accountId) {
@@ -4116,42 +4063,31 @@ function renderTodayExpensesCard(rows) {
   if (!listEl || !totalEl) return;
   const today = new Date().toISOString().slice(0, 10);
   const base = state.settings?.base_currency || 'USD';
-  // All today's transactions (not just expenses)
-  const todayRows = (Array.isArray(rows) ? rows : []).filter((r) => r.tx_date === today);
-  // Total = sum of expense amounts (absolute)
-  const total = todayRows.reduce((s, r) => s + (r.type === 'expense' ? (Number(r.amount_base) || 0) : 0), 0);
+  const todayRows = (Array.isArray(rows) ? rows : []).filter(
+    (r) => r.tx_date === today && r.type === 'expense'
+  );
+  const total = todayRows.reduce((s, r) => s + (Number(r.amount_base) || 0), 0);
   totalEl.innerHTML = todayRows.length
     ? `${escapeHtml(formatMoney(total))}<span class="today-total-unit">${escapeHtml(base)}</span>`
     : '';
   if (!todayRows.length) {
-    listEl.innerHTML = '<div class="incard-empty muted">No transactions today</div>';
+    listEl.innerHTML = '<div class="compact-row muted">No expenses today</div>';
     return;
   }
   listEl.innerHTML = todayRows.map((row) => {
-    // Title: L2 only for expense, type label for income/transfer
-    let title = '';
-    if (row.type === 'expense') {
-      title = row.category_l2 ? withL2Emoji(row.category_l2, row.category_l1) : (row.category_l1 ? withL1Emoji(row.category_l1) : txTypeLabel('expense'));
-    } else if (row.type === 'income') {
-      title = txTypeLabel('income');
-    } else {
-      const reason = row.transfer_reason && row.transfer_reason !== 'normal' ? ` · ${getTransferReasonLabel(row.transfer_reason)}` : '';
-      title = txTypeLabel('transfer') + reason;
-    }
+    const title = formatRecentTransactionTitle(row);
     const showOrig = row.currency_original && row.currency_original.toUpperCase() !== base.toUpperCase();
-    // Absolute amounts — color conveys direction, no minus sign needed
-    const baseAmt = Math.abs(Number(row.amount_base));
-    const origAmt = Math.abs(Number(row.amount_original));
-    const amtClass = row.type === 'income' ? 'tx-amount income' : row.type === 'transfer' ? 'tx-amount transfer' : 'tx-amount expense';
+    const signedBase = -Math.abs(Number(row.amount_base));
+    const signedOrig = -Math.abs(Number(row.amount_original));
     return `
       <article class="incard-row clickable" data-tx-id="${row.id}">
         <div class="tx-row-main">
           <span class="tx-row-title">${escapeHtml(title)}</span>
-          <span class="${amtClass}">${escapeHtml(formatMoney(baseAmt))}<span class="tx-unit">${escapeHtml(base)}</span></span>
+          <span class="tx-amount expense">${escapeHtml(formatMoney(signedBase))}<span class="tx-unit">${escapeHtml(base)}</span></span>
         </div>
         <div class="tx-row-sub">
-          <span class="tx-row-meta">${escapeHtml(row.tx_date)}</span>
-          ${showOrig ? `<span class="tx-orig">${escapeHtml(formatMoney(origAmt))} ${escapeHtml(row.currency_original)}</span>` : ''}
+          <span class="tx-row-meta">${row.account_from_id ? escapeHtml(row.account_from_id) + ' · ' : ''}${escapeHtml(row.tx_date)}</span>
+          ${showOrig ? `<span class="tx-orig">${escapeHtml(formatMoney(signedOrig))} ${escapeHtml(row.currency_original)}</span>` : ''}
         </div>
         ${row.note ? `<div class="tx-note">${escapeHtml(row.note)}</div>` : ''}
       </article>`;
@@ -4271,38 +4207,44 @@ async function loadBudgets() {
   $("#budgetForm [name=month]").value = state.month;
   $("#quickBudgetForm [name=month]").value = state.month;
   const target = $("#budgetList");
-  if (!rows.length) {
-    target.innerHTML = `<div class="list-row muted">${escapeHtml(t("emptyNoMonthlyBudget"))}</div>`;
-    const quickTarget = $("#quickBudgetList");
-    if (quickTarget) quickTarget.innerHTML = `<div class="list-row muted">${escapeHtml(t("emptyNoQuickBudget"))}</div>`;
-    return;
-  }
-  target.innerHTML = rows
-    .map(
-      (row) => `
-      <article class="list-row">
+
+  // Merge API rows with ALL active L1 categories
+  const activeL1 = Object.entries(state.categories || {})
+    .filter(([, cfg]) => cfg.active)
+    .map(([name]) => name);
+  const budgetMap = new Map((rows || []).map((r) => [r.category_l1, r]));
+  const merged = activeL1.map((name) => {
+    const b = budgetMap.get(name);
+    return b ? { ...b, configured: true } : { category_l1: name, month: state.month, total_amount: 0, spent_amount: 0, remaining_amount: 0, configured: false };
+  });
+
+  target.innerHTML = merged
+    .map((row) => `
+      <article class="list-row clickable" data-action="edit-budget" data-scope="monthly" data-period="${escapeHtml(row.month)}" data-category="${escapeHtml(row.category_l1)}" data-amount="${Number(row.total_amount)}">
         <div class="row-main">
           <strong>${escapeHtml(withL1Emoji(row.category_l1))}</strong>
-          <span class="${row.overspend ? "overspend" : "muted"}">${formatMoney(row.spent_amount)} / ${formatMoney(row.total_amount)}</span>
+          ${row.configured
+            ? `<span class="${row.overspend ? "overspend" : "muted"}">${formatMoney(row.spent_amount)} / ${formatMoney(row.total_amount)}</span>`
+            : `<span class="muted">—</span>`}
         </div>
-        <div class="muted">${escapeHtml(t("remaining"))}: ${formatMoney(row.remaining_amount)}</div>
-      </article>`
-    )
+        ${row.configured ? `<div class="muted">${escapeHtml(t("remaining"))}: ${formatMoney(row.remaining_amount)}</div>` : ""}
+      </article>`)
     .join("");
+
+  // Dashboard quick list — only configured (amount > 0)
   const quickTarget = $("#quickBudgetList");
   if (quickTarget) {
-    quickTarget.innerHTML = rows
-      .map(
-        (row) => `
+    const configured = (rows || []).filter((r) => Number(r.total_amount) > 0);
+    quickTarget.innerHTML = configured.length
+      ? configured.map((row) => `
         <article class="list-row">
           <div class="row-main">
             <strong>${escapeHtml(withL1Emoji(row.category_l1))}</strong>
             <span class="${row.overspend ? "overspend" : "muted"}">${formatMoney(row.spent_amount)} / ${formatMoney(row.total_amount)}</span>
           </div>
           <div class="muted">${escapeHtml(t("remaining"))}: ${formatMoney(row.remaining_amount)}</div>
-        </article>`
-      )
-      .join("");
+        </article>`).join("")
+      : `<div class="list-row muted">${escapeHtml(t("emptyNoQuickBudget"))}</div>`;
   }
 }
 
@@ -4310,21 +4252,28 @@ async function loadYearlyBudgets() {
   const year = Number(state.month.slice(0, 4));
   const rows = await api(`/api/v1/budgets/yearly?year=${year}`);
   const target = $("#yearlyBudgetList");
-  if (!rows.length) {
-    target.innerHTML = `<div class="list-row muted">${escapeHtml(t("emptyNoYearlyBudget"))}</div>`;
-    return;
-  }
-  target.innerHTML = rows
-    .map(
-      (row) => `
-      <article class="list-row">
+
+  // Merge API rows with ALL active L1 categories
+  const activeL1 = Object.entries(state.categories || {})
+    .filter(([, cfg]) => cfg.active)
+    .map(([name]) => name);
+  const budgetMap = new Map((rows || []).map((r) => [r.category_l1, r]));
+  const merged = activeL1.map((name) => {
+    const b = budgetMap.get(name);
+    return b ? { ...b, configured: true } : { category_l1: name, year, total_amount: 0, spent_amount: 0, remaining_amount: 0, configured: false };
+  });
+
+  target.innerHTML = merged
+    .map((row) => `
+      <article class="list-row clickable" data-action="edit-budget" data-scope="yearly" data-period="${escapeHtml(String(row.year))}" data-category="${escapeHtml(row.category_l1)}" data-amount="${Number(row.total_amount)}">
         <div class="row-main">
           <strong>${escapeHtml(withL1Emoji(row.category_l1))}</strong>
-          <span class="${row.overspend ? "overspend" : "muted"}">${formatMoney(row.spent_amount)} / ${formatMoney(row.total_amount)}</span>
+          ${row.configured
+            ? `<span class="${row.overspend ? "overspend" : "muted"}">${formatMoney(row.spent_amount)} / ${formatMoney(row.total_amount)}</span>`
+            : `<span class="muted">—</span>`}
         </div>
-        <div class="muted">${escapeHtml(t("remaining"))}: ${formatMoney(row.remaining_amount)}</div>
-      </article>`
-    )
+        ${row.configured ? `<div class="muted">${escapeHtml(t("remaining"))}: ${formatMoney(row.remaining_amount)}</div>` : ""}
+      </article>`)
     .join("");
 }
 
@@ -4477,11 +4426,8 @@ function applyI18n() {
   setText("authTitle", t("authTitle"));
   setText("authSubtitle", t("authSubtitle"));
   setText("authEmailLabel", t("authEmailLabel"));
-  setText("authContinueBtn", t("authContinueBtn"));
-  setText("authCodeLabel", t("authCodeLabel"));
-  setText("authResendBtn", t("authResendBtn"));
+  setText("authRequestBtn", t("authSendBtn"));
   setText("authHint", t("authHint"));
-  renderAuthGate();
   setText("subtitleText", t("subtitle"));
   setText("monthLabelText", t("month"));
   setText("dashboardTitle", t("dashboard"));
@@ -4546,6 +4492,8 @@ function applyI18n() {
   setText("quickBudgetTotalLabel", t("totalAmount"));
   setText("quickBudgetSaveBtn", t("saveBudget"));
   setText("settingsSheetTitle", t("settings"));
+  setText("settingsGeneralNavLabel", t("general"));
+  setText("settingsGeneralPageTitle", t("general"));
   setText("quickSettingsUserLabel", t("userId"));
   setText("quickSettingsLangLabel", t("language"));
   setText("quickSettingsBaseLabel", t("baseCurrency"));
@@ -4556,6 +4504,7 @@ function applyI18n() {
   setText("toggleRiskLabel", t("showRisk"));
   setText("toggleDebugLabel", t("showDebug"));
   setText("toggleRecentExpensesLabel", t("showRecentExpenses"));
+  setText("toggleTodayLabel", t("showToday"));
   setText("debugPanelTitle", t("debugPanel"));
   setText("debugOnlyFailedLabel", t("debugOnlyFailed"));
   setText("debugFilterLabel", t("debugFilter"));
@@ -4565,14 +4514,15 @@ function applyI18n() {
   setText("debugRuntimeTitle", t("debugRuntime"));
   setText("quickSettingsSaveBtn", t("saveSettings"));
   setText("quickLogoutBtn", t("logout"));
-  setText("settingsLinkBudget", t("advancedBudget"));
-  setText("settingsLinkAccounts", t("accounts"));
-  setText("settingsLinkReview", t("monthlyReview"));
-  setText("settingsLinkCategories", t("categories"));
+  setText("settingsLinkBudgetLabel", t("navBudget"));
+  setText("settingsLinkAccountsLabel", t("navAccounts"));
+  setText("settingsLinkReviewLabel", t("navReview"));
+  setText("settingsLinkCategoriesLabel", t("navCategories"));
   setText("addL1BottomBtn", t("addL1Bottom"));
+  setText("budgetAddCategoryLabel", t("addCategory"));
   setText("categoryPromptParentLabel", t("categoryPromptParentLabel"));
   setText("categoryPromptEmojiLabel", t("categoryPromptEmojiLabel"));
-  setText("settingsLinkAi", t("agentAccess"));
+  setText("settingsLinkAiLabel", t("navAgentAccess"));
   setText("agentTokenTitle", t("agentTokensTitle"));
   setText("agentTokenListTitle", t("agentTokensTitle"));
   setText("agentTokenHint", t("agentTokensHint"));
@@ -4616,6 +4566,10 @@ function applyI18n() {
   setText("closeUtilityBtn", "←");
   const utilityBtn = $("#closeUtilityBtn");
   if (utilityBtn) utilityBtn.setAttribute("aria-label", t("back"));
+  // Panel back buttons — translated "‹ Settings" / "‹ 设置"
+  for (const btn of document.querySelectorAll(".panel-back-btn")) {
+    btn.textContent = t("navBackSettings");
+  }
   const quickNote = document.querySelector("#quickEntryForm [name=note]");
   if (quickNote) {
     quickNote.placeholder = ensureUILanguage(state.settings?.ui_language) === "zh" ? "可选" : "optional";
@@ -4674,6 +4628,8 @@ function applyAdvancedVisibility() {
   if (trendCard) trendCard.classList.toggle("hidden", !state.ui.showTrend);
   if (riskCard) riskCard.classList.toggle("hidden", !state.ui.showRisk);
   if (recentExpensesCard) recentExpensesCard.classList.toggle("hidden", !state.ui.showRecentExpenses);
+  const todayCard = $("#todayExpensesCard");
+  if (todayCard) todayCard.classList.toggle("hidden", !state.ui.showToday);
   if (debugPanel) debugPanel.classList.toggle("hidden", !state.ui.showDebug);
 }
 
@@ -4686,6 +4642,7 @@ function loadUiState() {
     state.ui.showTrend = Boolean(parsed.showTrend);
     state.ui.showRisk = Boolean(parsed.showRisk);
     state.ui.showRecentExpenses = parsed.showRecentExpenses !== false;
+    state.ui.showToday = parsed.showToday !== false;
     state.ui.showDebug = Boolean(parsed.showDebug);
     state.ui.budgetPieView = Boolean(parsed.budgetPieView);
     if (parsed.debug) {
@@ -4717,6 +4674,7 @@ function persistUiState() {
         showTrend: state.ui.showTrend,
         showRisk: state.ui.showRisk,
         showRecentExpenses: state.ui.showRecentExpenses,
+        showToday: state.ui.showToday,
         showDebug: state.ui.showDebug,
         budgetPieView: state.ui.budgetPieView,
         trend: {
@@ -4804,26 +4762,26 @@ function txTypeLabel(type) {
 }
 
 // ── Dashboard drag-to-reorder ──────────────────────────────────────────────
+
 const DASH_ORDER_KEY = "nomad-dash-order";
 
 function applyDashboardOrder() {
   const container = document.getElementById("dashboardSortable");
   if (!container) return;
   let order;
-  try { order = JSON.parse(localStorage.getItem(DASH_ORDER_KEY) || "[]"); } catch { order = []; }
+  try { order = JSON.parse(localStorage.getItem(DASH_ORDER_KEY) || "null"); } catch { order = null; }
   if (!Array.isArray(order) || !order.length) return;
+  const map = {};
+  for (const el of container.querySelectorAll("[data-sort-id]")) map[el.dataset.sortId] = el;
   for (const id of order) {
-    const el = container.querySelector(`[data-sort-id="${id}"]`);
-    if (el) container.appendChild(el);
+    if (map[id]) container.appendChild(map[id]);
   }
 }
 
 function saveDashboardOrder() {
   const container = document.getElementById("dashboardSortable");
   if (!container) return;
-  const ids = [...container.children]
-    .filter(c => !c.classList.contains("drag-placeholder"))
-    .map(c => c.dataset.sortId).filter(Boolean);
+  const ids = [...container.querySelectorAll("[data-sort-id]")].map(el => el.dataset.sortId);
   try { localStorage.setItem(DASH_ORDER_KEY, JSON.stringify(ids)); } catch {}
 }
 
@@ -4832,19 +4790,16 @@ function initDashboardDrag() {
   if (!container) return;
   applyDashboardOrder();
 
-  // State
-  let dragEl = null;         // the card being dragged
-  let placeholder = null;   // ghost element holding the card's space
+  let dragEl = null;
+  let placeholder = null;
   let longPressTimer = null;
-  let pressTimer = null;    // 80ms visual "lift" feedback timer
-  let pressEl = null;       // card being held before drag confirms
-  let dragOffsetY = 0;       // finger Y relative to card top
+  let pressTimer = null;
+  let pressEl = null;
+  let dragOffsetY = 0;
   let active = false;
-  let currentTouchY = 0;   // live finger Y (updated even before drag starts)
+  let currentTouchY = 0;
 
-  // ── Helpers ──
   function snapshots() {
-    // Capture {el, midY} for all non-drag, non-placeholder children (live rects)
     return [...container.children]
       .filter(c => c !== dragEl && !c.classList.contains("drag-placeholder"))
       .map(c => ({ el: c, midY: c.getBoundingClientRect().top + c.getBoundingClientRect().height / 2 }));
@@ -4858,7 +4813,6 @@ function initDashboardDrag() {
     }
     if (insertBefore) container.insertBefore(placeholder, insertBefore);
     else container.appendChild(placeholder);
-    // Keep dragEl floating via transform
     const contRect = container.getBoundingClientRect();
     dragEl.style.transform = `translateY(${clientY - contRect.top - dragOffsetY}px)`;
   }
@@ -4866,17 +4820,13 @@ function initDashboardDrag() {
   function startDrag(card, clientY) {
     active = true;
     dragEl = card;
-    // Lock selection globally so no text gets highlighted during drag
     document.body.style.webkitUserSelect = "none";
     document.body.style.userSelect = "none";
     const rect = card.getBoundingClientRect();
     dragOffsetY = clientY - rect.top;
-
-    // Create placeholder matching card height
     placeholder = document.createElement("div");
     placeholder.className = "drag-placeholder";
     placeholder.style.height = rect.height + "px";
-    // Insert placeholder in card's current position, then pull card out of flow
     container.insertBefore(placeholder, card);
     card.style.position = "absolute";
     card.style.top = "0";
@@ -4905,11 +4855,9 @@ function initDashboardDrag() {
     if (!active) return;
     active = false;
     unlockSelection();
-    // Place real card where placeholder is
     container.insertBefore(dragEl, placeholder);
     placeholder.remove();
     placeholder = null;
-    // Reset styles
     dragEl.style.cssText = "";
     dragEl.classList.remove("is-dragging");
     container.style.position = "";
@@ -4933,7 +4881,7 @@ function initDashboardDrag() {
     container.classList.remove("sort-active");
   }
 
-  // ── Touch events ──
+  // ── Touch ──
   container.addEventListener("touchstart", (e) => {
     const card = e.target.closest("[data-sort-id]");
     if (!card) return;
@@ -4941,11 +4889,7 @@ function initDashboardDrag() {
     document.body.style.userSelect = "none";
     pressEl = card;
     currentTouchY = e.touches[0].clientY;
-
-    // 80ms: show subtle "lift" so user knows long-press is registered
     pressTimer = setTimeout(() => card.classList.add("press-ready"), 80);
-
-    // 500ms: activate drag using current (live) finger position
     longPressTimer = setTimeout(() => {
       clearPressState();
       startDrag(card, currentTouchY);
@@ -4955,7 +4899,6 @@ function initDashboardDrag() {
   window.addEventListener("touchmove", (e) => {
     currentTouchY = e.touches[0].clientY;
     if (longPressTimer) {
-      // Finger moved — cancel long press and restore
       clearTimeout(longPressTimer); longPressTimer = null;
       clearPressState();
       unlockSelection();
@@ -4978,12 +4921,10 @@ function initDashboardDrag() {
     cancelDrag();
   });
 
-  // ── Mouse events (desktop long-press via mousedown hold) ──
+  // ── Mouse (desktop) ──
   container.addEventListener("mousedown", (e) => {
     const card = e.target.closest("[data-sort-id]");
-    if (!card) return;
-    // Ignore clicks on interactive children
-    if (e.target.closest("button,input,select,a,textarea")) return;
+    if (!card || e.target.closest("button,input,select,a,textarea")) return;
     const clientY = e.clientY;
     longPressTimer = setTimeout(() => {
       e.preventDefault();
@@ -5006,3 +4947,122 @@ function initDashboardDrag() {
 }
 
 document.addEventListener("DOMContentLoaded", initDashboardDrag);
+
+// ── Settings page navigation ──────────────────────────────────────
+function showSettingsPage(pageId, direction = "forward") {
+  const pages = document.querySelectorAll(".settings-page");
+  pages.forEach((p) => {
+    p.classList.add("hidden");
+    p.classList.remove("anim-forward", "anim-back");
+  });
+  const target = document.getElementById(pageId);
+  if (!target) return;
+  target.classList.remove("hidden");
+  const animClass = direction === "back" ? "anim-back" : "anim-forward";
+  target.classList.add(animClass);
+  // remove animation class after it finishes so it can replay
+  target.addEventListener("animationend", () => target.classList.remove(animClass), { once: true });
+}
+
+function navigateFromSettings(panelId) {
+  state.utilityReturnSheet = "settingsSheet";
+  openUtilityPanel(panelId);
+  const panel = document.getElementById(panelId);
+  if (panel) {
+    panel.classList.add("panel-entering");
+    panel.addEventListener("animationend", () => panel.classList.remove("panel-entering"), { once: true });
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const openGeneral = document.getElementById("settingsOpenGeneral");
+  if (openGeneral) openGeneral.addEventListener("click", () => showSettingsPage("settingsPageGeneral", "forward"));
+
+  const backFromGeneral = document.getElementById("settingsBackFromGeneral");
+  if (backFromGeneral) backFromGeneral.addEventListener("click", () => showSettingsPage("settingsPageMain", "back"));
+
+  const openWidgets = document.getElementById("settingsOpenWidgets");
+  if (openWidgets) openWidgets.addEventListener("click", () => showSettingsPage("settingsPageWidgets", "forward"));
+
+  const backFromWidgets = document.getElementById("settingsBackFromWidgets");
+  if (backFromWidgets) backFromWidgets.addEventListener("click", () => showSettingsPage("settingsPageMain", "back"));
+
+  const navMap = {
+    settingsLinkAccounts:   "accountsPanel",
+    settingsLinkBudget:     "budgetsPanel",
+    settingsLinkCategories: "categoriesPanel",
+    settingsLinkReview:     "reviewPanel",
+    settingsLinkAi:         "settingsPanel",
+  };
+  for (const [id, panelId] of Object.entries(navMap)) {
+    const btn = document.getElementById(id);
+    if (btn) btn.addEventListener("click", () => navigateFromSettings(panelId));
+  }
+
+  // Panel back buttons — same behavior as #closeUtilityBtn
+  for (const btn of document.querySelectorAll(".panel-back-btn")) {
+    btn.addEventListener("click", () => {
+      const returnSheet = state.utilityReturnSheet || "";
+      closeUtilityPanel();
+      if (returnSheet) {
+        state.utilityReturnSheet = "";
+        openSheet(returnSheet);
+      }
+    });
+  }
+});
+
+// ── Panel form toggles ────────────────────────────────────────────
+document.addEventListener("DOMContentLoaded", () => {
+  function bindToggle(btnId, wrapId, resetFn) {
+    const btn = document.getElementById(btnId);
+    const wrap = document.getElementById(wrapId);
+    if (!btn || !wrap) return;
+    btn.addEventListener("click", () => {
+      const isHidden = wrap.classList.contains("hidden");
+      wrap.classList.toggle("hidden", !isHidden);
+      if (!isHidden && resetFn) resetFn();
+    });
+  }
+
+  // Accounts
+  bindToggle("toggleAccountFormBtn", "accountCreateWrap", () => {
+    const f = document.getElementById("accountForm");
+    if (f) f.reset();
+  });
+
+
+  // Agent token
+  bindToggle("toggleAgentFormBtn", "agentCreateWrap", () => {
+    const f = document.getElementById("agentTokenForm");
+    if (f) f.reset();
+  });
+
+  // Budget scope toggle (Monthly / Yearly)
+  const monthlyBtn = document.getElementById("budgetToggleMonthly");
+  const yearlyBtn = document.getElementById("budgetToggleYearly");
+  const monthlyCard = document.getElementById("budgetMonthlyCard");
+  const yearlyCard = document.getElementById("budgetYearlyCard");
+  if (monthlyBtn && yearlyBtn && monthlyCard && yearlyCard) {
+    monthlyBtn.addEventListener("click", () => {
+      monthlyBtn.classList.add("active");
+      yearlyBtn.classList.remove("active");
+      monthlyCard.classList.remove("hidden");
+      yearlyCard.classList.add("hidden");
+    });
+    yearlyBtn.addEventListener("click", () => {
+      yearlyBtn.classList.add("active");
+      monthlyBtn.classList.remove("active");
+      yearlyCard.classList.remove("hidden");
+      monthlyCard.classList.add("hidden");
+    });
+  }
+
+  // Budget panel — add category button (syncs with Categories panel)
+  const budgetAddCatBtn = document.getElementById("budgetAddCategoryBtn");
+  if (budgetAddCatBtn) {
+    budgetAddCatBtn.addEventListener("click", () => {
+      void createL1CategoryInline();
+    });
+  }
+});

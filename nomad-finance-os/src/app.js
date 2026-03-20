@@ -1478,6 +1478,34 @@ function createApp(db) {
     }
   });
 
+  app.delete("/api/v1/budgets", (req, res) => {
+    const schema = z.object({
+      month: z.string().min(7).max(7),
+      category_l1: z.string().min(1).max(64)
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    const { month, category_l1 } = parsed.data;
+    db.prepare("DELETE FROM budgets WHERE user_id = ? AND month = ? AND category_l1 = ?")
+      .run(req.userId, month, category_l1);
+    logEvent(db, req.userId, "budget_monthly_deleted", { month, category_l1 });
+    res.json({ ok: true });
+  });
+
+  app.delete("/api/v1/budgets/yearly", (req, res) => {
+    const schema = z.object({
+      year: z.number().int().min(2000).max(2100),
+      category_l1: z.string().min(1).max(64)
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    const { year, category_l1 } = parsed.data;
+    db.prepare("DELETE FROM yearly_budgets WHERE user_id = ? AND year = ? AND category_l1 = ?")
+      .run(req.userId, year, category_l1);
+    logEvent(db, req.userId, "budget_yearly_deleted", { year, category_l1 });
+    res.json({ ok: true });
+  });
+
   app.get("/api/v1/dashboard", async (req, res) => {
     const month = normalizeMonth(req.query.month);
     const settings = getUserSettings(db, req.userId);
