@@ -3393,7 +3393,7 @@ async function sendAuthCodeEmail(email, code) {
     `This code expires in ${AUTH_CODE_TTL_MINUTES} minutes.`
   ].join("\n");
   const html = `
-    <div style="font-family: -apple-system, Segoe UI, sans-serif; line-height: 1.5; color: #221d18;">
+    <div style="font-family: -apple-system, Segoe UI, sans-serif; line-height: 1.5; color: #1f2d38;">
       <p>Use this verification code to sign in to <strong>Nomad Finance OS</strong>:</p>
       <p style="font-size: 28px; letter-spacing: 4px; font-weight: 700;">${escapeHtml(code)}</p>
       <p>This code expires in ${AUTH_CODE_TTL_MINUTES} minutes.</p>
@@ -3450,8 +3450,8 @@ function renderAuthResultHtml(ok, message) {
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>${escapeHtml(title)}</title>
     <style>
-      body { font-family: -apple-system, Segoe UI, sans-serif; padding: 24px; background: #f3ede2; color: #221d18; }
-      .card { max-width: 560px; margin: 0 auto; padding: 16px; border: 1px solid #d9d0c2; border-radius: 12px; background: #fffaf2; }
+      body { font-family: -apple-system, Segoe UI, sans-serif; padding: 24px; background: #f0f3f5; color: #1f2d38; }
+      .card { max-width: 560px; margin: 0 auto; padding: 16px; border: 1px solid #d4dde4; border-radius: 12px; background: #ffffff; }
     </style>
   </head>
   <body>

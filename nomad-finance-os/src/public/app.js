@@ -27,6 +27,8 @@ const state = {
     resendCooldownSec: 0
   },
   latestAgentTokenPlaintext: "",
+  accountPeriod: "7d",
+  accountPeriodTxs: [],
   trend: {
     start: "",
     end: "",
@@ -132,6 +134,8 @@ const I18N = {
     budgetPlanSummary: "Planned {planned} · Spent {spent} · Remaining {remaining}",
     budgetViewToggleToPie: "Show pie view",
     budgetViewToggleToList: "Show list view",
+    budgetTabList: "List",
+    budgetTabPie: "Pie",
     budgetPieCenterLabel: "Spent",
     budgetPieEmpty: "No spent budget yet.",
     budgetPieOther: "Other",
@@ -335,16 +339,28 @@ const I18N = {
     transferReasonDepositRelease: "Deposit Release",
     agentTokensTitle: "Agent API Tokens",
     agentTokensHint: "Create a token for your own agent. Token plaintext is shown in a popup only once.",
+    agentAccessFlowHint:
+      "Click + Token, create one token, then choose copy mode: Token only or Full Agent Setup.",
     agentTokenName: "Token Name",
     createAgentToken: "Create Token",
+    agentTokenCreateSheetTitle: "Create Agent Token",
+    agentTokenCreateSheetHint:
+      "Give it an easy-to-remember name. After creation, you'll get two copy options for quick onboarding.",
     latestAgentToken: "Last Created Token (shown once)",
     agentTokenRevealTitle: "Token Created",
-    agentTokenRevealHint: "Copy it now. For security, this token will not be shown again.",
+    agentTokenRevealHint:
+      "Recommended: copy the full setup brief first, then copy token only if needed.",
+    agentTokenRevealOptionToken: "Option B · Copy token only",
+    agentTokenRevealOptionSetup:
+      "Option A · Copy full setup brief (GitHub skill link + token)",
     tokenCopied: "Token copied",
     tokenCopyMissing: "No token to copy",
     agentTokenCreated: "Agent token created",
     agentTokenRevoked: "Agent token revoked",
     copyToken: "Copy",
+    copyTokenOnly: "Copy Token",
+    copyAgentSetupWithToken: "Copy Full Agent Setup",
+    agentSetupWithTokenCopied: "Full agent setup copied",
     agentQuickstartTitle: "Agent Quickstart",
     agentQuickstartHint:
       "Copy one setup block for another agent to download the skill and start calling this API.",
@@ -374,6 +390,8 @@ const I18N = {
     budgetPlanSummary: "计划 {planned} · 已花 {spent} · 剩余 {remaining}",
     budgetViewToggleToPie: "切换为饼图",
     budgetViewToggleToList: "切换为列表",
+    budgetTabList: "列表",
+    budgetTabPie: "饼图",
     budgetPieCenterLabel: "已花",
     budgetPieEmpty: "暂无已花预算数据。",
     budgetPieOther: "其他",
@@ -576,16 +594,24 @@ const I18N = {
     transferReasonDepositRelease: "押金释放",
     agentTokensTitle: "Agent API Token",
     agentTokensHint: "为你的自有 agent 创建 token。明文只会在弹窗中展示一次。",
+    agentAccessFlowHint: "点击右上角 + Token，创建后可选择：仅复制 Token，或复制完整接入指令。",
     agentTokenName: "Token 名称",
     createAgentToken: "创建 Token",
+    agentTokenCreateSheetTitle: "创建 Agent Token",
+    agentTokenCreateSheetHint: "先填一个好记的名称。创建成功后会给你两个复制选项，适合新手直接使用。",
     latestAgentToken: "最近创建的 Token（仅展示一次）",
     agentTokenRevealTitle: "Token 已创建",
-    agentTokenRevealHint: "请现在复制，出于安全原因后续不会再次展示明文。",
+    agentTokenRevealHint: "建议先复制完整接入说明；若只需密钥，再复制 Token。",
+    agentTokenRevealOptionToken: "选项 B · 仅复制 Token",
+    agentTokenRevealOptionSetup: "选项 A · 复制完整接入说明（GitHub skill 链接 + token）",
     tokenCopied: "Token 已复制",
     tokenCopyMissing: "没有可复制的 Token",
     agentTokenCreated: "Agent token 已创建",
     agentTokenRevoked: "Agent token 已吊销",
     copyToken: "复制",
+    copyTokenOnly: "复制 Token",
+    copyAgentSetupWithToken: "复制完整接入说明",
+    agentSetupWithTokenCopied: "完整接入说明已复制",
     agentQuickstartTitle: "Agent 快速接入",
     agentQuickstartHint: "一键复制给其他 agent 的接入指令（含 skill 下载与调用示例）。",
     copyAgentSetup: "复制接入指令",
@@ -678,6 +704,12 @@ function bindUI() {
   if (agentTokenRevealCopyBtn) {
     agentTokenRevealCopyBtn.addEventListener("click", () => {
       void copyLatestAgentToken();
+    });
+  }
+  const agentTokenRevealCopySetupBtn = $("#agentTokenRevealCopySetupBtn");
+  if (agentTokenRevealCopySetupBtn) {
+    agentTokenRevealCopySetupBtn.addEventListener("click", () => {
+      void copyLatestAgentSetupGuide();
     });
   }
   const agentQuickstartCopyBtn = $("#agentQuickstartCopyBtn");
@@ -785,10 +817,15 @@ function bindUI() {
       applyAdvancedVisibility();
     });
   }
-  const budgetViewToggleBtn = $("#budgetPlanViewToggleBtn");
-  if (budgetViewToggleBtn) {
-    budgetViewToggleBtn.addEventListener("click", () => {
-      state.ui.budgetPieView = !state.ui.budgetPieView;
+  const budgetViewTabs = document.getElementById("budgetViewTabs");
+  if (budgetViewTabs) {
+    budgetViewTabs.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const btn = event.target.closest(".acct-period-btn");
+      if (!btn) return;
+      const view = btn.dataset.view;
+      if (!view) return;
+      state.ui.budgetPieView = view === "pie";
       persistUiState();
       if (state.dashboard) renderPlannedBudgetCard(state.dashboard);
     });
@@ -970,6 +1007,17 @@ function bindUI() {
     if (!Number.isInteger(id) || id <= 0) return;
     openTransactionDetailSheet(id);
   });
+  const acctPeriodTabs = document.getElementById("acctPeriodTabs");
+  if (acctPeriodTabs) {
+    acctPeriodTabs.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const btn = event.target.closest(".acct-period-btn");
+      if (!btn) return;
+      event.stopPropagation();
+      const period = btn.dataset.period;
+      if (period && period !== state.accountPeriod) loadAccountPeriodTxs(period);
+    });
+  }
   const dashAccountsTitle = document.getElementById("dashboardAccountsTitle");
   if (dashAccountsTitle) {
     dashAccountsTitle.addEventListener("click", () => {
@@ -1567,28 +1615,50 @@ async function copyTextToClipboard(text) {
   return true;
 }
 
-function buildAgentSetupGuide() {
+function buildAgentSetupGuide(tokenOverride = "") {
   const skillFolderUrl =
     "https://github.com/Uacer/Nomad-Finance-OS/tree/main/skills/nomad-capture-ledger";
+  const token = String(tokenOverride || "").trim() || "<PASTE_AGENT_API_TOKEN>";
+  const lang = ensureUILanguage(state.settings?.ui_language);
+
+  if (lang === "zh") {
+    return [
+      "请安装 `nomad-capture-ledger` skill（包含目录内全部文件）：",
+      "",
+      `- GitHub Skill: ${skillFolderUrl}`,
+      `- Agent API Token: ${token}`
+    ].join("\n");
+  }
 
   return [
-    "# Nomad Finance OS — Ledger Agent Setup Brief",
+    "Please install the `nomad-capture-ledger` skill (include all files):",
     "",
-    "Please install the `nomad-capture-ledger` skill from this folder URL (include all files) and confirm when ready:",
-    "",
-    skillFolderUrl,
-    "",
-    "Once installed, use the `nomad-capture-ledger` skill whenever I mention a transaction."
+    `- GitHub Skill: ${skillFolderUrl}`,
+    `- Agent API Token: ${token}`
   ].join("\n");
 }
 
-async function copyAgentSetupGuide() {
+async function copyAgentSetupGuide(tokenOverride = "") {
   try {
-    await copyTextToClipboard(buildAgentSetupGuide());
-    showToast(t("agentSetupCopied"));
+    const token = String(tokenOverride || "").trim();
+    await copyTextToClipboard(buildAgentSetupGuide(token));
+    showToast(t(token ? "agentSetupWithTokenCopied" : "agentSetupCopied"));
   } catch (error) {
     showToast(formatErrorForToast(error), true);
   }
+}
+
+async function copyLatestAgentSetupGuide() {
+  const revealBox = $("#agentTokenRevealValue");
+  const token =
+    revealBox instanceof HTMLTextAreaElement
+      ? String(revealBox.value || "")
+      : String(state.latestAgentTokenPlaintext || "");
+  if (!token.trim()) {
+    showToast(t("tokenCopyMissing"), true);
+    return;
+  }
+  await copyAgentSetupGuide(token);
 }
 
 function showAgentTokenReveal(token) {
@@ -2082,10 +2152,33 @@ async function loadCategories() {
 async function loadAccounts() {
   state.accounts = (await api("/api/v1/accounts")) || [];
   renderAccounts();
-  renderDashboardAccountsCard();
+  await loadAccountPeriodTxs();
   populateAccountSelects();
   populateTransactionEditAccountSelects();
   populateQuickEntryAccounts();
+}
+
+function periodToDateRange(period) {
+  const end = new Date();
+  const start = new Date(end);
+  if (period === "7d") start.setDate(start.getDate() - 6);
+  else if (period === "1m") start.setMonth(start.getMonth() - 1);
+  else if (period === "3m") start.setMonth(start.getMonth() - 3);
+  const fmt = (d) => d.toISOString().slice(0, 10);
+  return { start: fmt(start), end: fmt(end) };
+}
+
+async function loadAccountPeriodTxs(period) {
+  if (!period) period = state.accountPeriod;
+  else state.accountPeriod = period;
+  const { start, end } = periodToDateRange(period);
+  const rows = await api(`/api/v1/transactions?start=${start}&end=${end}`);
+  state.accountPeriodTxs = Array.isArray(rows) ? rows : [];
+  renderDashboardAccountsCard();
+  // sync tab active state
+  document.querySelectorAll(".acct-period-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.period === period);
+  });
 }
 
 async function loadAgentTokens() {
@@ -3304,6 +3397,7 @@ async function submitAgentTokenForm(event) {
       body: JSON.stringify({ name })
     });
     state.latestAgentTokenPlaintext = String(created?.token || "");
+    closeSheet("agentTokenCreateSheet");
     showAgentTokenReveal(state.latestAgentTokenPlaintext);
     showToast(t("agentTokenCreated"));
     form.reset();
@@ -3566,14 +3660,12 @@ function renderPlannedBudgetCard(dashboard) {
   const summary = $("#budgetPlanSummary");
   const list = $("#budgetPlanList");
   const pieView = $("#budgetPlanPieView");
-  const toggleBtn = $("#budgetPlanViewToggleBtn");
-  if (!summary || !list || !pieView || !toggleBtn) return;
+  if (!summary || !list || !pieView) return;
 
   const showPie = Boolean(state.ui.budgetPieView);
-  toggleBtn.textContent = showPie ? "≣" : "◔";
-  const toggleLabel = showPie ? t("budgetViewToggleToList") : t("budgetViewToggleToPie");
-  toggleBtn.setAttribute("aria-label", toggleLabel);
-  toggleBtn.setAttribute("title", toggleLabel);
+  document.querySelectorAll("#budgetViewTabs .acct-period-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.view === (showPie ? "pie" : "list"));
+  });
 
   if (!monthlyRows.length && !yearlyRows.length) {
     summary.classList.remove("hidden");
@@ -3739,15 +3831,32 @@ function renderDashboardAccountsCard() {
     return;
   }
   const typeIcon = { bank:"🏦", cash:"💵", wise:"💸", crypto_wallet:"₿", exchange:"📈", alipay:"🅰", wechat:"💬", restricted_cash:"🔒" };
+  const baseCurrency = state.settings?.base_currency || "";
+  const txs = state.accountPeriodTxs || [];
+  const fmt = (n) => new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(n);
   target.innerHTML = accounts.map((row) => {
     const icon = typeIcon[row.type] || "💼";
-    const fmt = (n) => new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(n);
     const isNeg = Number(row.balance) < 0;
+    let net = 0;
+    for (const tx of txs) {
+      const amt = Number(tx.amount_base || 0);
+      if ((tx.type === "income" || tx.type === "transfer") && tx.account_to_id === row.id) net += amt;
+      if ((tx.type === "expense" || tx.type === "transfer") && tx.account_from_id === row.id) net -= amt;
+    }
+    let deltaHtml = "";
+    if (net !== 0) {
+      const sign = net > 0 ? "+" : "";
+      const cls = net > 0 ? "acct-delta-in" : "acct-delta-out";
+      deltaHtml = `<span class="acct-delta ${cls}">${sign}${fmt(net)} ${escapeHtml(baseCurrency)}</span>`;
+    }
     return `
     <div class="account-dash-row clickable" data-action="edit-account" data-id="${row.id}">
       <span class="account-type-icon">${icon}</span>
       <span class="account-name">${escapeHtml(row.name)}</span>
-      <span class="account-balance mono${isNeg ? " overspend" : ""}">${fmt(row.balance)} ${escapeHtml(row.currency)}</span>
+      <div class="acct-right">
+        <span class="account-balance mono${isNeg ? " overspend" : ""}">${fmt(row.balance)} ${escapeHtml(row.currency)}</span>
+        ${deltaHtml}
+      </div>
     </div>`;
   }).join("");
 }
@@ -4692,8 +4801,10 @@ function applyI18n() {
   setAttr("recentExpensesTitle", "aria-label", t("recentExpenses"));
   setAttr("quickDateToggleBtn", "title", t("quickDateToggle"));
   setAttr("quickDateToggleBtn", "aria-label", t("quickDateToggle"));
-  setAttr("budgetPlanViewToggleBtn", "title", state.ui.budgetPieView ? t("budgetViewToggleToList") : t("budgetViewToggleToPie"));
-  setAttr("budgetPlanViewToggleBtn", "aria-label", state.ui.budgetPieView ? t("budgetViewToggleToList") : t("budgetViewToggleToPie"));
+  const bvList = document.getElementById("budgetViewList");
+  const bvPie = document.getElementById("budgetViewPie");
+  if (bvList) bvList.innerHTML = "≡";
+  if (bvPie) bvPie.innerHTML = "◔";
   setAttr("quickEntryBackBtn", "title", t("back"));
   setAttr("quickEntryBackBtn", "aria-label", t("back"));
   setText("trendTitle", t("trendTitle"));
@@ -4775,17 +4886,18 @@ function applyI18n() {
   setText("categoryPromptParentLabel", t("categoryPromptParentLabel"));
   setText("categoryPromptEmojiLabel", t("categoryPromptEmojiLabel"));
   setText("settingsLinkAiLabel", t("navAgentAccess"));
-  setText("agentTokenTitle", t("agentTokensTitle"));
   setText("agentTokenListTitle", t("agentTokensTitle"));
-  setText("agentTokenHint", t("agentTokensHint"));
+  setText("agentAccessFlowHint", t("agentAccessFlowHint"));
+  setText("agentTokenCreateSheetTitle", t("agentTokenCreateSheetTitle"));
+  setText("agentTokenCreateSheetHint", t("agentTokenCreateSheetHint"));
   setText("agentTokenNameLabel", t("agentTokenName"));
   setText("agentTokenCreateBtn", t("createAgentToken"));
-  setText("agentQuickstartTitle", t("agentQuickstartTitle"));
-  setText("agentQuickstartHint", t("agentQuickstartHint"));
-  setText("agentQuickstartCopyBtn", t("copyAgentSetup"));
   setText("agentTokenRevealTitle", t("agentTokenRevealTitle"));
   setText("agentTokenRevealHint", t("agentTokenRevealHint"));
-  setText("agentTokenRevealCopyBtn", t("copyToken"));
+  setText("agentTokenRevealOptionToken", t("agentTokenRevealOptionToken"));
+  setText("agentTokenRevealOptionSetup", t("agentTokenRevealOptionSetup"));
+  setText("agentTokenRevealCopyBtn", t("copyTokenOnly"));
+  setText("agentTokenRevealCopySetupBtn", t("copyAgentSetupWithToken"));
   setText("accountEditTitle", t("editAccount"));
   setText("accountEditNameLabel", t("account"));
   setText("accountEditTypeLabel", t("accountType"));
@@ -5240,6 +5352,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const openWidgets = document.getElementById("settingsOpenWidgets");
   if (openWidgets) openWidgets.addEventListener("click", () => showSettingsPage("settingsPageWidgets", "forward"));
 
+  const dashWidgetsEditBtn = document.getElementById("dashWidgetsEditBtn");
+  if (dashWidgetsEditBtn) {
+    dashWidgetsEditBtn.addEventListener("click", () => {
+      openSheet("settingsSheet");
+      showSettingsPage("settingsPageWidgets", "forward");
+    });
+  }
+
   const backFromWidgets = document.getElementById("settingsBackFromWidgets");
   if (backFromWidgets) backFromWidgets.addEventListener("click", () => showSettingsPage("settingsPageMain", "back"));
 
@@ -5289,10 +5409,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
   // Agent token
-  bindToggle("toggleAgentFormBtn", "agentCreateWrap", () => {
-    const f = document.getElementById("agentTokenForm");
-    if (f) f.reset();
-  });
+  const openAgentTokenBtn = document.getElementById("toggleAgentFormBtn");
+  if (openAgentTokenBtn) {
+    openAgentTokenBtn.addEventListener("click", () => {
+      const form = document.getElementById("agentTokenForm");
+      if (form instanceof HTMLFormElement) form.reset();
+      openSheet("agentTokenCreateSheet", { preserveUtility: true });
+    });
+  }
 
   // Budget scope toggle (Monthly / Yearly)
   const monthlyBtn = document.getElementById("budgetToggleMonthly");

@@ -108,11 +108,19 @@
           <div class="hero-legend" id="heroCompositionLegend"></div>
           <div id="heroSubMetrics" class="hero-submetrics"></div>
         </article>
-        <p class="dash-section-label">Pinned</p>
+        <div class="dash-section-row">
+          <p class="dash-section-label">Pinned</p>
+          <button class="dash-edit-btn" id="dashWidgetsEditBtn" type="button">Edit</button>
+        </div>
         <div id="dashboardSortable">
         <article class="card dashboard-card hidden" id="dashboardAccountsCard" data-sort-id="dashboardAccountsCard">
           <div class="section-head">
             <button class="section-title-btn" id="dashboardAccountsTitle" type="button">Accounts</button>
+            <div class="acct-period-tabs" id="acctPeriodTabs" role="group">
+              <button class="acct-period-btn active" data-period="7d">7d</button>
+              <button class="acct-period-btn" data-period="1m">1m</button>
+              <button class="acct-period-btn" data-period="3m">3m</button>
+            </div>
           </div>
           <div id="dashboardAccountsList" class="list-block"></div>
         </article>
@@ -126,13 +134,10 @@
         <article class="card dashboard-card" data-sort-id="budgetPlanCard">
           <div class="section-head budget-head">
             <button class="section-title-btn" id="budgetPlanTitle" type="button">Planned Budget</button>
-            <button
-              id="budgetPlanViewToggleBtn"
-              class="budget-view-toggle"
-              type="button"
-              aria-label="Switch budget view"
-              title="Switch budget view"
-            ></button>
+            <div class="acct-period-tabs" id="budgetViewTabs" role="group">
+              <button class="acct-period-btn active" data-view="list" type="button" id="budgetViewList"></button>
+              <button class="acct-period-btn" data-view="pie" type="button" id="budgetViewPie"></button>
+            </div>
           </div>
           <div id="budgetPlanSummary" class="muted"></div>
           <div id="budgetPlanList" class="list-block compact-list"></div>
@@ -188,7 +193,7 @@
 
       <section id="transactionsPanel" class="panel">
         <div class="panel-head sheet-head settings-subpage-head tx-records-head">
-          <button class="settings-back-btn panel-back-btn" id="txRecordsBackBtn" type="button">‹ Back</button>
+          <button class="settings-back-btn panel-back-btn" id="txRecordsBackBtn" type="button" aria-label="Back">←</button>
           <h3 id="txRecordsPanelTitle">Transactions</h3>
           <div></div>
         </div>
@@ -290,7 +295,7 @@
       <!-- ── Accounts Panel ── -->
       <section id="accountsPanel" class="panel">
         <div class="panel-head sheet-head settings-subpage-head">
-          <button class="settings-back-btn panel-back-btn" id="accountsBackBtn" type="button">‹ Settings</button>
+          <button class="settings-back-btn panel-back-btn" id="accountsBackBtn" type="button" aria-label="Back">←</button>
           <h3 id="accountsPanelTitle">Accounts</h3>
           <button class="panel-add-btn" id="toggleAccountFormBtn" type="button">＋ Add</button>
         </div>
@@ -340,7 +345,7 @@
       <!-- ── Budget Panel ── -->
       <section id="budgetsPanel" class="panel">
         <div class="panel-head sheet-head settings-subpage-head">
-          <button class="settings-back-btn panel-back-btn" id="budgetsBackBtn" type="button">‹ Settings</button>
+          <button class="settings-back-btn panel-back-btn" id="budgetsBackBtn" type="button" aria-label="Back">←</button>
           <h3 id="budgetsPanelTitle">Budget</h3>
           <div></div>
         </div>
@@ -384,7 +389,7 @@
       <!-- ── Categories Panel ── -->
       <section id="categoriesPanel" class="panel">
         <div class="panel-head sheet-head settings-subpage-head">
-          <button class="settings-back-btn panel-back-btn" id="categoriesBackBtn" type="button">‹ Settings</button>
+          <button class="settings-back-btn panel-back-btn" id="categoriesBackBtn" type="button" aria-label="Back">←</button>
           <h3 id="categoriesPanelTitle">Categories</h3>
           <button id="addL1BottomBtn" class="panel-add-btn" type="button">＋ Add</button>
         </div>
@@ -394,7 +399,7 @@
       <!-- ── Monthly Review Panel ── -->
       <section id="reviewPanel" class="panel">
         <div class="panel-head sheet-head settings-subpage-head">
-          <button class="settings-back-btn panel-back-btn" id="reviewBackBtn" type="button">‹ Settings</button>
+          <button class="settings-back-btn panel-back-btn" id="reviewBackBtn" type="button" aria-label="Back">←</button>
           <h3 id="reviewPanelTitle">Monthly Review</h3>
           <button id="generateReviewBtn" class="panel-add-btn" type="button">Refresh</button>
         </div>
@@ -415,7 +420,7 @@
       <!-- ── Agent Access Panel ── -->
       <section id="settingsPanel" class="panel">
         <div class="panel-head sheet-head settings-subpage-head">
-          <button class="settings-back-btn panel-back-btn" id="agentBackBtn" type="button">‹ Settings</button>
+          <button class="settings-back-btn panel-back-btn" id="agentBackBtn" type="button" aria-label="Back">←</button>
           <h3 id="agentPanelTitle">Agent Access</h3>
           <button class="panel-add-btn" id="toggleAgentFormBtn" type="button">＋ Token</button>
         </div>
@@ -426,25 +431,10 @@
           </div>
           <div id="agentTokenList" class="list-block"></div>
         </article>
-
-        <div id="agentCreateWrap" class="panel-form-wrap hidden">
-          <form id="agentTokenForm" class="card panel-inline-form">
-            <p class="panel-form-eyebrow" id="agentTokenTitle">New Token</p>
-            <p class="muted small" id="agentTokenHint">Token is shown only once after creation.</p>
-            <label>
-              <span class="field-eyebrow" id="agentTokenNameLabel">Token Name</span>
-              <input name="name" type="text" maxlength="80" placeholder="e.g. Telegram Bot" required autocomplete="off" />
-            </label>
-            <button id="agentTokenCreateBtn" class="btn btn-solid" type="submit">Create Token</button>
-          </form>
-        </div>
-
         <article class="card">
-          <div class="section-head">
-            <h3 id="agentQuickstartTitle">Quickstart</h3>
-          </div>
-          <p class="muted small" id="agentQuickstartHint">Copy a setup block for your agent to call this API.</p>
-          <button id="agentQuickstartCopyBtn" class="btn btn-ghost" type="button" style="margin-top:8px">Copy Agent Setup</button>
+          <p class="muted small" id="agentAccessFlowHint">
+            Click + Token, create one token, then choose copy mode: Token only or Full Agent Setup.
+          </p>
         </article>
       </section>
     </main>
@@ -575,6 +565,26 @@
       </article>
     </section>
 
+    <section id="agentTokenCreateSheet" class="sheet hidden" aria-hidden="true">
+      <div class="sheet-backdrop" data-close-sheet="agentTokenCreateSheet"></div>
+      <article class="sheet-card token-create-sheet-card">
+        <div class="sheet-head">
+          <h3 id="agentTokenCreateSheetTitle">Create Agent Token</h3>
+          <button class="btn btn-ghost" type="button" data-close-sheet="agentTokenCreateSheet">Close</button>
+        </div>
+        <p class="muted" id="agentTokenCreateSheetHint">
+          Give it an easy-to-remember name. After creation, you'll get two copy options for quick onboarding.
+        </p>
+        <form id="agentTokenForm" class="sheet-form">
+          <label>
+            <span class="field-eyebrow" id="agentTokenNameLabel">Token Name</span>
+            <input name="name" type="text" maxlength="80" placeholder="e.g. Telegram Bot" required autocomplete="off" />
+          </label>
+          <button id="agentTokenCreateBtn" class="btn btn-solid" type="submit">Create Token</button>
+        </form>
+      </article>
+    </section>
+
     <section id="agentTokenRevealSheet" class="sheet hidden" aria-hidden="true">
       <div class="sheet-backdrop" data-close-sheet="agentTokenRevealSheet"></div>
       <article class="sheet-card token-reveal-sheet-card">
@@ -585,9 +595,16 @@
         <p class="muted" id="agentTokenRevealHint">
           Copy it now. For security, this token will not be shown again.
         </p>
+        <p class="muted small" id="agentTokenRevealOptionSetup">
+          Option A · Copy full setup brief (GitHub skill link + token)
+        </p>
+        <div class="token-reveal-actions">
+          <button id="agentTokenRevealCopySetupBtn" class="btn btn-solid" type="button">Copy Full Agent Setup</button>
+        </div>
+        <p class="muted small" id="agentTokenRevealOptionToken">Option B · Copy token only</p>
         <div class="token-reveal-row">
           <textarea id="agentTokenRevealValue" class="mono" rows="3" readonly></textarea>
-          <button id="agentTokenRevealCopyBtn" class="btn btn-solid" type="button">Copy</button>
+          <button id="agentTokenRevealCopyBtn" class="btn btn-ghost" type="button">Copy Token</button>
         </div>
       </article>
     </section>
@@ -705,7 +722,7 @@
         <!-- ── PAGE: General ── -->
         <div class="settings-page hidden" id="settingsPageGeneral">
           <div class="sheet-head settings-subpage-head">
-            <button class="settings-back-btn" id="settingsBackFromGeneral" type="button">‹ Settings</button>
+            <button class="settings-back-btn" id="settingsBackFromGeneral" type="button" aria-label="Back">←</button>
             <h3 id="settingsGeneralPageTitle">General</h3>
             <div></div>
           </div>
@@ -748,7 +765,7 @@
         <!-- ── PAGE: Dashboard Widgets ── -->
         <div class="settings-page hidden" id="settingsPageWidgets">
           <div class="sheet-head settings-subpage-head">
-            <button class="settings-back-btn" id="settingsBackFromWidgets" type="button">‹ Settings</button>
+            <button class="settings-back-btn" id="settingsBackFromWidgets" type="button" aria-label="Back">←</button>
             <h3>Dashboard Widgets</h3>
             <div></div>
           </div>
