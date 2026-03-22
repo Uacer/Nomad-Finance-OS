@@ -108,25 +108,53 @@ body.auth-required {
 .topbar {
   position: sticky;
   top: 0;
-  z-index: 20;
-  display: grid;
-  grid-template-columns: 40px 1fr auto;
-  align-items: center;
-  gap: 8px;
+  z-index: 28;
+  max-height: 120px;
+  overflow: clip;
   padding: 10px 14px;
   padding-top: max(8px, calc(var(--safe-top) + 8px));
   padding-left: max(14px, calc(var(--safe-left) + 14px));
   padding-right: max(14px, calc(var(--safe-right) + 14px));
   border-bottom: 0;
-  background: color-mix(in oklab, var(--bg-2), white 14%);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 1px 0 rgba(49, 66, 80, 0.1);
+  background: transparent;
+  backdrop-filter: none;
+  box-shadow: none;
+  transition: max-height 280ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms ease, padding 220ms ease,
+    background 220ms ease, box-shadow 220ms ease, backdrop-filter 220ms ease;
+}
+
+.topbar-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-start;
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 200ms ease, transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.topbar-main > * {
+  flex: 0 0 auto;
+}
+
+.topbar.topbar--compact {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.topbar.topbar--compact .topbar-main {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 
 .topbar-right {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  margin-left: 0;
 }
 
 .minimal-topbar {
@@ -167,58 +195,99 @@ body.auth-required {
 }
 
 .topbar-month {
-  min-width: 0;
+  position: relative;
+  min-width: 132px;
+  margin-left: auto;
 }
 
-.topbar-month input {
+.topbar-month-display {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
-  text-align: center;
+  min-height: 38px;
+  padding: 6px 14px;
   font-weight: 700;
   font-size: 1rem;
   letter-spacing: -0.01em;
-  padding: 6px 10px;
-  border: 0;
-  min-height: unset;
-  border-radius: 20px;
-  background: rgba(49, 66, 80, 0.06);
-  box-shadow: none;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 999px;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.22) 0%,
+    rgba(255, 255, 255, 0.14) 54%,
+    rgba(255, 255, 255, 0.08) 100%
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(12px) saturate(132%);
+  -webkit-backdrop-filter: blur(12px) saturate(132%);
   color: var(--ink);
-  appearance: none;
-  -webkit-appearance: none;
-  transition: background 120ms ease;
 }
 
-.topbar-month input:hover {
-  background: rgba(49, 66, 80, 0.1);
+.topbar-month input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.topbar-month:hover .topbar-month-display {
+  filter: brightness(1.03);
+}
+
+.topbar-month:focus-within .topbar-month-display {
+  border-color: rgba(255, 255, 255, 0.56);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);
 }
 
 .topbar-base {
-  flex-shrink: 0;
+  width: auto;
 }
 
 .topbar-base select {
   width: auto;
-  min-width: 58px;
+  min-width: 92px;
   min-height: unset;
   padding: 6px 24px 6px 10px;
   font-weight: 600;
   font-size: 0.88rem;
   text-align: center;
-  border: 0;
-  border-radius: 20px;
-  background-color: rgba(49, 66, 80, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 999px;
   color: var(--ink);
-  box-shadow: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(12px) saturate(132%);
+  -webkit-backdrop-filter: blur(12px) saturate(132%);
   appearance: none;
   -webkit-appearance: none;
-  background-image:
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.22) 0%,
+      rgba(255, 255, 255, 0.14) 54%,
+      rgba(255, 255, 255, 0.08) 100%
+    ),
     linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%),
     linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%);
+  background-color: transparent;
   background-position:
+    0 0,
     calc(100% - 10px) 50%,
     calc(100% - 6px) 50%;
-  background-size: 4px 4px, 4px 4px;
+  background-size: 100% 100%, 4px 4px, 4px 4px;
   background-repeat: no-repeat;
+  transition: filter 120ms ease, box-shadow 160ms ease;
+}
+
+.topbar-base select:hover {
+  filter: brightness(1.03);
 }
 
 .topbar-month input::-webkit-calendar-picker-indicator {
@@ -302,30 +371,42 @@ textarea {
 
 .topbar-icon {
   justify-self: start;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: rgba(49, 66, 80, 0.07);
-  color: var(--ink-soft);
-  transition: background 120ms ease, color 120ms ease;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.22) 0%,
+    rgba(255, 255, 255, 0.14) 54%,
+    rgba(255, 255, 255, 0.08) 100%
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(12px) saturate(132%);
+  -webkit-backdrop-filter: blur(12px) saturate(132%);
+  color: var(--ink);
+  transition: filter 120ms ease, transform 120ms ease, box-shadow 160ms ease;
 }
 
 .topbar-icon:hover {
-  background: rgba(49, 66, 80, 0.13);
-  color: var(--ink);
+  filter: brightness(1.03);
 }
 
 .topbar-icon:active {
-  background: rgba(49, 66, 80, 0.18);
   transform: scale(0.94);
 }
 
 .minimal-topbar input:focus,
 .minimal-topbar select:focus,
 .minimal-topbar button:focus-visible {
-  border-color: transparent;
-  box-shadow: none;
-  background: rgba(49, 66, 80, 0.12);
+  border-color: rgba(255, 255, 255, 0.56);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.28) 0%,
+    rgba(255, 255, 255, 0.16) 54%,
+    rgba(255, 255, 255, 0.1) 100%
+  );
 }
 
 .icon-btn.icon-add {
@@ -344,15 +425,48 @@ textarea {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  border: 1px solid var(--ink);
-  background: var(--ink);
-  color: #f2f7fb;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.22) 0%,
+    rgba(255, 255, 255, 0.14) 54%,
+    rgba(255, 255, 255, 0.08) 100%
+  );
+  color: var(--ink);
   font-size: 1.6rem;
+  font-weight: 700;
   line-height: 1;
   display: grid;
   place-items: center;
   z-index: 80;
-  box-shadow: 0 12px 24px rgba(35, 28, 20, 0.25);
+  overflow: hidden;
+  backdrop-filter: blur(14px) saturate(135%);
+  -webkit-backdrop-filter: blur(14px) saturate(135%);
+  box-shadow: 0 10px 24px rgba(20, 30, 45, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.34);
+  transition: transform 180ms ease, box-shadow 220ms ease, filter 220ms ease;
+}
+
+.fab::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.2) 0%,
+    rgba(255, 255, 255, 0.06) 45%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  pointer-events: none;
+}
+
+.fab:hover {
+  filter: brightness(1.04);
+}
+
+.fab:active {
+  transform: translateX(-50%) scale(0.94);
+  box-shadow: 0 6px 14px rgba(20, 30, 45, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.26);
 }
 
 body.sheet-open .fab,
@@ -628,6 +742,12 @@ h3 {
 
 h2 {
   font-size: 1.1rem;
+}
+
+#dashboardTitle {
+  font-size: 1.28rem;
+  line-height: 1.16;
+  font-weight: 700;
 }
 
 .dash-section-row {
@@ -3275,20 +3395,35 @@ body.utility-mode #dashboardPanel {
 
 @media (max-width: 430px) {
   .topbar {
-    grid-template-columns: 36px minmax(0, 1fr) auto;
-    gap: 6px;
     padding-left: max(12px, calc(var(--safe-left) + 12px));
     padding-right: max(12px, calc(var(--safe-right) + 12px));
   }
 
-  .topbar-month input {
+  .topbar-main {
+    gap: 6px;
+  }
+
+  .topbar-month {
+    min-width: 118px;
+  }
+
+  .topbar-right {
+    gap: 6px;
+  }
+
+  .topbar-month-display {
+    min-height: 34px;
+    padding-left: 12px;
+    padding-right: 12px;
     font-size: 0.94rem;
-    padding-left: 8px;
-    padding-right: 8px;
+  }
+
+  .topbar-month input {
+    min-height: 34px;
   }
 
   .topbar-base select {
-    min-width: 54px;
+    min-width: 82px;
     padding: 6px 22px 6px 8px;
     font-size: 0.84rem;
   }

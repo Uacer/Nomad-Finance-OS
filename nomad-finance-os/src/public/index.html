@@ -55,7 +55,8 @@
         <p id="authMessage" class="muted" aria-live="polite"></p>
       </article>
     </section>
-    <header class="topbar minimal-topbar">
+    <header class="topbar minimal-topbar" id="mainTopbar">
+      <div class="topbar-main" id="topbarMain">
       <button id="openSettingsBtn" class="icon-btn topbar-icon" type="button" aria-label="Open settings">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="3"/>
@@ -64,6 +65,7 @@
       </button>
       <label class="topbar-month">
         <span id="monthLabelText" class="sr-only">Month</span>
+        <span id="monthDisplayText" class="topbar-month-display">2026/03</span>
         <input id="monthInput" type="month" aria-label="Month" />
       </label>
       <div class="topbar-right">
@@ -78,6 +80,7 @@
           <option value="KRW">KRW</option>
         </select>
       </label>
+      </div>
       </div>
       <input id="userIdInput" type="number" min="1" value="1" hidden />
       <button id="reloadBtn" class="hidden" type="button">Reload</button>

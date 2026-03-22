@@ -780,18 +780,35 @@ const I18N = {
 
 const FX_QUOTE_CACHE = new Map();
 const AUTH_RESEND_COOLDOWN_SECONDS = 60;
+const TOPBAR_COMPACT_SCROLL_Y = 56;
 const MONEY_FORMATTER = new Intl.NumberFormat(undefined, {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2
 });
 let quickEntryLimitReqSeq = 0;
 let authResendTimer = null;
+let topbarCompactRaf = 0;
 
 const $ = (selector) => document.querySelector(selector);
+
+function formatTopbarMonth(monthValue) {
+  const value = String(monthValue || "").trim();
+  const matched = /^(\d{4})-(\d{2})$/.exec(value);
+  if (matched) return `${matched[1]}/${matched[2]}`;
+  const fallback = new Date().toISOString().slice(0, 7);
+  return fallback.replace("-", "/");
+}
+
+function updateTopbarMonthDisplay(monthValue = state.month) {
+  const monthDisplay = $("#monthDisplayText");
+  if (!monthDisplay) return;
+  monthDisplay.textContent = formatTopbarMonth(monthValue);
+}
 
 document.addEventListener("DOMContentLoaded", () => {
   state.month = new Date().toISOString().slice(0, 7);
   $("#monthInput").value = state.month;
+  updateTopbarMonthDisplay(state.month);
   loadQuickEntryPreferences();
   bindUI();
   initializeDebugCapture();
@@ -824,6 +841,8 @@ function bindUI() {
     if (state.auth.authenticated) return;
     void resumeSessionIfAvailable();
   });
+  window.addEventListener("scroll", scheduleTopbarCompactSync, { passive: true });
+  window.addEventListener("resize", scheduleTopbarCompactSync);
   $("#monthInput").addEventListener("change", async () => {
     syncControlState();
     await loadAll();
@@ -1337,6 +1356,7 @@ function bindUI() {
       }
     });
   }
+  updateTopbarCompactState();
 }
 
 function initializeDebugCapture() {
@@ -1378,6 +1398,30 @@ function initializeQuickEntryDefaults() {
   if (budgetMonth) budgetMonth.value = state.month;
 }
 
+function canUseCompactTopbar() {
+  const topbar = $("#mainTopbar");
+  if (!topbar) return false;
+  if (document.body.classList.contains("sheet-open")) return false;
+  if (document.body.classList.contains("utility-mode")) return false;
+  const dashboardPanel = $("#dashboardPanel");
+  return Boolean(dashboardPanel && dashboardPanel.classList.contains("active"));
+}
+
+function updateTopbarCompactState() {
+  const topbar = $("#mainTopbar");
+  if (!topbar) return;
+  const shouldCompact = canUseCompactTopbar() && window.scrollY > TOPBAR_COMPACT_SCROLL_Y;
+  topbar.classList.toggle("topbar--compact", shouldCompact);
+}
+
+function scheduleTopbarCompactSync() {
+  if (topbarCompactRaf) return;
+  topbarCompactRaf = window.requestAnimationFrame(() => {
+    topbarCompactRaf = 0;
+    updateTopbarCompactState();
+  });
+}
+
 function switchPanel(id) {
   if (id !== "transactionsPanel") {
     closeTransactionRecordsOnlyMode();
@@ -1388,6 +1432,7 @@ function switchPanel(id) {
   for (const panel of document.querySelectorAll(".panel")) {
     panel.classList.toggle("active", panel.id === id);
   }
+  scheduleTopbarCompactSync();
 }
 
 function setTransactionRecordsOnlyMode(enabled) {
@@ -1478,6 +1523,7 @@ function syncSheetOpenState() {
     (sheet) => !sheet.classList.contains("hidden")
   );
   document.body.classList.toggle("sheet-open", anyOpen);
+  scheduleTopbarCompactSync();
 }
 
 function openUtilityPanel(panelId) {
@@ -1495,6 +1541,7 @@ function openUtilityPanel(panelId) {
   panel.classList.add("utility-open");
   panel.classList.add("active");
   $("#closeUtilityBtn").classList.remove("hidden");
+  scheduleTopbarCompactSync();
 }
 
 function closeUtilityPanel() {
@@ -1507,6 +1554,7 @@ function closeUtilityPanel() {
   if (closeBtn) closeBtn.classList.add("hidden");
   state.utilityReturnSheet = "";
   closeTransactionRecordsOnlyMode();
+  scheduleTopbarCompactSync();
 }
 
 function syncControlState() {
@@ -1516,6 +1564,7 @@ function syncControlState() {
     state.userId = Number.isInteger(uid) && uid > 0 ? uid : 1;
   }
   state.month = $("#monthInput").value || new Date().toISOString().slice(0, 7);
+  updateTopbarMonthDisplay(state.month);
 }
 
 async function api(path, init = {}) {
