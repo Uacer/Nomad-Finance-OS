@@ -137,6 +137,7 @@ CREATE TABLE IF NOT EXISTS user_settings (
     base_currency TEXT NOT NULL DEFAULT 'USD',
     timezone TEXT NOT NULL DEFAULT 'UTC',
     ui_language TEXT NOT NULL DEFAULT 'en',
+    currency_display_mode TEXT NOT NULL DEFAULT 'code',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

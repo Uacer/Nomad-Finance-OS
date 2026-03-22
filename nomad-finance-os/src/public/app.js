@@ -29,6 +29,7 @@ const state = {
   latestAgentTokenPlaintext: "",
   accountPeriod: "7d",
   accountPeriodTxs: [],
+  recentCompareRows: [],
   trend: {
     start: "",
     end: "",
@@ -41,6 +42,7 @@ const state = {
     showRisk: false,
     showRecentExpenses: true,
     showToday: true,
+    showRecentCompare: true,
     showAccounts: false,
     showDebug: false,
     budgetPieView: false
@@ -76,6 +78,15 @@ const state = {
 
 const UI_CURRENCIES = new Set(["CNY", "EUR", "THB", "USD", "JPY", "KRW"]);
 const UI_LANGUAGES = new Set(["en", "zh"]);
+const UI_CURRENCY_DISPLAY_MODES = new Set(["code", "symbol"]);
+const CURRENCY_SYMBOL_MAP = {
+  USD: "$",
+  CNY: "¥",
+  EUR: "€",
+  THB: "฿",
+  JPY: "¥",
+  KRW: "₩"
+};
 const CATEGORY_L1_EMOJI = {
   Living: "🏠",
   Travel: "✈️",
@@ -108,6 +119,39 @@ const CATEGORY_L2_EMOJI = {
   Books: "📖",
   Certification: "📜",
   Workshops: "🧪"
+};
+const DEFAULT_CATEGORY_L1_LABELS = {
+  Living: { en: "Living", zh: "生活" },
+  Travel: { en: "Travel", zh: "旅行" },
+  Work: { en: "Work", zh: "工作" },
+  Investment: { en: "Investment", zh: "投资" },
+  Lifestyle: { en: "Lifestyle", zh: "生活方式" },
+  Study: { en: "Study", zh: "学习" }
+};
+const DEFAULT_CATEGORY_L2_LABELS = {
+  Rent: { en: "Rent", zh: "房租" },
+  Utilities: { en: "Utilities", zh: "水电煤" },
+  Groceries: { en: "Groceries", zh: "杂货" },
+  Healthcare: { en: "Healthcare", zh: "医疗" },
+  Flights: { en: "Flights", zh: "航班" },
+  Hotels: { en: "Hotels", zh: "酒店" },
+  Visa: { en: "Visa", zh: "签证" },
+  "Local Transport": { en: "Local Transport", zh: "本地交通" },
+  SaaS: { en: "SaaS", zh: "软件订阅" },
+  Coworking: { en: "Coworking", zh: "联合办公" },
+  Equipment: { en: "Equipment", zh: "设备" },
+  Contractor: { en: "Contractor", zh: "外包" },
+  "Broker Fees": { en: "Broker Fees", zh: "券商手续费" },
+  "On-chain Fees": { en: "On-chain Fees", zh: "链上手续费" },
+  Custody: { en: "Custody", zh: "托管" },
+  Dining: { en: "Dining", zh: "餐饮" },
+  Entertainment: { en: "Entertainment", zh: "娱乐" },
+  Shopping: { en: "Shopping", zh: "购物" },
+  Fitness: { en: "Fitness", zh: "健身" },
+  Courses: { en: "Courses", zh: "课程" },
+  Books: { en: "Books", zh: "书籍" },
+  Certification: { en: "Certification", zh: "认证" },
+  Workshops: { en: "Workshops", zh: "工作坊" }
 };
 const TRANSFER_REASON_EMOJI = {
   normal: "🔁",
@@ -191,6 +235,8 @@ const I18N = {
     amountWheel: "Amount Wheel",
     quickDateHint: "Default: payment date",
     quickDateToggle: "Date",
+    quickDateYesterday: "Yesterday",
+    quickDateDayBefore: "2d ago",
     quickUnassignedHint: "No account selected. It will be saved to Unassigned Account.",
     note: "Note",
     tagsLabel: "Tags",
@@ -205,6 +251,9 @@ const I18N = {
     userId: "User ID",
     language: "Language",
     baseCurrency: "Base Currency",
+    currencyDisplay: "Currency Display",
+    currencyDisplayCode: "Code (USD)",
+    currencyDisplaySymbol: "Symbol ($)",
     timezone: "Timezone",
     saveSettings: "Save Settings",
     general: "General",
@@ -214,6 +263,7 @@ const I18N = {
     showRisk: "Risk Metrics",
     showRecentExpenses: "Recent Transactions Card",
     showToday: "Today Card",
+    showRecentCompare: "Recent 3-Day Card",
     showAccounts: "Accounts Card",
     showDebug: "Debug Panel",
     logout: "Logout",
@@ -255,6 +305,7 @@ const I18N = {
     addL1Bottom: "✏️ Add L1",
     addCategory: "Add Category",
     addL2Inline: "＋",
+    addL2Action: "Add Tag",
     emptyNoL2Categories: "No L2 categories",
     promptL1Name: "New L1 category name",
     promptL2Name: "New tag (L2) for {l1}",
@@ -328,9 +379,32 @@ const I18N = {
     emptyNoExpenseMonth: "No expense records for this month.",
     emptyNoExpenseToday: "No expenses today.",
     emptyNoRecentExpense: "No transactions yet.",
+    recentSpendToday: "Today",
+    recentSpendYesterday: "Yesterday",
+    recentSpendDayBefore: "2d ago",
     emptyNoMonthlyBudget: "No monthly budgets.",
     emptyNoYearlyBudget: "No yearly budgets.",
     emptyNoQuickBudget: "No budgets yet.",
+    recentCompareTitle: "📉 Spending Change",
+    recentCompareSummaryQuiet: "No spending spikes over the past 7 days.",
+    recentCompareSummaryDown: "Spent {amount} {currency} in the past 7 days, down {pct} vs last week.",
+    recentCompareSummaryUp: "Spent {amount} {currency} in the past 7 days, up {pct} vs last week.",
+    recentCompareSummaryFlat: "Spent {amount} {currency} in the past 7 days, in line with last week.",
+    recentCompareSummaryInsufficient:
+      "Spent {amount} {currency} in the past 7 days. Need more baseline data before judging the trend.",
+    recentCompareSummaryNoBaseline: "Spent {amount} {currency} in the past 7 days. No spending last week.",
+    recentCompareStateQuiet: "Very Calm",
+    recentCompareStateDown: "Cooling Down",
+    recentCompareStateUp: "Elevated",
+    recentCompareStateFlat: "Steady",
+    recentCompareStateInsufficient: "Need More Data",
+    recentCompareAxisMon: "Mon",
+    recentCompareAxisTue: "Tue",
+    recentCompareAxisWed: "Wed",
+    recentCompareAxisThu: "Thu",
+    recentCompareAxisFri: "Fri",
+    recentCompareAxisSat: "Sat",
+    recentCompareAxisSun: "Sun",
     relativeToday: "Today",
     relativeDayAgo: "{days} day ago",
     relativeDaysAgo: "{days} days ago",
@@ -471,6 +545,8 @@ const I18N = {
     amountWheel: "金额滚轮",
     quickDateHint: "默认使用支付日期",
     quickDateToggle: "日期",
+    quickDateYesterday: "昨天",
+    quickDateDayBefore: "前天",
     quickUnassignedHint: "未选择账户，将记入未分配账户。",
     note: "备注",
     tagsLabel: "标签",
@@ -485,6 +561,9 @@ const I18N = {
     userId: "用户 ID",
     language: "语言",
     baseCurrency: "基准货币",
+    currencyDisplay: "货币显示",
+    currencyDisplayCode: "代码（USD）",
+    currencyDisplaySymbol: "符号（$）",
     timezone: "时区",
     saveSettings: "保存设置",
     general: "通用",
@@ -494,6 +573,7 @@ const I18N = {
     showRisk: "风险指标",
     showRecentExpenses: "最近交易卡片",
     showToday: "今日卡片",
+    showRecentCompare: "最近三日卡片",
     showAccounts: "账户卡片",
     showDebug: "调试面板",
     logout: "退出登录",
@@ -535,6 +615,7 @@ const I18N = {
     addL1Bottom: "✏️ 新增一级分类",
     addCategory: "新增分类",
     addL2Inline: "＋",
+    addL2Action: "新增标签",
     emptyNoL2Categories: "暂无二级分类",
     promptL1Name: "输入新的一级分类名称",
     promptL2Name: "为 {l1} 输入新的标签（L2）",
@@ -607,9 +688,31 @@ const I18N = {
     emptyNoExpenseMonth: "本月暂无消费记录。",
     emptyNoExpenseToday: "今天暂无支出。",
     emptyNoRecentExpense: "暂无交易记录。",
+    recentSpendToday: "今天",
+    recentSpendYesterday: "昨天",
+    recentSpendDayBefore: "前天",
     emptyNoMonthlyBudget: "暂无月度预算。",
     emptyNoYearlyBudget: "暂无年度预算。",
     emptyNoQuickBudget: "还没有预算数据。",
+    recentCompareTitle: "📉 支出变化",
+    recentCompareSummaryQuiet: "过去 7 天没有明显支出波动。",
+    recentCompareSummaryDown: "过去 7 天共支出 {amount} {currency}，较上周下降 {pct}。",
+    recentCompareSummaryUp: "过去 7 天共支出 {amount} {currency}，较上周上升 {pct}。",
+    recentCompareSummaryFlat: "过去 7 天共支出 {amount} {currency}，与上周基本持平。",
+    recentCompareSummaryInsufficient: "过去 7 天共支出 {amount} {currency}，上周样本不足，先继续观察。",
+    recentCompareSummaryNoBaseline: "过去 7 天共支出 {amount} {currency}，上周同期无支出。",
+    recentCompareStateQuiet: "平稳",
+    recentCompareStateDown: "回落中",
+    recentCompareStateUp: "偏高",
+    recentCompareStateFlat: "稳定",
+    recentCompareStateInsufficient: "样本不足",
+    recentCompareAxisMon: "周一",
+    recentCompareAxisTue: "周二",
+    recentCompareAxisWed: "周三",
+    recentCompareAxisThu: "周四",
+    recentCompareAxisFri: "周五",
+    recentCompareAxisSat: "周六",
+    recentCompareAxisSun: "周日",
     relativeToday: "今天",
     relativeDayAgo: "{days}天前",
     relativeDaysAgo: "{days}天前",
@@ -858,6 +961,14 @@ function bindUI() {
       applyAdvancedVisibility();
     });
   }
+  const toggleRecentCompare = $("#toggleRecentCompare");
+  if (toggleRecentCompare) {
+    toggleRecentCompare.addEventListener("change", () => {
+      state.ui.showRecentCompare = toggleRecentCompare.checked;
+      persistUiState();
+      applyAdvancedVisibility();
+    });
+  }
   const toggleAccounts = $("#toggleAccounts");
   if (toggleAccounts) {
     toggleAccounts.addEventListener("change", () => {
@@ -952,9 +1063,12 @@ function bindUI() {
     renderQuickTransferReasonGrid();
     void updateQuickEntryFlow();
   });
-  $("#quickEntryForm [name=date]").addEventListener("change", () => {
-    updateQuickDateDisplay();
-  });
+  const quickDateInput = $("#quickEntryForm [name=date]");
+  if (quickDateInput) {
+    const syncQuickDate = () => updateQuickDateDisplay();
+    quickDateInput.addEventListener("change", syncQuickDate);
+    quickDateInput.addEventListener("input", syncQuickDate);
+  }
   const quickDateToggleBtn = $("#quickDateToggleBtn");
   if (quickDateToggleBtn) {
     quickDateToggleBtn.addEventListener("click", () => {
@@ -992,7 +1106,10 @@ function bindUI() {
   $("#transactionEditForm").addEventListener("submit", submitTransactionEditForm);
   $("#accountDeleteBtn").addEventListener("click", deleteCurrentAccount);
   $("#accountForceDeleteBtn").addEventListener("click", forceDeleteCurrentAccount);
-  $("#transactionDeleteBtn").addEventListener("click", deleteCurrentTransaction);
+  const transactionDeleteBtn = $("#transactionDeleteBtn");
+  if (transactionDeleteBtn) {
+    transactionDeleteBtn.addEventListener("click", deleteCurrentTransaction);
+  }
   $("#transactionDetailEditBtn").addEventListener("click", openCurrentDetailForEdit);
   $("#transactionDetailDeleteBtn").addEventListener("click", deleteCurrentDetailTransaction);
   const recentExpensesTitle = $("#recentExpensesTitle");
@@ -1021,13 +1138,29 @@ function bindUI() {
         return;
       }
       const deleteBtn = event.target.closest("button[data-action='delete-l2']");
-      if (!deleteBtn) return;
-      const encodedL1 = String(deleteBtn.getAttribute("data-l1") || "");
-      const encodedL2 = String(deleteBtn.getAttribute("data-l2") || "");
-      const l1Name = decodeURIComponent(encodedL1 || "").trim();
-      const l2Name = decodeURIComponent(encodedL2 || "").trim();
-      if (!l1Name || !l2Name) return;
-      void deleteL2CategoryInline(l1Name, l2Name);
+      if (deleteBtn) {
+        const encodedL1 = String(deleteBtn.getAttribute("data-l1") || "");
+        const encodedL2 = String(deleteBtn.getAttribute("data-l2") || "");
+        const l1Name = decodeURIComponent(encodedL1 || "").trim();
+        const l2Name = decodeURIComponent(encodedL2 || "").trim();
+        if (!l1Name || !l2Name) return;
+        void deleteL2CategoryInline(l1Name, l2Name);
+        return;
+      }
+      const isTouchLike =
+        typeof window.matchMedia === "function" && window.matchMedia("(hover: none)").matches;
+      const tagItem = event.target.closest(".category-tag-item");
+      if (isTouchLike && tagItem) {
+        const shouldReveal = !tagItem.classList.contains("reveal-delete");
+        categoryTree.querySelectorAll(".category-tag-item.reveal-delete").forEach((node) => {
+          if (node !== tagItem) node.classList.remove("reveal-delete");
+        });
+        tagItem.classList.toggle("reveal-delete", shouldReveal);
+        return;
+      }
+      categoryTree.querySelectorAll(".category-tag-item.reveal-delete").forEach((node) => {
+        node.classList.remove("reveal-delete");
+      });
     });
   }
   const addL1BottomBtn = $("#addL1BottomBtn");
@@ -1491,6 +1624,33 @@ async function safeJson(res) {
 
 function formatMoney(value) {
   return MONEY_FORMATTER.format(Number(value || 0));
+}
+
+function formatCurrencyUnit(value) {
+  const code = ensureUICurrency(value || "USD");
+  const mode = ensureCurrencyDisplayMode(state.settings?.currency_display_mode || "code");
+  if (mode === "symbol") {
+    return CURRENCY_SYMBOL_MAP[code] || code;
+  }
+  return code;
+}
+
+function formatCompactKMoney(value) {
+  const amount = Math.abs(Number(value || 0));
+  if (!Number.isFinite(amount) || amount < 0.0001) return "0";
+  if (amount >= 1000) return `${formatCompactDecimal(amount / 1000)}k`;
+  return formatCompactDecimal(amount);
+}
+
+function formatCompactDecimal(value) {
+  const num = Number(value || 0);
+  if (!Number.isFinite(num)) return "0";
+  const abs = Math.abs(num);
+  const digits = abs >= 100 ? 0 : abs >= 10 ? 1 : 2;
+  return num
+    .toFixed(digits)
+    .replace(/\.0+$/, "")
+    .replace(/(\.\d*[1-9])0+$/, "$1");
 }
 
 function showToast(message, isError = false) {
@@ -2074,6 +2234,7 @@ async function loadAll() {
     await Promise.all([
       loadDashboard(),
       loadTransactions(),
+      loadRecentCompareData(),
       loadBudgets(),
       loadYearlyBudgets(),
       loadReview(),
@@ -2089,7 +2250,8 @@ async function loadSettings() {
   state.settings = (await api("/api/v1/settings")) || {
     base_currency: "USD",
     timezone: "UTC",
-    ui_language: "en"
+    ui_language: "en",
+    currency_display_mode: "code"
   };
 
   // Auto-detect local timezone on first use (when server still has UTC default)
@@ -2112,17 +2274,22 @@ async function loadSettings() {
   const uiLanguage = ensureUILanguage(state.settings.ui_language || "en");
   state.settings.ui_language = uiLanguage;
   const uiBase = ensureUICurrency(state.settings.base_currency || "USD");
+  const currencyDisplayMode = ensureCurrencyDisplayMode(state.settings.currency_display_mode || "code");
+  state.settings.currency_display_mode = currencyDisplayMode;
   const settingsForm = $("#settingsForm");
   if (settingsForm instanceof HTMLFormElement) {
     const formLanguage = settingsForm.querySelector("[name=ui_language]");
     const formBase = settingsForm.querySelector("[name=base_currency]");
+    const formCurrencyDisplay = settingsForm.querySelector("[name=currency_display_mode]");
     const formTimezone = settingsForm.querySelector("[name=timezone]");
     if (formLanguage) formLanguage.value = uiLanguage;
     if (formBase) formBase.value = uiBase;
+    if (formCurrencyDisplay) formCurrencyDisplay.value = currencyDisplayMode;
     if (formTimezone) formTimezone.value = state.settings.timezone || "UTC";
   }
   $("#quickSettingsForm [name=ui_language]").value = uiLanguage;
   $("#quickSettingsForm [name=base_currency]").value = uiBase;
+  $("#quickSettingsForm [name=currency_display_mode]").value = currencyDisplayMode;
   $("#quickSettingsForm [name=timezone]").value = state.settings.timezone || "UTC";
   const quickUserIdInput = $("#quickSettingsForm [name=user_id]");
   if (quickUserIdInput) quickUserIdInput.value = String(state.userId);
@@ -2141,6 +2308,8 @@ async function loadSettings() {
   if (toggleRecentExpenses) toggleRecentExpenses.checked = Boolean(state.ui.showRecentExpenses);
   const toggleTodayEl = $("#toggleToday");
   if (toggleTodayEl) toggleTodayEl.checked = Boolean(state.ui.showToday);
+  const toggleRecentCompareEl = $("#toggleRecentCompare");
+  if (toggleRecentCompareEl) toggleRecentCompareEl.checked = Boolean(state.ui.showRecentCompare);
   const toggleAccountsEl = $("#toggleAccounts");
   if (toggleAccountsEl) toggleAccountsEl.checked = Boolean(state.ui.showAccounts);
   if (debugOnlyFailed) debugOnlyFailed.checked = Boolean(state.debug.onlyFailed);
@@ -2223,9 +2392,7 @@ async function loadAgentTokens() {
 }
 
 function populateL1Selects() {
-  const activeL1 = Object.entries(state.categories || {})
-    .filter(([, cfg]) => cfg.active)
-    .map(([name]) => name);
+  const activeL1 = Object.entries(state.categories || {}).filter(([, cfg]) => cfg.active);
   const selects = [
     $("#transactionForm [name=category_l1]"),
     $("#budgetForm [name=category_l1]"),
@@ -2235,8 +2402,8 @@ function populateL1Selects() {
   ].filter(Boolean);
   for (const select of selects) {
     select.innerHTML = "";
-    for (const name of activeL1) {
-      select.appendChild(new Option(withL1Emoji(name), name));
+    for (const [name, cfg] of activeL1) {
+      select.appendChild(new Option(withL1Emoji(name, { bilingualDefault: true, isDefault: Boolean(cfg?.is_default) }), name));
     }
   }
   populateL2Select();
@@ -2249,7 +2416,12 @@ function populateL2Select() {
   const rows = state.categories?.[l1]?.l2 || [];
   for (const row of rows) {
     if (!row.active) continue;
-    target.appendChild(new Option(withL2Emoji(row.name, l1), row.name));
+    target.appendChild(
+      new Option(
+        withL2Emoji(row.name, l1, { bilingualDefault: true, isDefault: Boolean(row?.is_default) }),
+        row.name
+      )
+    );
   }
 }
 
@@ -2259,7 +2431,9 @@ function populateAccountSelects() {
   for (const select of [from, to]) {
     select.innerHTML = '<option value="">-- none --</option>';
     for (const account of state.accounts || []) {
-      const label = `${account.name} · ${account.type} · ${formatMoney(account.balance)} ${account.currency}`;
+      const label = `${account.name} · ${account.type} · ${formatMoney(account.balance)} ${formatCurrencyUnit(
+        account.currency
+      )}`;
       select.appendChild(new Option(label, String(account.id)));
     }
   }
@@ -2268,12 +2442,10 @@ function populateAccountSelects() {
 function populateTransactionEditL1Select() {
   const select = $("#transactionEditForm [name=category_l1]");
   if (!select) return;
-  const activeL1 = Object.entries(state.categories || {})
-    .filter(([, cfg]) => cfg.active)
-    .map(([name]) => name);
+  const activeL1 = Object.entries(state.categories || {}).filter(([, cfg]) => cfg.active);
   select.innerHTML = '<option value="">-- none --</option>';
-  for (const name of activeL1) {
-    select.appendChild(new Option(withL1Emoji(name), name));
+  for (const [name, cfg] of activeL1) {
+    select.appendChild(new Option(withL1Emoji(name, { bilingualDefault: true, isDefault: Boolean(cfg?.is_default) }), name));
   }
 }
 
@@ -2286,7 +2458,12 @@ function populateTransactionEditL2Select() {
   const rows = state.categories?.[l1]?.l2 || [];
   for (const row of rows) {
     if (!row.active) continue;
-    target.appendChild(new Option(withL2Emoji(row.name, l1), row.name));
+    target.appendChild(
+      new Option(
+        withL2Emoji(row.name, l1, { bilingualDefault: true, isDefault: Boolean(row?.is_default) }),
+        row.name
+      )
+    );
   }
 }
 
@@ -2297,7 +2474,9 @@ function populateTransactionEditAccountSelects() {
     if (!select) continue;
     select.innerHTML = '<option value="">-- none --</option>';
     for (const account of state.accounts || []) {
-      const label = `${account.name} · ${account.type} · ${formatMoney(account.balance)} ${account.currency}`;
+      const label = `${account.name} · ${account.type} · ${formatMoney(account.balance)} ${formatCurrencyUnit(
+        account.currency
+      )}`;
       select.appendChild(new Option(label, String(account.id)));
     }
   }
@@ -2306,15 +2485,13 @@ function populateTransactionEditAccountSelects() {
 function populateQuickEntryL1() {
   const select = $("#quickEntryForm [name=category_l1]");
   if (!select) return;
-  const activeL1 = Object.entries(state.categories || {})
-    .filter(([, cfg]) => cfg.active)
-    .map(([name]) => name);
+  const activeL1 = Object.entries(state.categories || {}).filter(([, cfg]) => cfg.active);
   select.innerHTML = "";
-  for (const name of activeL1) {
-    select.appendChild(new Option(withL1Emoji(name), name));
+  for (const [name, cfg] of activeL1) {
+    select.appendChild(new Option(withL1Emoji(name, { bilingualDefault: true, isDefault: Boolean(cfg?.is_default) }), name));
   }
   if (activeL1.length && !select.value) {
-    select.value = activeL1[0];
+    select.value = activeL1[0][0];
   }
   renderQuickL1Grid();
   populateQuickEntryL2();
@@ -2329,7 +2506,12 @@ function populateQuickEntryL2() {
   l2Select.innerHTML = "";
   for (const row of rows) {
     if (!row.active) continue;
-    l2Select.appendChild(new Option(withL2Emoji(row.name, l1), row.name));
+    l2Select.appendChild(
+      new Option(
+        withL2Emoji(row.name, l1, { bilingualDefault: true, isDefault: Boolean(row?.is_default) }),
+        row.name
+      )
+    );
   }
   if (l2Select.options.length && !l2Select.value) {
     l2Select.value = l2Select.options[0].value;
@@ -2343,17 +2525,17 @@ function renderQuickL1Grid() {
   const grid = $("#quickL1Grid");
   const l1Select = $("#quickEntryForm [name=category_l1]");
   if (!grid || !l1Select) return;
-  const activeL1 = Object.entries(state.categories || {})
-    .filter(([, cfg]) => cfg.active)
-    .map(([name]) => name);
+  const activeL1 = Object.entries(state.categories || {}).filter(([, cfg]) => cfg.active);
   const selected = String(l1Select.value || "");
   grid.innerHTML = activeL1
-    .map((name) => {
+    .map(([name, cfg]) => {
       const isActive = name === selected;
       return `
         <button class="quick-icon-btn ${isActive ? "active" : ""}" type="button" data-l1="${encodeURIComponent(name)}">
           <span class="icon">${escapeHtml(getL1EmojiSymbol(name))}</span>
-          <span class="label">${escapeHtml(name)}</span>
+          <span class="label">${escapeHtml(
+            getL1DisplayName(name, { bilingualDefault: true, isDefault: Boolean(cfg?.is_default) })
+          )}</span>
         </button>
       `;
     })
@@ -2375,7 +2557,9 @@ function renderQuickL2Grid() {
       return `
         <button class="quick-icon-btn ${isActive ? "active" : ""}" type="button" data-l2="${encodeURIComponent(label)}">
           <span class="icon">${escapeHtml(getL2EmojiSymbol(l1, label))}</span>
-          <span class="label">${escapeHtml(label)}</span>
+          <span class="label">${escapeHtml(
+            getL2DisplayName(label, l1, { bilingualDefault: true, isDefault: Boolean(row?.is_default) })
+          )}</span>
         </button>
       `;
     })
@@ -2426,12 +2610,10 @@ function populateQuickEntryAccounts() {
 function populateQuickBudgetL1() {
   const select = $("#quickBudgetForm [name=category_l1]");
   if (!select) return;
-  const activeL1 = Object.entries(state.categories || {})
-    .filter(([, cfg]) => cfg.active)
-    .map(([name]) => name);
+  const activeL1 = Object.entries(state.categories || {}).filter(([, cfg]) => cfg.active);
   select.innerHTML = "";
-  for (const name of activeL1) {
-    select.appendChild(new Option(withL1Emoji(name), name));
+  for (const [name, cfg] of activeL1) {
+    select.appendChild(new Option(withL1Emoji(name, { bilingualDefault: true, isDefault: Boolean(cfg?.is_default) }), name));
   }
 }
 
@@ -2717,7 +2899,34 @@ function persistQuickEntryPreferences() {
 function updateQuickDateDisplay() {
   const textEl = $("#quickDateToggleText");
   if (!textEl) return;
-  textEl.textContent = t("relativeToday");
+  const dateInput = $("#quickEntryForm [name=date]");
+  const selected = parseDateOnlyLocal(dateInput?.value);
+  if (!selected) {
+    textEl.textContent = t("relativeToday");
+    return;
+  }
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffDays = Math.floor((today.getTime() - selected.getTime()) / 86400000);
+  if (diffDays === 0) {
+    textEl.textContent = t("relativeToday");
+    return;
+  }
+  if (diffDays === 1) {
+    textEl.textContent = t("quickDateYesterday");
+    return;
+  }
+  if (diffDays === 2) {
+    textEl.textContent = t("quickDateDayBefore");
+    return;
+  }
+  const lang = ensureUILanguage(state.settings?.ui_language || "en");
+  if (lang === "zh") {
+    textEl.textContent = `${selected.getMonth() + 1}月${selected.getDate()}日`;
+    return;
+  }
+  const monthFmt = new Intl.DateTimeFormat("en-US", { month: "short" });
+  textEl.textContent = `${monthFmt.format(selected)} ${selected.getDate()}`;
 }
 
 function getTransferReasonConfig(reason) {
@@ -2841,7 +3050,7 @@ function applyQuickEntryMax(maxAmount, currency, options = {}) {
   }
   hint.textContent = t("maxSpendHint", {
     amount: formatMoney(state.quickEntryMax),
-    currency: ensureUICurrency(currency || "USD")
+    currency: formatCurrencyUnit(currency || "USD")
   });
 }
 
@@ -3007,7 +3216,10 @@ async function submitQuickEntryForm(event) {
     requestedAmount > Number(state.quickEntryMax || 0)
   ) {
     showToast(
-      t("amountExceeded", { amount: formatMoney(state.quickEntryMax), currency: currencyCode }),
+      t("amountExceeded", {
+        amount: formatMoney(state.quickEntryMax),
+        currency: formatCurrencyUnit(currencyCode)
+      }),
       true
     );
     return;
@@ -3185,6 +3397,11 @@ function updateCategoryPromptView() {
   if (!(form instanceof HTMLFormElement)) return;
   const mode = String(form.elements.mode.value || "l1");
   const l1Name = String(form.elements.l1_name.value || "").trim();
+  const l1Cfg = state.categories?.[l1Name];
+  const l1Display = getL1DisplayName(l1Name, {
+    bilingualDefault: true,
+    isDefault: Boolean(l1Cfg?.is_default)
+  });
   const isL2 = mode === "l2";
   const isEditL1 = mode === "edit_l1";
   const titleKey = isL2
@@ -3198,13 +3415,15 @@ function updateCategoryPromptView() {
     : isEditL1
       ? "categoryPromptSaveEditL1"
       : "categoryPromptSaveL1";
-  setText("categoryPromptTitle", t(titleKey, { l1: l1Name }));
+  setText("categoryPromptTitle", t(titleKey, { l1: l1Display || l1Name }));
   setText("categoryPromptEmojiLabel", t("categoryPromptEmojiLabel"));
   setText("categoryPromptNameLabel", t(nameLabelKey));
   setText("categoryPromptSaveBtn", t(saveKey));
   setText("categoryPromptParentLabel", t("categoryPromptParentLabel"));
   const parentInput = $("#categoryPromptParentInput");
-  if (parentInput) parentInput.value = isL2 ? withL1Emoji(l1Name) : "";
+  if (parentInput) {
+    parentInput.value = isL2 ? withL1Emoji(l1Name, { bilingualDefault: true, isDefault: Boolean(l1Cfg?.is_default) }) : "";
+  }
   const parentLabel = $("#categoryPromptParentLabel")?.closest("label");
   if (parentLabel) parentLabel.classList.toggle("hidden", !isL2);
   const emojiInput = $("#categoryPromptEmojiInput");
@@ -3240,7 +3459,14 @@ async function submitCategoryPromptForm(event) {
 }
 
 async function deleteL2CategoryInline(l1Name, l2Name) {
-  const confirmText = t("confirmDeleteL2", { l1: l1Name, l2: l2Name });
+  const l1Cfg = state.categories?.[String(l1Name || "").trim()];
+  const l2Row = (l1Cfg?.l2 || []).find((row) => String(row?.name || "").trim() === String(l2Name || "").trim());
+  const l1Display = getL1DisplayName(l1Name, { bilingualDefault: true, isDefault: Boolean(l1Cfg?.is_default) });
+  const l2Display = getL2DisplayName(l2Name, l1Name, {
+    bilingualDefault: true,
+    isDefault: Boolean(l2Row?.is_default)
+  });
+  const confirmText = t("confirmDeleteL2", { l1: l1Display || l1Name, l2: l2Display || l2Name });
   const ok = window.confirm(confirmText);
   if (!ok) return;
   try {
@@ -3381,7 +3607,8 @@ async function submitSettingsForm(event) {
       body: JSON.stringify({
         base_currency: String(fd.get("base_currency")).toUpperCase(),
         timezone: fd.get("timezone"),
-        ui_language: ensureUILanguage(fd.get("ui_language"))
+        ui_language: ensureUILanguage(fd.get("ui_language")),
+        currency_display_mode: ensureCurrencyDisplayMode(fd.get("currency_display_mode"))
       })
     });
     showToast(t("settingsUpdated"));
@@ -3412,7 +3639,8 @@ async function submitQuickSettingsForm(event) {
       body: JSON.stringify({
         base_currency: String(fd.get("base_currency") || "USD").toUpperCase(),
         timezone: fd.get("timezone") || "UTC",
-        ui_language: ensureUILanguage(fd.get("ui_language"))
+        ui_language: ensureUILanguage(fd.get("ui_language")),
+        currency_display_mode: ensureCurrencyDisplayMode(fd.get("currency_display_mode"))
       })
     });
     showToast(t("settingsUpdated"));
@@ -3516,7 +3744,7 @@ function renderCashFlowBars(dashboard) {
         <div class="mini-bar-row">
           <span class="mini-bar-label">${row.label}</span>
           <div class="mini-bar-track"><div class="mini-bar-fill ${row.tone}" style="width:${width}%"></div></div>
-          <span class="mini-bar-value">${formatSignedMoney(row.value)} ${base}</span>
+          <span class="mini-bar-value">${formatSignedMoney(row.value)} ${formatCurrencyUnit(base)}</span>
         </div>
       `;
     })
@@ -3621,8 +3849,8 @@ function renderTrendChart() {
     const last = series[series.length - 1] || 0;
     legend.textContent =
       mode === "networth"
-        ? `${t("trendModeNetWorth")}: ${formatSignedMoney(last)} ${base}`
-        : `${t("trendModeExpense")}: ${formatMoney(last)} ${base}`;
+        ? `${t("trendModeNetWorth")}: ${formatSignedMoney(last)} ${formatCurrencyUnit(base)}`
+        : `${t("trendModeExpense")}: ${formatMoney(last)} ${formatCurrencyUnit(base)}`;
   }
 }
 
@@ -3632,13 +3860,13 @@ function renderHeroSummary(dashboard) {
   const runway = dashboard.runway_months;
   const runwayLabel = Number.isFinite(Number(runway)) ? `${Number(runway).toFixed(1)}m` : "∞";
 
-  setText("heroNetWorthValue", `${formatMoney(netWorth)} ${base}`);
+  setText("heroNetWorthValue", `${formatMoney(netWorth)} ${formatCurrencyUnit(base)}`);
   renderAccountComposition(dashboard);
 
   $("#heroSubMetrics").innerHTML = `
-    <div class="hero-subcard"><div class="k">${t("metricMonthlyIncome")}</div><div class="v">${formatMoney(dashboard.monthly_income)} ${base}</div></div>
-    <div class="hero-subcard"><div class="k">${t("metricMonthlyExpense")}</div><div class="v">${formatMoney(dashboard.monthly_expense)} ${base}</div></div>
-    <div class="hero-subcard"><div class="k">${t("metricNetCashFlow")}</div><div class="v">${formatSignedMoney(dashboard.net_cash_flow)} ${base}</div></div>
+    <div class="hero-subcard"><div class="k">${t("metricMonthlyIncome")}</div><div class="v">${formatMoney(dashboard.monthly_income)} ${formatCurrencyUnit(base)}</div></div>
+    <div class="hero-subcard"><div class="k">${t("metricMonthlyExpense")}</div><div class="v">${formatMoney(dashboard.monthly_expense)} ${formatCurrencyUnit(base)}</div></div>
+    <div class="hero-subcard"><div class="k">${t("metricNetCashFlow")}</div><div class="v">${formatSignedMoney(dashboard.net_cash_flow)} ${formatCurrencyUnit(base)}</div></div>
     <div class="hero-subcard secondary"><div class="k">${t("metricRunwayMonths")}</div><div class="v">${runwayLabel}</div></div>
   `;
 }
@@ -3685,12 +3913,12 @@ function renderAccountComposition(dashboard) {
       const fmt = (n) => new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(n);
       if (row.account_id === "other") {
         const base = dashboard.base_currency || state.settings?.base_currency || "USD";
-        amountStr = `${fmt(row.amount_base)} ${base}`;
+        amountStr = `${fmt(row.amount_base)} ${formatCurrencyUnit(base)}`;
       } else if (row.currency && row.balance !== undefined) {
-        amountStr = `${fmt(row.balance)} ${row.currency}`;
+        amountStr = `${fmt(row.balance)} ${formatCurrencyUnit(row.currency)}`;
       } else {
         const base = dashboard.base_currency || state.settings?.base_currency || "USD";
-        amountStr = `${fmt(row.amount_base)} ${base}`;
+        amountStr = `${fmt(row.amount_base)} ${formatCurrencyUnit(base)}`;
       }
       return `<span class="hero-legend-item"><span class="hero-legend-dot" style="background:${color};"></span>${escapeHtml(label)} · ${amountStr}</span>`;
     })
@@ -3816,7 +4044,7 @@ function renderBudgetPieView(monthlyRows, yearlyRows, baseCurrency) {
             <span class="budget-pie-dot" style="background:${color};"></span>
             <span>${escapeHtml(row.label)}</span>
           </div>
-          <span class="mono muted">${pct}% · ${formatMoney(row.spent)} ${escapeHtml(baseCurrency)}</span>
+          <span class="mono muted">${pct}% · ${formatMoney(row.spent)} ${escapeHtml(formatCurrencyUnit(baseCurrency))}</span>
         </article>
       `;
     })
@@ -3827,7 +4055,7 @@ function renderBudgetPieView(monthlyRows, yearlyRows, baseCurrency) {
       <div class="budget-pie-chart" style="background: conic-gradient(${gradientStops});">
         <div class="budget-pie-center">
           <strong>${formatMoney(total)}</strong>
-          <span>${escapeHtml(t("budgetPieCenterLabel"))} · ${escapeHtml(baseCurrency)}</span>
+          <span>${escapeHtml(t("budgetPieCenterLabel"))} · ${escapeHtml(formatCurrencyUnit(baseCurrency))}</span>
         </div>
       </div>
       <div class="budget-pie-legend">${legend}</div>
@@ -3856,7 +4084,7 @@ function renderAccounts() {
           <span class="account-type-icon">${icon}</span>
           <div class="account-info">
             <span class="account-name">${escapeHtml(row.name)}</span>
-            <span class="account-meta muted">${escapeHtml(label)} · ${escapeHtml(row.currency)}</span>
+            <span class="account-meta muted">${escapeHtml(label)} · ${escapeHtml(formatCurrencyUnit(row.currency))}</span>
           </div>
           <span class="account-balance mono${isNeg ? " overspend" : ""}">${bal}</span>
         </div>
@@ -3890,14 +4118,18 @@ function renderDashboardAccountsCard() {
     if (net !== 0) {
       const sign = net > 0 ? "+" : "";
       const cls = net > 0 ? "acct-delta-in" : "acct-delta-out";
-      deltaHtml = `<span class="acct-delta ${cls}">${sign}${fmt(net)} ${escapeHtml(baseCurrency)}</span>`;
+      deltaHtml = `<span class="acct-delta ${cls}">${sign}${fmt(net)} ${escapeHtml(
+        formatCurrencyUnit(baseCurrency)
+      )}</span>`;
     }
     return `
     <div class="account-dash-row clickable" data-action="edit-account" data-id="${row.id}">
       <span class="account-type-icon">${icon}</span>
       <span class="account-name">${escapeHtml(row.name)}</span>
       <div class="acct-right">
-        <span class="account-balance mono${isNeg ? " overspend" : ""}">${fmt(row.balance)} ${escapeHtml(row.currency)}</span>
+        <span class="account-balance mono${isNeg ? " overspend" : ""}">${fmt(row.balance)} ${escapeHtml(
+          formatCurrencyUnit(row.currency)
+        )}</span>
         ${deltaHtml}
       </div>
     </div>`;
@@ -4123,11 +4355,16 @@ function populateTransactionDetailSheet(tx) {
   }
   const amountEl = document.getElementById("transactionDetailAmountValue");
   if (amountEl) {
-    amountEl.innerHTML = `${escapeHtml(formatSignedMoney(originalAmount))}<span class="txd-amount-currency">${escapeHtml(sourceCurrency)}</span>`;
+    amountEl.innerHTML = `${escapeHtml(formatSignedMoney(originalAmount))}<span class="txd-amount-currency">${escapeHtml(
+      formatCurrencyUnit(sourceCurrency)
+    )}</span>`;
   }
   const subEl = document.getElementById("transactionDetailAmountSub");
   if (subEl) {
-    subEl.textContent = sourceCurrency === baseCurrency ? "" : `${formatSignedMoney(baseAmount)} ${baseCurrency}`;
+    subEl.textContent =
+      sourceCurrency === baseCurrency
+        ? ""
+        : `${formatSignedMoney(baseAmount)} ${formatCurrencyUnit(baseCurrency)}`;
   }
   setText("transactionDetailCategoryValue", formatTransactionDetailCategory(tx));
   setText("transactionDetailAccountValue", formatTransactionDetailAccount(tx));
@@ -4364,9 +4601,204 @@ async function loadTransactionsWithOptions(options = {}) {
   if (!expenseOnly) {
     renderRecentExpensesCard(state.transactions);
     renderTodayExpensesCard(state.transactions);
+    renderRecentCompareCard(state.recentCompareRows || []);
   }
   renderTransactionList(state.transactions, { expenseOnly });
   return state.transactions;
+}
+
+async function loadRecentCompareData() {
+  const range = getRecentCompareRange();
+  const rows = await api(`/api/v1/transactions?start=${range.start}&end=${range.end}`);
+  state.recentCompareRows = Array.isArray(rows) ? rows : [];
+  renderRecentCompareCard(state.recentCompareRows);
+  renderRecentExpensesSummaryBar(state.transactions || [], state.recentCompareRows);
+  return state.recentCompareRows;
+}
+
+function renderRecentCompareCard(rows) {
+  const summaryEl = $("#recentCompareSummary");
+  const stateEl = $("#recentCompareState");
+  const rangeEl = $("#recentCompareRange");
+  const chartEl = $("#recentCompareChart");
+  const axisEl = $("#recentCompareAxis");
+  if (!summaryEl || !stateEl || !rangeEl || !chartEl || !axisEl) return;
+  const base = state.settings?.base_currency || state.dashboard?.base_currency || "USD";
+  const model = buildRecentCompareModel(rows);
+  summaryEl.textContent = model.summary;
+  stateEl.textContent = model.stateLabel;
+  rangeEl.textContent = model.rangeLabel;
+  const chartMeta = renderRecentCompareChart(chartEl, model.series, {
+    upperBound: model.upperBoundDaily
+  });
+  const chartShellEl = chartEl.closest(".recent-compare-chart-shell");
+  if (chartShellEl && chartMeta) {
+    chartShellEl.style.setProperty("--recent-risk-split", `${chartMeta.splitPercent.toFixed(2)}%`);
+    chartShellEl.classList.toggle("recent-compare-chart-shell--insufficient", !chartMeta.hasUpperBound);
+  }
+  axisEl.innerHTML = model.series
+    .map((point) => `<span>${escapeHtml(point.weekday)}</span>`)
+    .join("");
+}
+
+function buildRecentCompareModel(rows) {
+  const base = state.settings?.base_currency || state.dashboard?.base_currency || "USD";
+  const totals = new Map();
+  for (const tx of Array.isArray(rows) ? rows : []) {
+    if (!tx || tx.type !== "expense") continue;
+    const dateKey = String(tx.tx_date || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) continue;
+    const amount = Math.abs(Number(tx.amount_base || 0));
+    if (!Number.isFinite(amount) || amount <= 0) continue;
+    totals.set(dateKey, (totals.get(dateKey) || 0) + amount);
+  }
+
+  const now = new Date();
+  const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startDate = addDaysLocal(endDate, -6);
+  const series = [];
+  for (let i = 0; i < 7; i += 1) {
+    const day = addDaysLocal(startDate, i);
+    const prevDay = addDaysLocal(day, -7);
+    const dayKey = formatDateOnlyLocal(day);
+    const prevKey = formatDateOnlyLocal(prevDay);
+    series.push({
+      day,
+      value: Number((totals.get(dayKey) || 0).toFixed(2)),
+      previous: Number((totals.get(prevKey) || 0).toFixed(2)),
+      weekday: t(getRecentCompareWeekdayKey(day))
+    });
+  }
+
+  const totalCurrent = Number(series.reduce((sum, row) => sum + row.value, 0).toFixed(2));
+  const totalPrevious = Number(series.reduce((sum, row) => sum + row.previous, 0).toFixed(2));
+  const previousDays = series.map((row) => Number(row.previous || 0));
+  const previousMean = totalPrevious / series.length;
+  const previousVariance =
+    previousDays.reduce((sum, value) => sum + (value - previousMean) ** 2, 0) / series.length;
+  const previousStd = Math.sqrt(previousVariance);
+  const previousActiveDays = previousDays.filter((value) => value > 0.0001).length;
+  const baselineSufficient = totalPrevious > 0.0001 && previousActiveDays >= 2;
+  const dailyTolerance = baselineSufficient ? Math.max(previousMean * 0.25, previousStd * 0.9) : 0;
+  const upperBoundDaily = baselineSufficient ? previousMean + dailyTolerance : null;
+  const lowerBoundDaily = baselineSufficient ? Math.max(0, previousMean - dailyTolerance * 0.7) : null;
+  const upperBoundTotal = baselineSufficient ? upperBoundDaily * series.length : null;
+  const lowerBoundTotal = baselineSufficient ? lowerBoundDaily * series.length : null;
+  const pct = totalPrevious > 0 ? ((totalCurrent - totalPrevious) / totalPrevious) * 100 : null;
+  const pctAbs = pct === null ? null : `${Math.abs(pct).toFixed(1)}%`;
+
+  let summary = "";
+  let stateLabel = "";
+  if (totalCurrent <= 0.0001) {
+    summary = t("recentCompareSummaryQuiet");
+    stateLabel = t("recentCompareStateQuiet");
+  } else if (!baselineSufficient) {
+    summary = t("recentCompareSummaryInsufficient", {
+      amount: formatMoney(totalCurrent),
+      currency: formatCurrencyUnit(base)
+    });
+    stateLabel = t("recentCompareStateInsufficient");
+  } else if (totalCurrent < (lowerBoundTotal || 0) - 0.0001 && pct !== null) {
+    summary = t("recentCompareSummaryDown", {
+      amount: formatMoney(totalCurrent),
+      currency: formatCurrencyUnit(base),
+      pct: pctAbs
+    });
+    stateLabel = t("recentCompareStateDown");
+  } else if (totalCurrent > (upperBoundTotal || 0) + 0.0001 && pct !== null) {
+    summary = t("recentCompareSummaryUp", {
+      amount: formatMoney(totalCurrent),
+      currency: formatCurrencyUnit(base),
+      pct: pctAbs
+    });
+    stateLabel = t("recentCompareStateUp");
+  } else {
+    summary = t("recentCompareSummaryFlat", {
+      amount: formatMoney(totalCurrent),
+      currency: formatCurrencyUnit(base)
+    });
+    stateLabel = t("recentCompareStateFlat");
+  }
+
+  return {
+    series,
+    summary,
+    stateLabel,
+    rangeLabel: formatRecentCompareRange(startDate, endDate),
+    upperBoundDaily
+  };
+}
+
+function renderRecentCompareChart(svg, series, options = {}) {
+  if (!(svg instanceof SVGElement) || !Array.isArray(series) || !series.length) {
+    return { splitPercent: 38, hasUpperBound: false };
+  }
+  const width = 620;
+  const height = 168;
+  const padTop = 14;
+  const padBottom = 24;
+  const padX = 16;
+  const current = series.map((row) => Number(row.value || 0));
+  const upperBoundValue = Number(options?.upperBound);
+  const hasUpperBound = Number.isFinite(upperBoundValue) && upperBoundValue > 0;
+  const max = Math.max(1, ...current, hasUpperBound ? upperBoundValue : 0);
+  const stepX = (width - padX * 2) / Math.max(1, series.length - 1);
+  const toY = (value) => {
+    const ratio = Math.max(0, Math.min(1, value / max));
+    return height - padBottom - ratio * (height - padTop - padBottom);
+  };
+  const currentPts = current.map((value, idx) => `${(padX + idx * stepX).toFixed(2)},${toY(value).toFixed(2)}`);
+  const firstX = padX;
+  const lastX = padX + stepX * (series.length - 1);
+  const floorY = height - padBottom;
+  const upperY = hasUpperBound ? toY(upperBoundValue) : null;
+  const splitPercentRaw = hasUpperBound ? (upperY / height) * 100 : 38;
+  const splitPercent = Math.max(14, Math.min(86, splitPercentRaw));
+  const dots = current
+    .map((value, idx) => {
+      const x = padX + idx * stepX;
+      const y = toY(value);
+      return `<circle class="recent-compare-dot" cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="8.4"></circle>`;
+    })
+    .join("");
+
+  svg.innerHTML = `
+    <polyline class="recent-compare-line" points="${currentPts.join(" ")}"></polyline>
+    ${dots}
+  `;
+  return { splitPercent, hasUpperBound };
+}
+
+function formatRecentCompareRange(startDate, endDate) {
+  const lang = ensureUILanguage(state.settings?.ui_language || "en");
+  if (lang === "zh") {
+    const sm = startDate.getMonth() + 1;
+    const sd = startDate.getDate();
+    const em = endDate.getMonth() + 1;
+    const ed = endDate.getDate();
+    if (sm === em) return `${sm}月${sd}-${ed}日`;
+    return `${sm}月${sd}日 - ${em}月${ed}日`;
+  }
+  const monthFmt = new Intl.DateTimeFormat("en-US", { month: "short" });
+  const sm = monthFmt.format(startDate).toUpperCase();
+  const em = monthFmt.format(endDate).toUpperCase();
+  const sd = startDate.getDate();
+  const ed = endDate.getDate();
+  if (sm === em) return `${sm} ${sd}-${ed}`;
+  return `${sm} ${sd} - ${em} ${ed}`;
+}
+
+function getRecentCompareWeekdayKey(date) {
+  const keys = [
+    "recentCompareAxisSun",
+    "recentCompareAxisMon",
+    "recentCompareAxisTue",
+    "recentCompareAxisWed",
+    "recentCompareAxisThu",
+    "recentCompareAxisFri",
+    "recentCompareAxisSat"
+  ];
+  return keys[date.getDay()] || "recentCompareAxisMon";
 }
 
 function renderTransactionList(rows, options = {}) {
@@ -4420,11 +4852,19 @@ function renderTransactionList(rows, options = {}) {
         <article class="list-row tx-row clickable" data-tx-id="${row.id}">
           <div class="tx-row-main">
             <span class="tx-row-title">${escapeHtml(title)}</span>
-            <span class="${amountClass}">${escapeHtml(formatMoney(signedBase))}<span class="tx-unit">${escapeHtml(baseCurrency)}</span></span>
+            <span class="${amountClass}">${escapeHtml(formatMoney(signedBase))}<span class="tx-unit">${escapeHtml(
+              formatCurrencyUnit(baseCurrency)
+            )}</span></span>
           </div>
           <div class="tx-row-sub">
             <span class="tx-row-meta">${accountLine ? `${accountLine} · ` : ""}${escapeHtml(row.tx_date)}</span>
-            ${showOrig ? `<span class="tx-orig">${escapeHtml(formatMoney(signedOrig))} ${escapeHtml(sourceCurrency)}</span>` : ""}
+            ${
+              showOrig
+                ? `<span class="tx-orig">${escapeHtml(formatMoney(signedOrig))} ${escapeHtml(
+                    formatCurrencyUnit(sourceCurrency)
+                  )}</span>`
+                : ""
+            }
           </div>
           ${row.note ? `<div class="tx-note">${escapeHtml(row.note)}</div>` : ""}
           ${tags}
@@ -4444,7 +4884,9 @@ function renderTodayExpensesCard(rows) {
   );
   const total = todayRows.reduce((s, r) => s + (Number(r.amount_base) || 0), 0);
   totalEl.innerHTML = todayRows.length
-    ? `${escapeHtml(formatMoney(total))}<span class="today-total-unit">${escapeHtml(base)}</span>`
+    ? `${escapeHtml(formatMoney(total))}<span class="today-total-unit">${escapeHtml(
+        formatCurrencyUnit(base)
+      )}</span>`
     : '';
   if (!todayRows.length) {
     listEl.innerHTML = `<div class="compact-row muted">${escapeHtml(t("emptyNoExpenseToday"))}</div>`;
@@ -4459,7 +4901,9 @@ function renderTodayExpensesCard(rows) {
     const l2 = row.category_l2 || '';
     const titleText = l2 ? `${escapeHtml(l1)} / ${escapeHtml(l2)}` : escapeHtml(l1);
     const origLine = showOrig
-      ? `<div class="tx-row-sub tx-row-sub-right"><span class="tx-orig">${escapeHtml(formatMoney(signedOrig))} ${escapeHtml(row.currency_original)}</span></div>`
+      ? `<div class="tx-row-sub tx-row-sub-right"><span class="tx-orig">${escapeHtml(
+          formatMoney(signedOrig)
+        )} ${escapeHtml(formatCurrencyUnit(row.currency_original))}</span></div>`
       : "";
     return `
       <article class="incard-row tx-incard-row clickable" data-tx-id="${row.id}">
@@ -4467,7 +4911,9 @@ function renderTodayExpensesCard(rows) {
         <div class="tx-incard-body">
           <div class="tx-row-main">
             <span class="tx-row-title">${titleText}</span>
-            <span class="tx-amount expense">${escapeHtml(formatMoney(signedBase))}<span class="tx-unit">${escapeHtml(base)}</span></span>
+            <span class="tx-amount expense">${escapeHtml(formatMoney(signedBase))}<span class="tx-unit">${escapeHtml(
+              formatCurrencyUnit(base)
+            )}</span></span>
           </div>
           ${origLine}
           ${row.note ? `<div class="tx-note">${escapeHtml(row.note)}</div>` : ''}
@@ -4479,6 +4925,7 @@ function renderTodayExpensesCard(rows) {
 function renderRecentExpensesCard(rows) {
   const target = $("#recentExpensesList");
   if (!target) return;
+  renderRecentExpensesSummaryBar(rows, state.recentCompareRows);
   const txRows = (Array.isArray(rows) ? rows : []).slice(0, 5);
   if (!txRows.length) {
     target.innerHTML = `<div class="incard-empty muted">${escapeHtml(t("emptyNoRecentExpense"))}</div>`;
@@ -4499,10 +4946,16 @@ function renderRecentExpensesCard(rows) {
       let icon = "💸";
       let titleText = "";
       if (isExpense) {
-        icon = getL1EmojiSymbol(row.category_l1);
         const l1 = row.category_l1 || "";
         const l2 = row.category_l2 || "";
-        titleText = l2 ? `${escapeHtml(l1)} / ${escapeHtml(l2)}` : escapeHtml(l1);
+        icon = l2 ? getL2EmojiSymbol(l1, l2) : getL1EmojiSymbol(l1);
+        const l2Display = l2
+          ? getL2DisplayName(l2, l1, { bilingualDefault: true })
+          : "";
+        const l1Display = l1
+          ? getL1DisplayName(l1, { bilingualDefault: true })
+          : "";
+        titleText = escapeHtml(l2Display || l1Display || txTypeLabel("expense"));
       } else if (isIncome) {
         icon = "💰";
         titleText = escapeHtml(txTypeLabel("income"));
@@ -4517,17 +4970,72 @@ function renderRecentExpensesCard(rows) {
         <div class="tx-incard-body">
           <div class="tx-row-main">
             <span class="tx-row-title">${titleText}</span>
-            <span class="${amountClass}">${escapeHtml(formatMoney(signedBase))}<span class="tx-unit">${escapeHtml(base)}</span></span>
+            <span class="${amountClass}">${escapeHtml(formatMoney(signedBase))}<span class="tx-unit">${escapeHtml(
+              formatCurrencyUnit(base)
+            )}</span></span>
           </div>
           <div class="tx-row-sub">
             <span class="tx-row-meta">${escapeHtml(meta)}</span>
-            ${showOrig ? `<span class="tx-orig">${escapeHtml(formatMoney(signedOrig))} ${escapeHtml(row.currency_original)}</span>` : ""}
+            ${
+              showOrig
+                ? `<span class="tx-orig">${escapeHtml(formatMoney(signedOrig))} ${escapeHtml(
+                    formatCurrencyUnit(row.currency_original)
+                  )}</span>`
+                : ""
+            }
           </div>
           ${row.note ? `<div class="tx-note">${escapeHtml(row.note)}</div>` : ""}
         </div>
       </article>`;
     })
     .join("");
+}
+
+function renderRecentExpensesSummaryBar(rows, recentRows) {
+  const target = $("#recentExpensesStats");
+  if (!target) return;
+  const base = state.settings?.base_currency || "USD";
+  const sourceRows =
+    Array.isArray(recentRows) && recentRows.length ? recentRows : Array.isArray(rows) ? rows : [];
+  const totals = new Map();
+  for (const tx of sourceRows) {
+    if (!tx || tx.type !== "expense") continue;
+    const dateKey = String(tx.tx_date || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) continue;
+    const amount = Math.abs(Number(tx.amount_base || 0));
+    if (!Number.isFinite(amount) || amount <= 0) continue;
+    totals.set(dateKey, (totals.get(dateKey) || 0) + amount);
+  }
+
+  const today = new Date();
+  const currentDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const items = [
+    { key: "recentSpendToday", date: currentDay },
+    { key: "recentSpendYesterday", date: addDaysLocal(currentDay, -1) },
+    { key: "recentSpendDayBefore", date: addDaysLocal(currentDay, -2) }
+  ];
+
+  target.innerHTML = `
+    <div class="recent-expense-mini-shell">
+      ${items
+        .map((item, index) => {
+          const dateKey = formatDateOnlyLocal(item.date);
+          const amount = Number(totals.get(dateKey) || 0);
+          const separator = index < items.length - 1 ? `<span class="recent-expense-mini-sep" aria-hidden="true"></span>` : "";
+          return `
+            <div class="recent-expense-mini-item">
+              <span class="recent-expense-mini-label">${escapeHtml(t(item.key))}</span>
+              <div class="recent-expense-mini-money">
+                <strong>${escapeHtml(formatCompactKMoney(amount))}</strong>
+                <span>${escapeHtml(formatCurrencyUnit(base))}</span>
+              </div>
+            </div>
+            ${separator}
+          `;
+        })
+        .join("")}
+    </div>
+  `;
 }
 
 function formatRecentTransactionTitle(row) {
@@ -4555,6 +5063,29 @@ function formatRecentTransactionContext(row) {
     return `${t("from")}: ${row.account_from_id || "-"} · ${t("to")}: ${row.account_to_id || "-"}`;
   }
   return "";
+}
+
+function formatDateOnlyLocal(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addDaysLocal(date, deltaDays) {
+  const next = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  next.setDate(next.getDate() + Number(deltaDays || 0));
+  return next;
+}
+
+function getRecentCompareRange() {
+  const now = new Date();
+  const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startDate = addDaysLocal(endDate, -13);
+  return {
+    start: formatDateOnlyLocal(startDate),
+    end: formatDateOnlyLocal(endDate)
+  };
 }
 
 function formatRecentExpenseDate(txDate) {
@@ -4717,14 +5248,19 @@ function renderCategoryTree() {
   target.innerHTML = rows
     .map(([name, cfg]) => {
       const l1Encoded = encodeURIComponent(String(name || ""));
+      const l1Display = withL1Emoji(name, { bilingualDefault: true, isDefault: Boolean(cfg?.is_default) });
       const l2 = (cfg.l2 || [])
         .filter((item) => item && item.active)
         .map((item) => {
           const l2Encoded = encodeURIComponent(String(item.name || ""));
-          const deleteLabel = t("deleteTagAction", { l2: item.name });
+          const l2Display = withL2Emoji(item.name, name, {
+            bilingualDefault: true,
+            isDefault: Boolean(item?.is_default)
+          });
+          const deleteLabel = t("deleteTagAction", { l2: l2Display });
           return `
             <span class="category-tag-item">
-              <span class="pill">${escapeHtml(withL2Emoji(item.name, name))}</span>
+              <span class="pill">${escapeHtml(l2Display)}</span>
               <button
                 class="category-tag-delete-btn"
                 type="button"
@@ -4745,15 +5281,18 @@ function renderCategoryTree() {
               type="button"
               data-action="edit-l1"
               data-l1="${escapeHtml(l1Encoded)}"
-              aria-label="${escapeHtml(t("editCategoryL1Action", { l1: name }))}"
-              title="${escapeHtml(t("editCategoryL1Action", { l1: name }))}"
-            >${escapeHtml(withL1Emoji(name))}</button>
+              aria-label="${escapeHtml(t("editCategoryL1Action", { l1: l1Display }))}"
+              title="${escapeHtml(t("editCategoryL1Action", { l1: l1Display }))}"
+            >${escapeHtml(l1Display)}</button>
             <div class="category-row-actions">
-              <button class="btn btn-ghost category-inline-add-btn" type="button" data-action="add-l2" data-l1="${escapeHtml(
-                name
-              )}" title="${escapeHtml(t("promptL2Name", { l1: name }))}" aria-label="${escapeHtml(
-                t("promptL2Name", { l1: name })
-              )}">${escapeHtml(t("addL2Inline"))}</button>
+              <button
+                class="category-inline-add-header"
+                type="button"
+                data-action="add-l2"
+                data-l1="${escapeHtml(name)}"
+                title="${escapeHtml(t("promptL2Name", { l1: l1Display }))}"
+                aria-label="${escapeHtml(t("promptL2Name", { l1: l1Display }))}"
+              >${escapeHtml(t("addL2Action"))}</button>
             </div>
           </div>
           <div class="tag-wrap">${l2 || `<span class="muted">${escapeHtml(t("emptyNoL2Categories"))}</span>`}</div>
@@ -4767,6 +5306,7 @@ async function refreshAfterLedgerChange() {
     loadAccounts(),
     loadDashboard(),
     loadTransactions(),
+    loadRecentCompareData(),
     loadBudgets(),
     loadYearlyBudgets(),
     loadReview(),
@@ -4803,6 +5343,11 @@ function ensureUICurrency(value) {
 function ensureUILanguage(value) {
   const code = String(value || "en").toLowerCase();
   return UI_LANGUAGES.has(code) ? code : "en";
+}
+
+function ensureCurrencyDisplayMode(value) {
+  const mode = String(value || "code").toLowerCase();
+  return UI_CURRENCY_DISPLAY_MODES.has(mode) ? mode : "code";
 }
 
 function t(key, vars = {}) {
@@ -4842,6 +5387,7 @@ function applyI18n() {
   setText("dashboardPinnedLabel", t("pinned"));
   setText("dashWidgetsEditBtn", t("edit"));
   setText("todayCardTitle", `☀️ ${t("relativeToday")}`);
+  setText("recentCompareTitle", t("recentCompareTitle"));
   setText("heroNetWorthLabel", t("metricNetWorth"));
   setText("heroCompositionLabel", t("netWorthComposition"));
   setText("heroLiquidLegend", t("labelLiquid"));
@@ -4917,6 +5463,9 @@ function applyI18n() {
   setText("quickSettingsUserLabel", t("userId"));
   setText("quickSettingsLangLabel", t("language"));
   setText("quickSettingsBaseLabel", t("baseCurrency"));
+  setText("quickSettingsCurrencyDisplayLabel", t("currencyDisplay"));
+  setText("quickSettingsCurrencyDisplayCodeOption", t("currencyDisplayCode"));
+  setText("quickSettingsCurrencyDisplaySymbolOption", t("currencyDisplaySymbol"));
   setText("quickSettingsTimezoneLabel", t("timezone"));
   setText("quickSettingsAdvancedLabel", t("advancedInsights"));
   setText("settingsAdvancedPageTitle", t("dashboardWidgets"));
@@ -4927,6 +5476,7 @@ function applyI18n() {
   setText("toggleDebugLabel", t("showDebug"));
   setText("toggleRecentExpensesLabel", t("showRecentExpenses"));
   setText("toggleTodayLabel", t("showToday"));
+  setText("toggleRecentCompareLabel", t("showRecentCompare"));
   setText("toggleAccountsLabel", t("showAccounts"));
   setText("debugPanelTitle", t("debugPanel"));
   setText("debugOnlyFailedLabel", t("debugOnlyFailed"));
@@ -5032,6 +5582,7 @@ function applyI18n() {
   }
   renderRecentExpensesCard(state.transactions || []);
   renderTodayExpensesCard(state.transactions || []);
+  renderRecentCompareCard(state.recentCompareRows || []);
   renderAgentTokens();
   renderDebugPanel();
 }
@@ -5041,11 +5592,13 @@ function applyAdvancedVisibility() {
   const trendCard = $("#trendCard");
   const riskCard = $("#riskCard");
   const recentExpensesCard = $("#recentExpensesCard");
+  const recentCompareCard = $("#recentCompareCard");
   const debugPanel = $("#debugPanel");
   if (cashFlow) cashFlow.classList.toggle("hidden", !state.ui.showCashFlow);
   if (trendCard) trendCard.classList.toggle("hidden", !state.ui.showTrend);
   if (riskCard) riskCard.classList.toggle("hidden", !state.ui.showRisk);
   if (recentExpensesCard) recentExpensesCard.classList.toggle("hidden", !state.ui.showRecentExpenses);
+  if (recentCompareCard) recentCompareCard.classList.toggle("hidden", !state.ui.showRecentCompare);
   const todayCard = $("#todayExpensesCard");
   if (todayCard) todayCard.classList.toggle("hidden", !state.ui.showToday);
   const accountsCard = $("#dashboardAccountsCard");
@@ -5063,6 +5616,7 @@ function loadUiState() {
     state.ui.showRisk = Boolean(parsed.showRisk);
     state.ui.showRecentExpenses = parsed.showRecentExpenses !== false;
     state.ui.showToday = parsed.showToday !== false;
+    state.ui.showRecentCompare = parsed.showRecentCompare !== false;
     state.ui.showAccounts = Boolean(parsed.showAccounts);
     state.ui.showDebug = Boolean(parsed.showDebug);
     state.ui.budgetPieView = Boolean(parsed.budgetPieView);
@@ -5096,6 +5650,7 @@ function persistUiState() {
         showRisk: state.ui.showRisk,
         showRecentExpenses: state.ui.showRecentExpenses,
         showToday: state.ui.showToday,
+        showRecentCompare: state.ui.showRecentCompare,
         showAccounts: state.ui.showAccounts,
         showDebug: state.ui.showDebug,
         budgetPieView: state.ui.budgetPieView,
@@ -5125,6 +5680,48 @@ function normalizeEmojiInput(value) {
   if (!raw) return "";
   const compact = raw.split(/\s+/)[0] || "";
   return compact.slice(0, 8);
+}
+
+function formatDefaultCategoryDisplayLabel(name, scope = "l1") {
+  const label = String(name || "").trim();
+  if (!label || label === "-") return label;
+  const dict = scope === "l2" ? DEFAULT_CATEGORY_L2_LABELS : DEFAULT_CATEGORY_L1_LABELS;
+  const direct = dict[label];
+  if (direct) {
+    const lang = ensureUILanguage(state.settings?.ui_language || "en");
+    return lang === "zh" ? direct.zh : direct.en;
+  }
+  for (const entry of Object.values(dict)) {
+    if (entry.en === label || entry.zh === label) {
+      const lang = ensureUILanguage(state.settings?.ui_language || "en");
+      return lang === "zh" ? entry.zh : entry.en;
+    }
+  }
+  return label;
+}
+
+function getL1DisplayName(name, options = {}) {
+  const label = String(name || "").trim();
+  if (!label || label === "-") return label;
+  if (!options.bilingualDefault && !options.localizeDefault) return label;
+  const isDefault =
+    typeof options.isDefault === "boolean" ? options.isDefault : Boolean(state.categories?.[label]?.is_default);
+  if (!isDefault) return label;
+  return formatDefaultCategoryDisplayLabel(label, "l1");
+}
+
+function getL2DisplayName(name, l1Name = "", options = {}) {
+  const label = String(name || "").trim();
+  if (!label || label === "-") return label;
+  if (!options.bilingualDefault && !options.localizeDefault) return label;
+  let isDefault = typeof options.isDefault === "boolean" ? options.isDefault : false;
+  if (typeof options.isDefault !== "boolean") {
+    const l1 = String(l1Name || "").trim();
+    const row = (state.categories?.[l1]?.l2 || []).find((item) => String(item?.name || "") === label);
+    isDefault = Boolean(row?.is_default);
+  }
+  if (!isDefault) return label;
+  return formatDefaultCategoryDisplayLabel(label, "l2");
 }
 
 function getL1EmojiSymbol(name) {
@@ -5158,16 +5755,16 @@ function pruneCategoryEmojiMap() {
   state.categoryEmoji = { l1: nextL1, l2: nextL2 };
 }
 
-function withL1Emoji(name) {
+function withL1Emoji(name, options = {}) {
   const label = String(name || "").trim();
   if (!label || label === "-") return "-";
-  return `${getL1EmojiSymbol(label)} ${label}`;
+  return `${getL1EmojiSymbol(label)} ${getL1DisplayName(label, options)}`;
 }
 
-function withL2Emoji(name, l1Name = "") {
+function withL2Emoji(name, l1Name = "", options = {}) {
   const label = String(name || "").trim();
   if (!label || label === "-") return "-";
-  return `${getL2EmojiSymbol(l1Name, label)} ${label}`;
+  return `${getL2EmojiSymbol(l1Name, label)} ${getL2DisplayName(label, l1Name, options)}`;
 }
 
 function formatCategoryPair(l1, l2) {
