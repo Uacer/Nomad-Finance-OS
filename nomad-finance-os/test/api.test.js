@@ -198,6 +198,42 @@ test("expense supports l1/l2/tag and budget only at l1 level", async () => {
   assert.equal(budgetListRes.body[0].overspend, true);
 });
 
+test("expense and income fallback to unassigned account when account is omitted", async () => {
+  const { api } = createHarness();
+  const date = "2026-03-10";
+
+  const expenseRes = await api.post("/api/v1/transactions").send({
+    date,
+    type: "expense",
+    amount_original: 12,
+    currency_original: "USD",
+    fx_rate: 1,
+    category_l1: "Living",
+    category_l2: "Groceries",
+    note: "fallback expense"
+  });
+  assert.equal(expenseRes.status, 201);
+  assert.ok(Number(expenseRes.body.account_from_id) > 0);
+
+  const incomeRes = await api.post("/api/v1/transactions").send({
+    date: "2026-03-11",
+    type: "income",
+    amount_original: 30,
+    currency_original: "USD",
+    fx_rate: 1,
+    note: "fallback income"
+  });
+  assert.equal(incomeRes.status, 201);
+  assert.equal(incomeRes.body.account_to_id, expenseRes.body.account_from_id);
+
+  const accountsRes = await api.get("/api/v1/accounts").send();
+  assert.equal(accountsRes.status, 200);
+  const unassigned = accountsRes.body.find((row) => Number(row.id) === Number(expenseRes.body.account_from_id));
+  assert.ok(unassigned);
+  assert.equal(unassigned.type, "cash");
+  assert.ok(["Unassigned Account", "未分配账户"].includes(String(unassigned.name)));
+});
+
 test("deleting l2 category keeps historical transactions unchanged", async () => {
   const { api } = createHarness();
   const month = "2026-03";

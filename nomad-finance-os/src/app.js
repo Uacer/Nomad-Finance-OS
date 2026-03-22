@@ -97,6 +97,8 @@ const ALLOWED_AGENT_SCOPES = new Set([
   "admin:rebuild-balances"
 ]);
 const CRYPTO_ACCOUNT_TYPES = new Set(["crypto_wallet", "exchange"]);
+const UNASSIGNED_ACCOUNT_NAME_ZH = "未分配账户";
+const UNASSIGNED_ACCOUNT_NAME_EN = "Unassigned Account";
 
 function createApp(db) {
   const app = express();
@@ -1805,6 +1807,36 @@ function getAccounts(db, userId) {
     .all(userId);
 }
 
+function getOrCreateUnassignedAccount(db, userId) {
+  const settings = getUserSettings(db, userId);
+  const preferredName = settings.ui_language === "zh" ? UNASSIGNED_ACCOUNT_NAME_ZH : UNASSIGNED_ACCOUNT_NAME_EN;
+  const fallbackName = preferredName === UNASSIGNED_ACCOUNT_NAME_ZH ? UNASSIGNED_ACCOUNT_NAME_EN : UNASSIGNED_ACCOUNT_NAME_ZH;
+  const existing = db
+    .prepare(
+      `
+        SELECT *
+        FROM accounts
+        WHERE user_id = ? AND name IN (?, ?)
+        ORDER BY CASE name WHEN ? THEN 0 WHEN ? THEN 1 ELSE 2 END, id ASC
+        LIMIT 1
+      `
+    )
+    .get(userId, preferredName, fallbackName, preferredName, fallbackName);
+  if (existing) return existing;
+  const accountCurrency = normalizeSupportedCurrency(settings.base_currency || "USD", "currency");
+  const result = db
+    .prepare(
+      `
+        INSERT INTO accounts (user_id, name, type, currency, opening_balance, balance)
+        VALUES (?, ?, 'cash', ?, 0, 0)
+      `
+    )
+    .run(userId, preferredName, accountCurrency);
+  return db
+    .prepare("SELECT * FROM accounts WHERE user_id = ? AND id = ?")
+    .get(userId, Number(result.lastInsertRowid));
+}
+
 function getCategoriesMap(db, userId) {
   const l1Rows = db
     .prepare(
@@ -2150,13 +2182,13 @@ function prepareTransactionForWrite(db, userId, payload) {
   }
   const sourceCurrency = normalizeSupportedCurrency(payload.currency_original, "currency_original");
 
-  const from =
+  let from =
     payload.account_from_id !== undefined
       ? db
           .prepare("SELECT * FROM accounts WHERE id = ? AND user_id = ?")
           .get(payload.account_from_id, userId)
       : null;
-  const to =
+  let to =
     payload.account_to_id !== undefined
       ? db
           .prepare("SELECT * FROM accounts WHERE id = ? AND user_id = ?")
@@ -2168,6 +2200,13 @@ function prepareTransactionForWrite(db, userId, payload) {
   }
   if (payload.account_to_id !== undefined && !to) {
     throw new Error("account_to_id not found for user.");
+  }
+
+  if (type === "expense" && !from && payload.account_from_id === undefined) {
+    from = getOrCreateUnassignedAccount(db, userId);
+  }
+  if (type === "income" && !to && payload.account_to_id === undefined) {
+    to = getOrCreateUnassignedAccount(db, userId);
   }
 
   if (type === "expense") {

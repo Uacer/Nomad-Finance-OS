@@ -11,6 +11,10 @@
   --danger: #7B2D26;
   --radius: 14px;
   --mono: "DM Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
 }
 
 * {
@@ -20,6 +24,7 @@
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
   overflow-x: hidden;
   font-family: "Space Grotesk", sans-serif;
   color: var(--ink);
@@ -109,8 +114,9 @@ body.auth-required {
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
-  padding-left: max(14px, env(safe-area-inset-left) + 14px);
-  padding-right: max(14px, env(safe-area-inset-right) + 14px);
+  padding-top: max(8px, calc(var(--safe-top) + 8px));
+  padding-left: max(14px, calc(var(--safe-left) + 14px));
+  padding-right: max(14px, calc(var(--safe-right) + 14px));
   border-bottom: 0;
   background: color-mix(in oklab, var(--bg-2), white 14%);
   backdrop-filter: blur(12px);
@@ -124,7 +130,7 @@ body.auth-required {
 }
 
 .minimal-topbar {
-  padding-top: 8px;
+  padding-top: max(6px, calc(var(--safe-top) + 6px));
   padding-bottom: 8px;
 }
 
@@ -158,6 +164,10 @@ body.auth-required {
 .topbar-month,
 .topbar-base {
   display: block;
+}
+
+.topbar-month {
+  min-width: 0;
 }
 
 .topbar-month input {
@@ -212,8 +222,19 @@ body.auth-required {
 }
 
 .topbar-month input::-webkit-calendar-picker-indicator {
-  opacity: 0.65;
-  filter: grayscale(1) contrast(1.06);
+  opacity: 0;
+  width: 0;
+  margin: 0;
+  pointer-events: none;
+}
+
+.topbar-month input::-webkit-clear-button,
+.topbar-month input::-webkit-inner-spin-button {
+  display: none;
+}
+
+.topbar-month input::-webkit-date-and-time-value {
+  text-align: center;
 }
 
 .sr-only {
@@ -318,7 +339,7 @@ textarea {
 .fab {
   position: fixed;
   left: 50%;
-  bottom: calc(20px + env(safe-area-inset-bottom));
+  bottom: calc(20px + var(--safe-bottom));
   transform: translateX(-50%);
   width: 56px;
   height: 56px;
@@ -527,7 +548,7 @@ body.auth-required .fab {
   gap: 14px;
   padding-top: 14px;
   padding-right: 20px;
-  padding-bottom: 80px;
+  padding-bottom: calc(80px + var(--safe-bottom));
   padding-left: 20px;
   overflow: visible;
 }
@@ -1552,6 +1573,10 @@ h3 {
   gap: 8px;
 }
 
+.tx-row-sub-right {
+  justify-content: flex-end;
+}
+
 .tx-row-meta {
   font-size: 0.78rem;
   color: var(--ink-soft);
@@ -1666,6 +1691,7 @@ body.utility-mode .sheet {
   right: 0;
   bottom: 0;
   max-height: min(88vh, 760px);
+  max-height: min(88dvh, 760px);
   overflow: auto;
   background: var(--bg-2);
   border-top-left-radius: 22px;
@@ -1680,7 +1706,7 @@ body.utility-mode .sheet {
   max-height: none;
   border-radius: 0;
   border: 0;
-  padding: 10px 12px calc(16px + env(safe-area-inset-bottom));
+  padding: calc(10px + var(--safe-top)) 12px calc(16px + var(--safe-bottom));
 }
 
 .quick-entry-head {
@@ -1707,6 +1733,7 @@ body.utility-mode .sheet {
   grid-template-rows: auto auto 1fr;
   gap: 8px;
   min-height: calc(100vh - 86px);
+  min-height: calc(100dvh - 86px);
 }
 
 .quick-icon-step {
@@ -1750,6 +1777,7 @@ body.utility-mode .sheet {
   display: grid;
   justify-items: center;
   gap: 4px;
+  min-width: 0;
   cursor: pointer;
 }
 
@@ -1769,10 +1797,16 @@ body.utility-mode .sheet {
 }
 
 .quick-icon-btn .label {
+  display: block;
+  width: 100%;
+  max-width: 100%;
   font-size: 0.77rem;
   line-height: 1.1;
   text-align: center;
   color: var(--ink-soft);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .quick-transfer-grid .quick-icon-btn .label {
@@ -1826,16 +1860,17 @@ body.utility-mode .sheet {
 }
 
 .quick-date-toggle-btn {
-  border: 1px solid var(--line);
+  border: 0;
   border-radius: 999px;
-  background: #eef3f7;
+  background: #e9eef4;
   color: var(--ink);
-  padding: 4px 10px;
+  padding: 4px 12px;
   cursor: pointer;
-  font-size: 0.9rem;
-  min-height: 36px;
-  width: 100%;
-  text-align: left;
+  font-size: 0.84rem;
+  font-weight: 600;
+  min-height: 30px;
+  width: auto;
+  text-align: center;
   white-space: nowrap;
 }
 
@@ -1856,44 +1891,160 @@ body.utility-mode .sheet {
 
 .quick-note-amount-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  gap: 6px;
+}
+
+.quick-amount-meta-row {
+  display: flex;
   gap: 8px;
-  align-items: end;
+  align-items: center;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.quick-inline-field {
+  display: inline-block;
+  min-width: 0;
+  flex: 0 0 auto;
+  max-width: min(40vw, 190px);
+}
+
+.quick-inline-field select {
+  min-height: 30px;
+  border-radius: 999px;
+  background: #e9eef4;
+  border: 0;
+  font-size: 0.84rem;
+  font-weight: 600;
+  padding: 4px 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  width: auto;
+  max-width: 100%;
 }
 
 .quick-note-field {
   display: grid;
-  gap: 4px;
+  gap: 2px;
 }
 
 .quick-note-field span {
-  font-size: 0.74rem;
-  color: var(--ink-soft);
+  font-size: 0.7rem;
+  color: color-mix(in oklab, var(--ink-soft), white 20%);
 }
 
 .quick-note-field input {
-  border-radius: 10px;
+  min-height: unset;
+  border-radius: 0;
+  padding: 0;
+  font-size: 0.88rem;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.quick-note-field input:focus {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.quick-note-inline-field {
+  display: inline-block;
+  min-width: 0;
+  flex: 0 0 auto;
+  width: min(32vw, 150px);
+}
+
+.quick-note-inline-field input {
+  min-height: 30px;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 1px solid color-mix(in oklab, var(--line), var(--ink-soft) 8%);
+  background: transparent;
+  padding: 0 2px 1px;
+  font-size: 0.84rem;
+  color: var(--ink);
+  box-shadow: none;
+}
+
+.quick-note-inline-field input::placeholder {
+  color: color-mix(in oklab, var(--ink-soft), white 10%);
+  opacity: 0.9;
+}
+
+.quick-note-inline-field input:focus {
+  border: 0;
+  border-bottom: 1px solid #7B2D26;
+  box-shadow: none;
+  background: transparent;
 }
 
 .quick-amount-panel {
   display: grid;
-  justify-items: end;
-  gap: 4px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  align-items: end;
 }
 
-.quick-amount-panel span {
+.quick-amount-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.quick-amount-main span {
   font-size: 0.74rem;
   color: var(--ink-soft);
 }
 
+.quick-amount-currency-field {
+  display: inline-block;
+  min-width: 0;
+  flex: 0 0 auto;
+  max-width: min(40vw, 190px);
+}
+
+.quick-amount-currency-field select {
+  width: auto;
+  min-height: 30px;
+  border: 0;
+  border-radius: 999px;
+  background: #e9eef4;
+  padding: 4px 12px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--ink);
+  box-shadow: none;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  max-width: 100%;
+}
+
+.quick-date-chip-field {
+  flex: 0 0 auto;
+}
+
+.quick-date-chip-field .quick-date-toggle-btn {
+  max-width: 120px;
+}
+
+.quick-amount-currency-field select:focus {
+  border: 0;
+  box-shadow: none;
+  background: #e9eef4;
+}
+
 #quickAmountInput {
-  width: 136px;
-  text-align: right;
+  width: 100%;
+  text-align: left;
   border: 0;
   border-radius: 0;
   background: transparent;
   padding: 2px 0;
-  font-size: 2rem;
+  font-size: 2.22rem;
   line-height: 1;
   color: #7B2D26;
   font-weight: 700;
@@ -2025,17 +2176,13 @@ body.sheet-open .topbar {
 
 .token-reveal-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr;
   gap: 8px;
   align-items: stretch;
 }
 
-.token-reveal-row textarea {
-  min-height: 84px;
-}
-
 .token-reveal-row .btn {
-  min-width: 84px;
+  width: 100%;
 }
 
 .token-reveal-actions {
@@ -2068,25 +2215,28 @@ body.sheet-open .topbar {
 /* top bar */
 .txd-topbar {
   display: grid;
-  grid-template-columns: 36px 1fr 36px;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   margin-bottom: 20px;
 }
 
 .txd-close-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
   border: 0;
-  background: rgba(49, 66, 80,.08);
+  background: transparent;
   color: var(--ink-soft);
-  display: grid;
-  place-items: center;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  padding: 0;
+  text-align: left;
+  justify-self: start;
   cursor: pointer;
-  transition: background 100ms ease;
+  transition: opacity 120ms ease;
 }
-.txd-close-btn:active { background: rgba(49, 66, 80,.16); }
+.txd-close-btn:active { opacity: 0.6; }
 
 .txd-title {
   text-align: center;
@@ -2103,8 +2253,11 @@ body.sheet-open .topbar {
   font: inherit;
   font-size: 0.9rem;
   font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
   cursor: pointer;
   text-align: right;
+  justify-self: end;
   padding: 0;
 }
 .txd-edit-btn:active { opacity: 0.6; }
@@ -2744,7 +2897,10 @@ body.utility-mode .panel.utility-open {
   inset: 0;
   z-index: 55;
   overflow: auto;
-  padding: 14px 14px 20px;
+  padding-top: calc(14px + var(--safe-top));
+  padding-right: max(14px, calc(var(--safe-right) + 14px));
+  padding-bottom: calc(20px + var(--safe-bottom));
+  padding-left: max(14px, calc(var(--safe-left) + 14px));
   background: var(--bg-2);
   align-content: start;
   gap: 12px;
@@ -2815,7 +2971,7 @@ body.utility-mode #dashboardPanel {
 .toast {
   position: fixed;
   right: 14px;
-  bottom: 22px;
+  bottom: calc(22px + var(--safe-bottom));
   z-index: 99;
   max-width: min(380px, calc(100vw - 28px));
   border-radius: 14px;
@@ -2833,6 +2989,123 @@ body.utility-mode #dashboardPanel {
 
   .token-reveal-row .btn {
     width: 100%;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  .btn,
+  .icon-btn,
+  .panel-add-btn {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 430px) {
+  .topbar {
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    gap: 6px;
+    padding-left: max(12px, calc(var(--safe-left) + 12px));
+    padding-right: max(12px, calc(var(--safe-right) + 12px));
+  }
+
+  .topbar-month input {
+    font-size: 0.94rem;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .topbar-base select {
+    min-width: 54px;
+    padding: 6px 22px 6px 8px;
+    font-size: 0.84rem;
+  }
+
+  .layout {
+    gap: 12px;
+    padding-top: 12px;
+    padding-right: 12px;
+    padding-bottom: calc(76px + var(--safe-bottom));
+    padding-left: 12px;
+  }
+
+  #dashboardPanel.active,
+  #dashboardSortable {
+    gap: 12px;
+  }
+
+  .card {
+    border-radius: 18px;
+    padding: 14px;
+  }
+
+  .hero-value {
+    font-size: clamp(1.7rem, 8vw, 2rem);
+  }
+
+  .quick-icon-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .quick-transfer-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .quick-icon-btn .label {
+    font-size: 0.73rem;
+  }
+
+  .quick-note-amount-row {
+    gap: 6px;
+  }
+
+  .quick-amount-meta-row {
+    gap: 6px;
+  }
+
+  .quick-amount-panel {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .quick-inline-field select {
+    font-size: 0.78rem;
+    min-height: 28px;
+    padding: 3px 10px;
+  }
+
+  .quick-amount-currency-field {
+    max-width: min(44vw, 170px);
+  }
+
+  .quick-amount-currency-field select {
+    font-size: 0.78rem;
+    min-height: 28px;
+    padding: 3px 10px;
+  }
+
+  .quick-date-toggle-btn {
+    min-height: 28px;
+    font-size: 0.78rem;
+    padding: 3px 10px;
+  }
+
+  .quick-note-inline-field {
+    width: min(34vw, 130px);
+  }
+
+  .quick-note-inline-field input {
+    min-height: 28px;
+    font-size: 0.78rem;
+  }
+
+  #quickAmountInput {
+    font-size: 1.72rem;
   }
 }
 

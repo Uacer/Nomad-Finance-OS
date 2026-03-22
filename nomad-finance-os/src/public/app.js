@@ -121,7 +121,15 @@ const I18N = {
   en: {
     subtitle: "A simpler daily money cockpit.",
     month: "Month",
+    tabDashboard: "Dashboard",
+    tabTransactions: "Transactions",
+    tabBudgets: "Budgets",
+    tabAccounts: "Accounts",
+    tabReview: "Monthly Review",
+    tabCategories: "Categories",
+    tabSettings: "Settings",
     dashboard: "Summary",
+    pinned: "PINNED",
     cashFlowPulse: "📈 Cash Flow Pulse",
     liquiditySplit: "Liquidity Split",
     runwaySignal: "Runway Signal",
@@ -183,6 +191,7 @@ const I18N = {
     amountWheel: "Amount Wheel",
     quickDateHint: "Default: payment date",
     quickDateToggle: "Date",
+    quickUnassignedHint: "No account selected. It will be saved to Unassigned Account.",
     note: "Note",
     tagsLabel: "Tags",
     saveExpense: "Save Expense",
@@ -236,6 +245,13 @@ const I18N = {
     navReview: "Monthly Review",
     navCategories: "Categories",
     navAgentAccess: "Agent Access",
+    budgetPanelTitle: "Budget",
+    reviewSummaryHeading: "Summary",
+    reviewExpenseBreakdown: "Expense Breakdown",
+    reviewTopExpenses: "Top Expenses",
+    refresh: "Refresh",
+    dashboardWidgets: "Dashboard Widgets",
+    showOnDashboard: "Show on Dashboard",
     addL1Bottom: "✏️ Add L1",
     addCategory: "Add Category",
     addL2Inline: "＋",
@@ -310,6 +326,7 @@ const I18N = {
     emptyNoBudgetMonth: "No budget configured for this month.",
     emptyNoTxMonth: "No transactions for this month.",
     emptyNoExpenseMonth: "No expense records for this month.",
+    emptyNoExpenseToday: "No expenses today.",
     emptyNoRecentExpense: "No transactions yet.",
     emptyNoMonthlyBudget: "No monthly budgets.",
     emptyNoYearlyBudget: "No yearly budgets.",
@@ -325,6 +342,14 @@ const I18N = {
     loadedUser: "Loaded user {id}",
     settingsUpdated: "Settings updated",
     budgetUpdated: "Budget updated",
+    accountCreated: "Account created",
+    transactionCreated: "Transaction created",
+    monthlyBudgetSaved: "Monthly budget saved",
+    yearlyBudgetSaved: "Yearly budget saved",
+    monthlyReviewGenerated: "Monthly review snapshot generated",
+    accountNotFound: "Account not found",
+    transactionNotFound: "Transaction not found",
+    invalidTransactionId: "Invalid transaction id",
     expenseSaved: "Expense saved",
     maxSpendHint: "max: {amount} {currency}",
     amountExceeded: "Amount exceeds account available balance ({amount} {currency}).",
@@ -348,11 +373,10 @@ const I18N = {
       "Give it an easy-to-remember name. After creation, you'll get two copy options for quick onboarding.",
     latestAgentToken: "Last Created Token (shown once)",
     agentTokenRevealTitle: "Token Created",
-    agentTokenRevealHint:
-      "Recommended: copy the full setup brief first, then copy token only if needed.",
-    agentTokenRevealOptionToken: "Option B · Copy token only",
+    agentTokenRevealHint: "",
+    agentTokenRevealOptionToken: "Option B · Copy token only (plaintext hidden in UI)",
     agentTokenRevealOptionSetup:
-      "Option A · Copy full setup brief (GitHub skill link + token)",
+      "Click \"Copy Full Agent Setup\", then paste and send it to your AI agent to complete setup (easy).",
     tokenCopied: "Token copied",
     tokenCopyMissing: "No token to copy",
     agentTokenCreated: "Agent token created",
@@ -377,7 +401,15 @@ const I18N = {
   zh: {
     subtitle: "更轻量的日常财务驾驶舱。",
     month: "月份",
-    dashboard: "Summary",
+    tabDashboard: "总览",
+    tabTransactions: "交易",
+    tabBudgets: "预算",
+    tabAccounts: "账户",
+    tabReview: "月度回顾",
+    tabCategories: "分类",
+    tabSettings: "设置",
+    dashboard: "总览",
+    pinned: "置顶",
     cashFlowPulse: "📈 现金流脉冲",
     liquiditySplit: "流动性结构",
     runwaySignal: "Runway 信号",
@@ -439,6 +471,7 @@ const I18N = {
     amountWheel: "金额滚轮",
     quickDateHint: "默认使用支付日期",
     quickDateToggle: "日期",
+    quickUnassignedHint: "未选择账户，将记入未分配账户。",
     note: "备注",
     tagsLabel: "标签",
     saveExpense: "保存支出",
@@ -492,6 +525,13 @@ const I18N = {
     navReview: "月度回顾",
     navCategories: "分类管理",
     navAgentAccess: "Agent 接入",
+    budgetPanelTitle: "预算",
+    reviewSummaryHeading: "总览",
+    reviewExpenseBreakdown: "支出结构",
+    reviewTopExpenses: "最高支出",
+    refresh: "刷新",
+    dashboardWidgets: "首页卡片显示",
+    showOnDashboard: "显示在首页",
     addL1Bottom: "✏️ 新增一级分类",
     addCategory: "新增分类",
     addL2Inline: "＋",
@@ -565,6 +605,7 @@ const I18N = {
     emptyNoBudgetMonth: "本月还没有预算。",
     emptyNoTxMonth: "本月暂无交易记录。",
     emptyNoExpenseMonth: "本月暂无消费记录。",
+    emptyNoExpenseToday: "今天暂无支出。",
     emptyNoRecentExpense: "暂无交易记录。",
     emptyNoMonthlyBudget: "暂无月度预算。",
     emptyNoYearlyBudget: "暂无年度预算。",
@@ -580,6 +621,14 @@ const I18N = {
     loadedUser: "已加载用户 {id}",
     settingsUpdated: "设置已更新",
     budgetUpdated: "预算已更新",
+    accountCreated: "账户已创建",
+    transactionCreated: "交易已创建",
+    monthlyBudgetSaved: "月度预算已保存",
+    yearlyBudgetSaved: "年度预算已保存",
+    monthlyReviewGenerated: "月度回顾快照已生成",
+    accountNotFound: "未找到账户",
+    transactionNotFound: "未找到交易",
+    invalidTransactionId: "无效的交易 ID",
     expenseSaved: "支出已保存",
     maxSpendHint: "上限：{amount} {currency}",
     amountExceeded: "金额超过账户可用余额（{amount} {currency}）。",
@@ -601,9 +650,9 @@ const I18N = {
     agentTokenCreateSheetHint: "先填一个好记的名称。创建成功后会给你两个复制选项，适合新手直接使用。",
     latestAgentToken: "最近创建的 Token（仅展示一次）",
     agentTokenRevealTitle: "Token 已创建",
-    agentTokenRevealHint: "建议先复制完整接入说明；若只需密钥，再复制 Token。",
-    agentTokenRevealOptionToken: "选项 B · 仅复制 Token",
-    agentTokenRevealOptionSetup: "选项 A · 复制完整接入说明（GitHub skill 链接 + token）",
+    agentTokenRevealHint: "",
+    agentTokenRevealOptionToken: "选项 B · 仅复制 Token（界面不展示明文）",
+    agentTokenRevealOptionSetup: "点击“复制完整接入说明”，将内容粘贴并贴给你的AI代理，完成AI代理接入（简易）",
     tokenCopied: "Token 已复制",
     tokenCopyMissing: "没有可复制的 Token",
     agentTokenCreated: "Agent token 已创建",
@@ -1649,11 +1698,7 @@ async function copyAgentSetupGuide(tokenOverride = "") {
 }
 
 async function copyLatestAgentSetupGuide() {
-  const revealBox = $("#agentTokenRevealValue");
-  const token =
-    revealBox instanceof HTMLTextAreaElement
-      ? String(revealBox.value || "")
-      : String(state.latestAgentTokenPlaintext || "");
+  const token = String(state.latestAgentTokenPlaintext || "");
   if (!token.trim()) {
     showToast(t("tokenCopyMissing"), true);
     return;
@@ -1663,21 +1708,12 @@ async function copyLatestAgentSetupGuide() {
 
 function showAgentTokenReveal(token) {
   const value = String(token || "").trim();
-  const revealBox = $("#agentTokenRevealValue");
-  if (revealBox instanceof HTMLTextAreaElement) {
-    revealBox.value = value;
-    revealBox.focus();
-    revealBox.setSelectionRange(0, revealBox.value.length);
-  }
+  if (value) state.latestAgentTokenPlaintext = value;
   openSheet("agentTokenRevealSheet", { preserveUtility: true });
 }
 
 async function copyLatestAgentToken() {
-  const revealBox = $("#agentTokenRevealValue");
-  const token =
-    revealBox instanceof HTMLTextAreaElement
-      ? String(revealBox.value || "")
-      : String(state.latestAgentTokenPlaintext || "");
+  const token = String(state.latestAgentTokenPlaintext || "");
   if (!token.trim()) {
     showToast(t("tokenCopyMissing"), true);
     return;
@@ -2371,15 +2407,15 @@ function populateQuickEntryAccounts() {
   const select = $("#quickEntryForm [name=account_from_id]");
   const selectTo = $("#quickEntryForm [name=account_to_id]");
   if (!select) return;
-  select.innerHTML = `<option value="">-- ${escapeHtml(t("selectAccount"))} --</option>`;
+  select.innerHTML = `<option value="">${escapeHtml(t("selectAccount"))}</option>`;
   for (const account of state.accounts || []) {
-    const label = `${account.name} · ${account.type} · ${formatMoney(account.balance)} ${account.currency}`;
+    const label = `${account.name}`;
     select.appendChild(new Option(label, String(account.id)));
   }
   if (selectTo) {
-    selectTo.innerHTML = `<option value="">-- ${escapeHtml(t("selectAccount"))} --</option>`;
+    selectTo.innerHTML = `<option value="">${escapeHtml(t("selectAccount"))}</option>`;
     for (const account of state.accounts || []) {
-      const label = `${account.name} · ${account.type} · ${formatMoney(account.balance)} ${account.currency}`;
+      const label = `${account.name}`;
       selectTo.appendChild(new Option(label, String(account.id)));
     }
   }
@@ -2508,12 +2544,12 @@ async function updateQuickEntryFlow() {
   toggleQuickStep("quickStepL1", isExpense);
   toggleQuickStep("quickStepL2", isExpense && Boolean(l1));
   toggleQuickStep("quickStepTransferReason", isTransfer);
-  toggleQuickStep("quickStepSpend", isExpense ? Boolean(l1 && l2) : true);
+  toggleQuickStep("quickStepSpend", false);
 
   const spendReady = isExpense
-    ? Boolean(accountId && currency)
+    ? Boolean(currency)
     : isIncome
-      ? Boolean(accountToId && currency)
+      ? Boolean(currency)
       : Boolean(
           (!transferConfig.needsFrom || accountId) && (!transferConfig.needsTo || accountToId) && currency
         );
@@ -2524,6 +2560,16 @@ async function updateQuickEntryFlow() {
   if (!amountStepVisible) {
     applyQuickEntryMax(0, currency);
     validateQuickEntryAmount();
+    return;
+  }
+
+  const unassignedHint = t("quickUnassignedHint");
+  if (isExpense && !accountId) {
+    applyQuickEntryMax(99999999, currency, { customHint: unassignedHint });
+    return;
+  }
+  if (isIncome && !accountToId) {
+    applyQuickEntryMax(99999999, currency, { customHint: unassignedHint });
     return;
   }
   if (isExpense || (isTransfer && transferConfig.needsFrom)) {
@@ -2541,10 +2587,9 @@ function toggleQuickStep(id, visible) {
 
 function syncQuickComposerVisibility() {
   const composer = $("#quickComposerCard");
-  const spend = $("#quickStepSpend");
   const amount = $("#quickStepAmount");
-  if (!composer || !spend || !amount) return;
-  const show = !spend.classList.contains("hidden") || !amount.classList.contains("hidden");
+  if (!composer || !amount) return;
+  const show = !amount.classList.contains("hidden");
   composer.classList.toggle("hidden", !show);
 }
 
@@ -2670,16 +2715,9 @@ function persistQuickEntryPreferences() {
 }
 
 function updateQuickDateDisplay() {
-  const dateInput = $("#quickEntryForm [name=date]");
   const textEl = $("#quickDateToggleText");
-  if (!dateInput || !textEl) return;
-  const today = new Date().toISOString().slice(0, 10);
-  const date = String(dateInput.value || today);
-  if (date === today) {
-    textEl.textContent = `${t("quickDateToggle")} · ${t("relativeToday")}`;
-    return;
-  }
-  textEl.textContent = `${t("quickDateToggle")} · ${date}`;
+  if (!textEl) return;
+  textEl.textContent = t("relativeToday");
 }
 
 function getTransferReasonConfig(reason) {
@@ -2726,7 +2764,7 @@ function syncQuickEntryAccountVisibility() {
   const transferConfig = getTransferReasonConfig(getQuickTransferReason());
 
   if (accountFrom) {
-    const requiresFrom = next === "expense" || (next === "transfer" && transferConfig.needsFrom);
+    const requiresFrom = next === "transfer" && transferConfig.needsFrom;
     accountFrom.toggleAttribute("required", requiresFrom);
   }
   if (accountFromWrap) {
@@ -2736,7 +2774,7 @@ function syncQuickEntryAccountVisibility() {
     );
   }
   if (accountTo) {
-    const requiresTo = next === "income" || (next === "transfer" && transferConfig.needsTo);
+    const requiresTo = next === "transfer" && transferConfig.needsTo;
     accountTo.toggleAttribute("required", requiresTo);
   }
   if (accountToWrap) {
@@ -2785,7 +2823,7 @@ async function getFxRateCached(from, to) {
   return safeRate;
 }
 
-function applyQuickEntryMax(maxAmount, currency) {
+function applyQuickEntryMax(maxAmount, currency, options = {}) {
   const amountInput = $("#quickEntryForm [name=amount_original]");
   const hint = $("#quickAmountHint");
   if (!amountInput || !hint) return;
@@ -2796,6 +2834,11 @@ function applyQuickEntryMax(maxAmount, currency) {
   const current = clampQuickAmount(amountInput.value);
   amountInput.value = String(current);
   syncQuickAmountDisplay(current);
+  const customHint = String(options.customHint || "");
+  if (customHint) {
+    hint.textContent = customHint;
+    return;
+  }
   hint.textContent = t("maxSpendHint", {
     amount: formatMoney(state.quickEntryMax),
     currency: ensureUICurrency(currency || "USD")
@@ -2910,7 +2953,7 @@ async function submitAccountForm(event) {
         balance: Number(fd.get("balance") || "0")
       })
     });
-    showToast("Account created");
+    showToast(t("accountCreated"));
     try {
       await Promise.all([loadAccounts(), loadDashboard()]);
       form.reset();
@@ -2932,7 +2975,7 @@ async function submitTransactionForm(event) {
 
   try {
     await api("/api/v1/transactions", { method: "POST", body: JSON.stringify(payload) });
-    showToast("Transaction created");
+    showToast(t("transactionCreated"));
     try {
       await refreshAfterLedgerChange();
       $("#transactionForm [name=amount_original]").value = "";
@@ -3031,7 +3074,7 @@ async function submitBudgetForm(event) {
         total_amount: Number(fd.get("total_amount"))
       })
     });
-    showToast("Monthly budget saved");
+    showToast(t("monthlyBudgetSaved"));
     try {
       await Promise.all([loadBudgets(), loadDashboard()]);
     } catch (error) {
@@ -3081,7 +3124,7 @@ async function submitYearlyBudgetForm(event) {
         total_amount: Number(fd.get("total_amount"))
       })
     });
-    showToast("Yearly budget saved");
+    showToast(t("yearlyBudgetSaved"));
     try {
       await loadYearlyBudgets();
     } catch (error) {
@@ -3413,7 +3456,7 @@ async function generateMonthlyReview() {
       method: "POST",
       body: JSON.stringify({ month: state.month })
     });
-    showToast("Monthly review snapshot generated");
+    showToast(t("monthlyReviewGenerated"));
     await loadReview();
   } catch (error) {
     showErrorToast(error);
@@ -3864,7 +3907,7 @@ function renderDashboardAccountsCard() {
 function openAccountEditSheet(accountId) {
   const account = (state.accounts || []).find((row) => row.id === accountId);
   if (!account) {
-    showToast("Account not found", true);
+    showToast(t("accountNotFound"), true);
     return;
   }
   state.editingAccountId = accountId;
@@ -4061,7 +4104,7 @@ function getTransactionById(transactionId) {
 function openTransactionDetailSheet(transactionId) {
   const tx = getTransactionById(transactionId);
   if (!tx) {
-    showToast("Transaction not found", true);
+    showToast(t("transactionNotFound"), true);
     return;
   }
   state.detailTransactionId = transactionId;
@@ -4156,7 +4199,7 @@ function openCurrentDetailForEdit() {
 function openTransactionEditSheet(transactionId) {
   const tx = getTransactionById(transactionId);
   if (!tx) {
-    showToast("Transaction not found", true);
+    showToast(t("transactionNotFound"), true);
     return;
   }
   state.editingTransactionId = transactionId;
@@ -4220,7 +4263,7 @@ async function submitTransactionEditForm(event) {
   const fd = new FormData(form);
   const txId = Number(fd.get("transaction_id"));
   if (!Number.isInteger(txId) || txId <= 0) {
-    showToast("Invalid transaction id", true);
+    showToast(t("invalidTransactionId"), true);
     return;
   }
   const payload = buildTransactionPayloadFromForm(fd);
@@ -4404,7 +4447,7 @@ function renderTodayExpensesCard(rows) {
     ? `${escapeHtml(formatMoney(total))}<span class="today-total-unit">${escapeHtml(base)}</span>`
     : '';
   if (!todayRows.length) {
-    listEl.innerHTML = '<div class="compact-row muted">No expenses today</div>';
+    listEl.innerHTML = `<div class="compact-row muted">${escapeHtml(t("emptyNoExpenseToday"))}</div>`;
     return;
   }
   listEl.innerHTML = todayRows.map((row) => {
@@ -4415,6 +4458,9 @@ function renderTodayExpensesCard(rows) {
     const l1 = row.category_l1 || '';
     const l2 = row.category_l2 || '';
     const titleText = l2 ? `${escapeHtml(l1)} / ${escapeHtml(l2)}` : escapeHtml(l1);
+    const origLine = showOrig
+      ? `<div class="tx-row-sub tx-row-sub-right"><span class="tx-orig">${escapeHtml(formatMoney(signedOrig))} ${escapeHtml(row.currency_original)}</span></div>`
+      : "";
     return `
       <article class="incard-row tx-incard-row clickable" data-tx-id="${row.id}">
         <span class="tx-icon">${icon}</span>
@@ -4423,10 +4469,7 @@ function renderTodayExpensesCard(rows) {
             <span class="tx-row-title">${titleText}</span>
             <span class="tx-amount expense">${escapeHtml(formatMoney(signedBase))}<span class="tx-unit">${escapeHtml(base)}</span></span>
           </div>
-          <div class="tx-row-sub">
-            <span class="tx-row-meta">${row.account_from_id ? escapeHtml(row.account_from_id) + ' · ' : ''}${escapeHtml(row.tx_date)}</span>
-            ${showOrig ? `<span class="tx-orig">${escapeHtml(formatMoney(signedOrig))} ${escapeHtml(row.currency_original)}</span>` : ''}
-          </div>
+          ${origLine}
           ${row.note ? `<div class="tx-note">${escapeHtml(row.note)}</div>` : ''}
         </div>
       </article>`;
@@ -4451,8 +4494,7 @@ function renderRecentExpensesCard(rows) {
       const signedOrig = isExpense ? -Math.abs(Number(row.amount_original)) : isIncome ? Math.abs(Number(row.amount_original)) : Number(row.amount_original);
       const amountClass = isExpense ? "tx-amount expense" : isIncome ? "tx-amount income" : "tx-amount transfer";
       const dateLabel = formatRecentExpenseDate(row.tx_date);
-      const account = isExpense ? row.account_from_id : isIncome ? row.account_to_id : null;
-      const meta = [account, dateLabel].filter(Boolean).join(" · ");
+      const meta = dateLabel;
       // icon: L1 emoji for expense, type emoji for others
       let icon = "💸";
       let titleText = "";
@@ -4522,10 +4564,10 @@ function formatRecentExpenseDate(txDate) {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const diffDays = Math.floor((today.getTime() - dateObj.getTime()) / 86400000);
-  if (diffDays === 0) return `${dateText} ${t("relativeToday")}`;
+  if (diffDays === 0) return t("relativeToday");
   if (diffDays > 0 && diffDays < 3) {
     const relative = diffDays === 1 ? t("relativeDayAgo", { days: diffDays }) : t("relativeDaysAgo", { days: diffDays });
-    return `${dateText} ${relative}`;
+    return relative;
   }
   return dateText;
 }
@@ -4789,7 +4831,17 @@ function applyI18n() {
   setText("authHint", t("authHint"));
   setText("subtitleText", t("subtitle"));
   setText("monthLabelText", t("month"));
+  setText("tabDashboardBtn", `🏠 ${t("tabDashboard")}`);
+  setText("tabTransactionsBtn", `🧾 ${t("tabTransactions")}`);
+  setText("tabBudgetsBtn", `📋 ${t("tabBudgets")}`);
+  setText("tabAccountsBtn", `🏦 ${t("tabAccounts")}`);
+  setText("tabReviewBtn", `🗓️ ${t("tabReview")}`);
+  setText("tabCategoriesBtn", `🧩 ${t("tabCategories")}`);
+  setText("tabSettingsBtn", `⚙️ ${t("tabSettings")}`);
   setText("dashboardTitle", t("dashboard"));
+  setText("dashboardPinnedLabel", t("pinned"));
+  setText("dashWidgetsEditBtn", t("edit"));
+  setText("todayCardTitle", `☀️ ${t("relativeToday")}`);
   setText("heroNetWorthLabel", t("metricNetWorth"));
   setText("heroCompositionLabel", t("netWorthComposition"));
   setText("heroLiquidLegend", t("labelLiquid"));
@@ -4853,6 +4905,12 @@ function applyI18n() {
   setText("quickBudgetL1Label", t("categoryL1"));
   setText("quickBudgetTotalLabel", t("totalAmount"));
   setText("quickBudgetSaveBtn", t("saveBudget"));
+  setText("budgetsPanelTitle", t("budgetPanelTitle"));
+  setText("reviewPanelTitle", t("navReview"));
+  setText("generateReviewBtn", t("refresh"));
+  setText("reviewSummaryTitle", t("reviewSummaryHeading"));
+  setText("reviewL1Title", t("reviewExpenseBreakdown"));
+  setText("reviewTopTitle", t("reviewTopExpenses"));
   setText("settingsSheetTitle", t("settings"));
   setText("settingsGeneralNavLabel", t("general"));
   setText("settingsGeneralPageTitle", t("general"));
@@ -4861,6 +4919,8 @@ function applyI18n() {
   setText("quickSettingsBaseLabel", t("baseCurrency"));
   setText("quickSettingsTimezoneLabel", t("timezone"));
   setText("quickSettingsAdvancedLabel", t("advancedInsights"));
+  setText("settingsAdvancedPageTitle", t("dashboardWidgets"));
+  setText("settingsAdvancedSectionLabel", t("showOnDashboard"));
   setText("toggleCashFlowLabel", t("showCashFlow"));
   setText("toggleTrendLabel", t("showTrend"));
   setText("toggleRiskLabel", t("showRisk"));
@@ -4893,7 +4953,6 @@ function applyI18n() {
   setText("agentTokenNameLabel", t("agentTokenName"));
   setText("agentTokenCreateBtn", t("createAgentToken"));
   setText("agentTokenRevealTitle", t("agentTokenRevealTitle"));
-  setText("agentTokenRevealHint", t("agentTokenRevealHint"));
   setText("agentTokenRevealOptionToken", t("agentTokenRevealOptionToken"));
   setText("agentTokenRevealOptionSetup", t("agentTokenRevealOptionSetup"));
   setText("agentTokenRevealCopyBtn", t("copyTokenOnly"));
@@ -4930,20 +4989,15 @@ function applyI18n() {
   setText("closeUtilityBtn", "←");
   const utilityBtn = $("#closeUtilityBtn");
   if (utilityBtn) utilityBtn.setAttribute("aria-label", t("back"));
-  // Panel back buttons — translated "‹ Settings" / "‹ 设置"
+  // Panel back buttons — keep icon-only for visual consistency and use localized a11y label.
   for (const btn of document.querySelectorAll(".panel-back-btn")) {
-    btn.textContent = t("navBackSettings");
+    btn.textContent = "←";
+    btn.setAttribute("aria-label", t("navBackSettings"));
+    btn.setAttribute("title", t("navBackSettings"));
   }
   const quickNote = document.querySelector("#quickEntryForm [name=note]");
   if (quickNote) {
-    quickNote.placeholder = ensureUILanguage(state.settings?.ui_language) === "zh" ? "可选" : "optional";
-  }
-  const tokenRevealBox = $("#agentTokenRevealValue");
-  if (tokenRevealBox instanceof HTMLTextAreaElement) {
-    tokenRevealBox.placeholder =
-      ensureUILanguage(state.settings?.ui_language) === "zh"
-        ? "创建后会显示在弹窗里"
-        : "Token plaintext will appear here";
+    quickNote.placeholder = t("note");
   }
   if ((state.accounts || []).length) {
     populateQuickEntryAccounts();

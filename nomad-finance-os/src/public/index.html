@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Nomad Finance OS</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -84,13 +84,13 @@
     </header>
 
     <nav class="tabs" aria-label="Panels">
-      <button class="tab active" data-panel="dashboardPanel">🏠 Dashboard</button>
-      <button class="tab" data-panel="transactionsPanel">🧾 Transactions</button>
-      <button class="tab" data-panel="budgetsPanel">📋 Budgets</button>
-      <button class="tab" data-panel="accountsPanel">🏦 Accounts</button>
-      <button class="tab" data-panel="reviewPanel">🗓️ Monthly Review</button>
-      <button class="tab" data-panel="categoriesPanel">🧩 Categories</button>
-      <button class="tab" data-panel="settingsPanel">⚙️ Settings</button>
+      <button class="tab active" id="tabDashboardBtn" data-panel="dashboardPanel">🏠 Dashboard</button>
+      <button class="tab" id="tabTransactionsBtn" data-panel="transactionsPanel">🧾 Transactions</button>
+      <button class="tab" id="tabBudgetsBtn" data-panel="budgetsPanel">📋 Budgets</button>
+      <button class="tab" id="tabAccountsBtn" data-panel="accountsPanel">🏦 Accounts</button>
+      <button class="tab" id="tabReviewBtn" data-panel="reviewPanel">🗓️ Monthly Review</button>
+      <button class="tab" id="tabCategoriesBtn" data-panel="categoriesPanel">🧩 Categories</button>
+      <button class="tab" id="tabSettingsBtn" data-panel="settingsPanel">⚙️ Settings</button>
     </nav>
 
     <main class="layout">
@@ -109,7 +109,7 @@
           <div id="heroSubMetrics" class="hero-submetrics"></div>
         </article>
         <div class="dash-section-row">
-          <p class="dash-section-label">Pinned</p>
+          <p class="dash-section-label" id="dashboardPinnedLabel">Pinned</p>
           <button class="dash-edit-btn" id="dashWidgetsEditBtn" type="button">Edit</button>
         </div>
         <div id="dashboardSortable">
@@ -497,49 +497,58 @@
             </div>
           </section>
           <section id="quickComposerCard" class="quick-composer-card hidden">
-            <section id="quickStepSpend" class="quick-meta-step hidden">
-              <div class="quick-meta-grid">
-                <label id="quickEntryAccountFromWrap" class="quick-chip-field">
-                  <span id="quickEntryAccountLabel" class="sr-only">Account</span>
-                  <select name="account_from_id"></select>
-                </label>
-                <label id="quickEntryAccountToWrap" class="quick-chip-field hidden">
-                  <span id="quickEntryAccountToLabel" class="sr-only">Account To</span>
-                  <select name="account_to_id"></select>
-                </label>
-                <label class="quick-chip-field">
-                  <span id="quickEntryCurrencyLabel" class="sr-only">Currency</span>
-                  <select name="currency_original" required>
-                    <option value="CNY">人民币 (CNY)</option>
-                    <option value="EUR">欧元 (EUR)</option>
-                    <option value="THB">泰铢 (THB)</option>
-                    <option value="USD" selected>美元 (USD)</option>
-                    <option value="JPY">日元 (JPY)</option>
-                    <option value="KRW">韩元 (KRW)</option>
-                  </select>
-                </label>
-                <div class="quick-chip-field quick-date-chip-field">
-                  <span id="quickEntryDateLabel" class="sr-only">Date</span>
-                  <button id="quickDateToggleBtn" class="quick-date-toggle-btn" type="button">
-                    🗓️ <span id="quickDateToggleText">Date</span>
-                  </button>
-                </div>
-              </div>
-              <label id="quickDateWrap" class="quick-date-wrap hidden">
-                <span id="quickEntryDateInputLabel" class="sr-only">Date</span>
-                <input name="date" type="date" required />
-              </label>
-            </section>
+            <section id="quickStepSpend" class="quick-meta-step hidden"></section>
             <section id="quickStepAmount" class="quick-amount-step hidden">
               <div class="quick-note-amount-row">
-                <label class="quick-note-field">
-                  <span id="quickEntryNoteLabel">Note</span>
-                  <input name="note" type="text" maxlength="500" placeholder="optional" />
-                </label>
                 <div class="quick-amount-panel">
-                  <span id="quickEntryAmountLabel">Amount</span>
-                  <input id="quickAmountInput" name="amount_original" type="text" inputmode="decimal" autocomplete="off" required value="0" />
+                  <div class="quick-amount-main">
+                    <span id="quickEntryAmountLabel">Amount</span>
+                    <input
+                      id="quickAmountInput"
+                      name="amount_original"
+                      type="text"
+                      inputmode="decimal"
+                      autocomplete="off"
+                      required
+                      value="0"
+                    />
+                  </div>
                 </div>
+                <div class="quick-amount-meta-row">
+                  <label class="quick-amount-currency-field">
+                    <span id="quickEntryCurrencyLabel" class="sr-only">Currency</span>
+                    <select name="currency_original" required>
+                      <option value="CNY">人民币 (CNY)</option>
+                      <option value="EUR">欧元 (EUR)</option>
+                      <option value="THB">泰铢 (THB)</option>
+                      <option value="USD" selected>美元 (USD)</option>
+                      <option value="JPY">日元 (JPY)</option>
+                      <option value="KRW">韩元 (KRW)</option>
+                    </select>
+                  </label>
+                  <label id="quickEntryAccountFromWrap" class="quick-inline-field">
+                    <span id="quickEntryAccountLabel" class="sr-only">Account</span>
+                    <select name="account_from_id"></select>
+                  </label>
+                  <label id="quickEntryAccountToWrap" class="quick-inline-field hidden">
+                    <span id="quickEntryAccountToLabel" class="sr-only">Account To</span>
+                    <select name="account_to_id"></select>
+                  </label>
+                  <div class="quick-inline-field quick-date-chip-field">
+                    <span id="quickEntryDateLabel" class="sr-only">Date</span>
+                    <button id="quickDateToggleBtn" class="quick-date-toggle-btn" type="button">
+                      <span id="quickDateToggleText">Today</span>
+                    </button>
+                  </div>
+                  <label class="quick-note-inline-field">
+                    <span id="quickEntryNoteLabel" class="sr-only">Note</span>
+                    <input name="note" type="text" maxlength="500" placeholder="备注" />
+                  </label>
+                </div>
+                <label id="quickDateWrap" class="quick-date-wrap hidden">
+                  <span id="quickEntryDateInputLabel" class="sr-only">Date</span>
+                  <input name="date" type="date" required />
+                </label>
               </div>
               <div id="quickAmountHint" class="muted mono">max: 0.00</div>
               <div id="quickKeypad" class="quick-keypad" aria-label="Amount keypad">
@@ -592,18 +601,14 @@
           <h3 id="agentTokenRevealTitle">Token Created</h3>
           <button class="btn btn-ghost" type="button" data-close-sheet="agentTokenRevealSheet">Close</button>
         </div>
-        <p class="muted" id="agentTokenRevealHint">
-          Copy it now. For security, this token will not be shown again.
-        </p>
         <p class="muted small" id="agentTokenRevealOptionSetup">
-          Option A · Copy full setup brief (GitHub skill link + token)
+          点击“复制完整接入说明”，将内容粘贴并贴给你的AI代理，完成AI代理接入（简易）
         </p>
         <div class="token-reveal-actions">
           <button id="agentTokenRevealCopySetupBtn" class="btn btn-solid" type="button">Copy Full Agent Setup</button>
         </div>
-        <p class="muted small" id="agentTokenRevealOptionToken">Option B · Copy token only</p>
+        <p class="muted small" id="agentTokenRevealOptionToken">选项 B · 仅复制 Token（界面不展示明文）</p>
         <div class="token-reveal-row">
-          <textarea id="agentTokenRevealValue" class="mono" rows="3" readonly></textarea>
           <button id="agentTokenRevealCopyBtn" class="btn btn-ghost" type="button">Copy Token</button>
         </div>
       </article>
@@ -766,11 +771,11 @@
         <div class="settings-page hidden" id="settingsPageWidgets">
           <div class="sheet-head settings-subpage-head">
             <button class="settings-back-btn" id="settingsBackFromWidgets" type="button" aria-label="Back">←</button>
-            <h3>Dashboard Widgets</h3>
+            <h3 id="settingsAdvancedPageTitle">Dashboard Widgets</h3>
             <div></div>
           </div>
 
-          <p class="settings-section-label">Show on Dashboard</p>
+          <p class="settings-section-label" id="settingsAdvancedSectionLabel">Show on Dashboard</p>
           <div class="settings-group">
             <label class="settings-toggle-row">
               <span id="toggleAccountsLabel">Accounts Card</span>
@@ -968,9 +973,7 @@
         <div class="txd-handle"></div>
         <!-- top bar: close left, title center, edit right -->
         <div class="txd-topbar">
-          <button class="txd-close-btn" type="button" data-close-sheet="transactionDetailSheet" aria-label="Close">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
+          <button class="txd-close-btn" type="button" data-close-sheet="transactionDetailSheet" aria-label="Close">Close</button>
           <span class="txd-title" id="transactionDetailTitle">Transaction</span>
           <button class="txd-edit-btn" id="transactionDetailEditBtn" type="button">Edit</button>
         </div>
