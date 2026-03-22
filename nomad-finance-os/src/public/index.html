@@ -131,6 +131,20 @@
           </div>
           <div id="todayExpensesList" class="list-block compact-list"></div>
         </article>
+        <article class="card dashboard-card" id="recentCompareCard" data-sort-id="recentCompareCard">
+          <div class="section-head">
+            <h3 class="section-title-btn" id="recentCompareTitle">🗓️ Recent</h3>
+          </div>
+          <p id="recentCompareSummary" class="recent-compare-summary">Past 7 days spending is stable.</p>
+          <div class="recent-compare-hero">
+            <strong id="recentCompareState" class="recent-compare-state">Steady</strong>
+            <span id="recentCompareRange" class="recent-compare-range">Mar 16–22</span>
+          </div>
+          <div class="recent-compare-chart-shell">
+            <svg id="recentCompareChart" class="recent-compare-chart" viewBox="0 0 620 168" preserveAspectRatio="none"></svg>
+          </div>
+          <div id="recentCompareAxis" class="recent-compare-axis"></div>
+        </article>
         <article class="card dashboard-card" data-sort-id="budgetPlanCard">
           <div class="section-head budget-head">
             <button class="section-title-btn" id="budgetPlanTitle" type="button">Planned Budget</button>
@@ -159,6 +173,7 @@
               Transactions
             </button>
           </div>
+          <div id="recentExpensesStats" class="recent-expense-mini" aria-live="polite"></div>
           <div id="recentExpensesList" class="list-block compact-list"></div>
         </article>
         <article class="card advanced-section dashboard-card" id="trendCard" data-sort-id="trendCard">
@@ -740,7 +755,7 @@
 
             <div class="settings-group">
               <div class="settings-row">
-                <span class="settings-row-label">Language</span>
+                <span class="settings-row-label" id="quickSettingsLangLabel">Language</span>
                 <select name="ui_language" class="settings-inline-select">
                   <option value="en">English</option>
                   <option value="zh">中文</option>
@@ -755,6 +770,13 @@
                   <option value="USD" selected>USD</option>
                   <option value="JPY">JPY</option>
                   <option value="KRW">KRW</option>
+                </select>
+              </div>
+              <div class="settings-row">
+                <span class="settings-row-label" id="quickSettingsCurrencyDisplayLabel">Currency Display</span>
+                <select name="currency_display_mode" class="settings-inline-select">
+                  <option value="code" id="quickSettingsCurrencyDisplayCodeOption">Code (USD)</option>
+                  <option value="symbol" id="quickSettingsCurrencyDisplaySymbolOption">Symbol ($)</option>
                 </select>
               </div>
               <div class="settings-row">
@@ -788,6 +810,10 @@
             <label class="settings-toggle-row">
               <span id="toggleTodayLabel">Today Card</span>
               <input id="toggleToday" type="checkbox" role="switch" />
+            </label>
+            <label class="settings-toggle-row">
+              <span id="toggleRecentCompareLabel">Recent 3-Day Card</span>
+              <input id="toggleRecentCompare" type="checkbox" role="switch" />
             </label>
             <label class="settings-toggle-row">
               <span id="toggleCashFlowLabel">Cash Flow Pulse</span>
@@ -960,9 +986,6 @@
           </label>
           <button class="btn btn-solid" id="transactionEditSaveBtn" type="submit">Save Transaction</button>
         </form>
-        <div class="tag-wrap">
-          <button class="btn btn-danger" id="transactionDeleteBtn" type="button">Delete Transaction</button>
-        </div>
       </article>
     </section>
 

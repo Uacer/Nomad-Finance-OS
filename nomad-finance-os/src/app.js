@@ -99,6 +99,7 @@ const ALLOWED_AGENT_SCOPES = new Set([
 const CRYPTO_ACCOUNT_TYPES = new Set(["crypto_wallet", "exchange"]);
 const UNASSIGNED_ACCOUNT_NAME_ZH = "未分配账户";
 const UNASSIGNED_ACCOUNT_NAME_EN = "Unassigned Account";
+const CURRENCY_DISPLAY_MODES = new Set(["code", "symbol"]);
 
 function createApp(db) {
   const app = express();
@@ -481,7 +482,8 @@ function createApp(db) {
     const schema = z.object({
       base_currency: z.string().min(3).max(8).optional(),
       timezone: z.string().min(2).max(100).optional(),
-      ui_language: z.enum(["en", "zh"]).optional()
+      ui_language: z.enum(["en", "zh"]).optional(),
+      currency_display_mode: z.enum(["code", "symbol"]).optional()
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
@@ -506,13 +508,14 @@ function createApp(db) {
     }
     const timezone = payload.timezone || current.timezone;
     const uiLanguage = payload.ui_language || current.ui_language;
+    const currencyDisplayMode = payload.currency_display_mode || current.currency_display_mode;
     db.prepare(
       `
         UPDATE user_settings
-        SET base_currency = ?, timezone = ?, ui_language = ?, updated_at = CURRENT_TIMESTAMP
+        SET base_currency = ?, timezone = ?, ui_language = ?, currency_display_mode = ?, updated_at = CURRENT_TIMESTAMP
         WHERE user_id = ?
       `
-    ).run(baseCurrency, timezone, uiLanguage, req.userId);
+    ).run(baseCurrency, timezone, uiLanguage, currencyDisplayMode, req.userId);
     res.json(getUserSettings(db, req.userId));
   });
 
@@ -1785,7 +1788,7 @@ function createApp(db) {
 function getUserSettings(db, userId) {
   const row = db
     .prepare(
-      "SELECT user_id, base_currency, timezone, ui_language FROM user_settings WHERE user_id = ?"
+      "SELECT user_id, base_currency, timezone, ui_language, currency_display_mode FROM user_settings WHERE user_id = ?"
     )
     .get(userId);
   if (!row) {
@@ -1797,7 +1800,10 @@ function getUserSettings(db, userId) {
     user_id: row.user_id,
     base_currency: SUPPORTED_CURRENCIES.includes(normalizedBase) ? normalizedBase : "USD",
     timezone: row.timezone || "UTC",
-    ui_language: row.ui_language === "zh" ? "zh" : "en"
+    ui_language: row.ui_language === "zh" ? "zh" : "en",
+    currency_display_mode: CURRENCY_DISPLAY_MODES.has(String(row.currency_display_mode || "code"))
+      ? String(row.currency_display_mode)
+      : "code"
   };
 }
 

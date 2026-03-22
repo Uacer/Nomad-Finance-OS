@@ -836,6 +836,169 @@ h3 {
   margin-top: 8px;
 }
 
+#recentCompareCard {
+  background: linear-gradient(165deg, var(--paper) 0%, #f3f8fb 100%);
+  border: 1px solid color-mix(in oklab, var(--line), transparent 28%);
+  color: var(--ink);
+  box-shadow: 0 4px 16px rgba(49, 66, 80, 0.1);
+}
+
+#recentCompareCard .section-title-btn {
+  color: var(--accent);
+}
+
+#recentExpensesCard .section-title-btn {
+  color: #172333;
+}
+
+.recent-compare-summary {
+  margin: 0;
+  font-size: 1.14rem;
+  line-height: 1.45;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+}
+
+.recent-compare-hero {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid color-mix(in oklab, var(--line), transparent 18%);
+  display: grid;
+  gap: 2px;
+}
+
+.recent-compare-state {
+  font-size: 2.25rem;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+  color: color-mix(in oklab, var(--ink), #000 10%);
+}
+
+.recent-compare-range {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.recent-compare-chart-shell {
+  --recent-risk-gap: 8px;
+  margin-top: 12px;
+  border-radius: 14px;
+  overflow: hidden;
+  position: relative;
+  border: none;
+  background: transparent;
+}
+
+.recent-compare-chart-shell::before,
+.recent-compare-chart-shell::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+}
+
+.recent-compare-chart-shell::before {
+  top: 0;
+  height: calc((100% - var(--recent-risk-gap)) / 2);
+  background: rgba(112, 128, 143, 0.13);
+  border-radius: 12px 12px 10px 10px;
+}
+
+.recent-compare-chart-shell::after {
+  bottom: 0;
+  height: calc((100% - var(--recent-risk-gap)) / 2);
+  background: rgba(11, 122, 117, 0.14);
+  border-radius: 10px 10px 12px 12px;
+}
+
+.recent-compare-chart-shell--insufficient {
+  --recent-risk-gap: 0px;
+}
+
+.recent-compare-chart-shell--insufficient::before {
+  height: 100%;
+  background: rgba(112, 128, 143, 0.13);
+  border-radius: 12px;
+}
+
+.recent-compare-chart-shell--insufficient::after {
+  display: none;
+}
+
+.recent-compare-chart {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 132px;
+}
+
+.recent-compare-grid {
+  stroke: rgba(92, 108, 121, 0.20);
+  stroke-width: 1;
+}
+
+.recent-compare-limit {
+  stroke: transparent;
+  stroke-width: 0;
+}
+
+.recent-compare-line-prev {
+  fill: none;
+  stroke: rgba(123, 142, 156, 0.26);
+  stroke-width: 1.4;
+  stroke-dasharray: 4 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.recent-compare-area {
+  fill: url(#recentCompareFill);
+}
+
+.recent-compare-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.recent-compare-dot {
+  fill: #f8fbfd;
+  stroke: var(--accent);
+  stroke-width: 3.2;
+}
+
+.recent-compare-axis {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  letter-spacing: 0.01em;
+}
+
+.recent-compare-axis span {
+  text-align: center;
+}
+
+@media (max-width: 520px) {
+  .recent-compare-summary {
+    font-size: 1.02rem;
+  }
+
+  .recent-compare-state {
+    font-size: 1.84rem;
+  }
+}
+
 .infographic-grid {
   display: grid;
   gap: 10px;
@@ -1252,8 +1415,19 @@ h3 {
   pointer-events: auto;
 }
 
+.category-tag-item.reveal-delete .category-tag-delete-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 @media (hover: none) {
   .category-tag-delete-btn {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .category-tag-item:active .category-tag-delete-btn,
+  .category-tag-item.reveal-delete .category-tag-delete-btn {
     opacity: 1;
     pointer-events: auto;
   }
@@ -1293,6 +1467,30 @@ h3 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.category-inline-add-header {
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--ink-soft);
+  min-height: 24px;
+  padding: 2px 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  font-size: 0.76rem;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.category-inline-add-header:hover {
+  background: transparent;
+  color: color-mix(in oklab, var(--ink), var(--accent) 28%);
 }
 
 .category-bottom-actions {
@@ -1643,6 +1841,75 @@ h3 {
 .incard-empty {
   font-size: 0.88rem;
   padding: 8px 0;
+}
+
+.recent-expense-mini {
+  margin-top: 8px;
+}
+
+.recent-expense-mini-shell {
+  display: flex;
+  align-items: center;
+  border-radius: 16px;
+  border: 1px solid color-mix(in oklab, var(--line), transparent 16%);
+  background: transparent;
+  box-shadow: none;
+  padding: 10px 12px;
+}
+
+.recent-expense-mini-item {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 2px;
+  padding: 2px 6px;
+}
+
+.recent-expense-mini-label {
+  font-size: 0.74rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.recent-expense-mini-money {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  max-width: 100%;
+}
+
+.recent-expense-mini-money strong {
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  color: var(--ink);
+  line-height: 1;
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-expense-mini-money span {
+  font-size: 0.66rem;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.recent-expense-mini-sep {
+  width: 1px;
+  height: 22px;
+  background: color-mix(in oklab, var(--line), transparent 30%);
+  flex-shrink: 0;
+}
+
+#recentExpensesCard #recentExpensesList {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in oklab, var(--line), transparent 40%);
 }
 
 /* list-block inside a card: reset margins */
