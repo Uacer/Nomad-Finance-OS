@@ -106,11 +106,6 @@ const UI_CURRENCIES = new Set(["CNY", "EUR", "THB", "USD", "JPY", "KRW"]);
 const UI_LANGUAGES = new Set(["en", "zh"]);
 const UI_CURRENCY_DISPLAY_MODES = new Set(["code", "symbol"]);
 const UI_THEMES = new Set(["system", "light", "dark", "aurora"]);
-const THEME_CHROME_COLOR = Object.freeze({
-  light: "#c9d7e3",
-  dark: "#2b2c2f",
-  aurora: "#0c1514"
-});
 const CURRENCY_SYMBOL_MAP = {
   USD: "$",
   CNY: "¥",
@@ -1044,6 +1039,7 @@ const MONEY_FORMATTER = new Intl.NumberFormat(undefined, {
 let quickEntryLimitReqSeq = 0;
 let authResendTimer = null;
 let topbarCompactRaf = 0;
+let recentCompareChartRaf = 0;
 const systemThemeMedia = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
 
 const $ = (selector) => document.querySelector(selector);
@@ -1066,7 +1062,7 @@ document.addEventListener("DOMContentLoaded", () => {
   state.month = new Date().toISOString().slice(0, 7);
   $("#monthInput").value = state.month;
   updateTopbarMonthDisplay(state.month);
-  applyTheme("system");
+  applyTheme("light");
   loadQuickEntryPreferences();
   bindUI();
   initializeDebugCapture();
@@ -1135,6 +1131,11 @@ function bindUI() {
   });
   window.addEventListener("scroll", scheduleTopbarCompactSync, { passive: true });
   window.addEventListener("resize", scheduleTopbarCompactSync);
+  window.addEventListener("resize", scheduleRecentCompareChartSync, { passive: true });
+  window.addEventListener("orientationchange", scheduleRecentCompareChartSync, { passive: true });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", scheduleRecentCompareChartSync, { passive: true });
+  }
   $("#monthInput").addEventListener("change", async () => {
     syncControlState();
     await loadAll();
@@ -1324,6 +1325,7 @@ function bindUI() {
       state.ui.showRecentCompare = toggleRecentCompare.checked;
       persistUiState();
       applyAdvancedVisibility();
+      scheduleRecentCompareChartSync();
     });
   }
   const toggleAccounts = $("#toggleAccounts");
@@ -1757,6 +1759,18 @@ function scheduleTopbarCompactSync() {
   topbarCompactRaf = window.requestAnimationFrame(() => {
     topbarCompactRaf = 0;
     updateTopbarCompactState();
+  });
+}
+
+function scheduleRecentCompareChartSync() {
+  if (recentCompareChartRaf) return;
+  recentCompareChartRaf = window.requestAnimationFrame(() => {
+    recentCompareChartRaf = 0;
+    const chartEl = $("#recentCompareChart");
+    const cardEl = $("#recentCompareCard");
+    if (!(chartEl instanceof SVGElement)) return;
+    if (cardEl && cardEl.classList.contains("hidden")) return;
+    renderRecentCompareCard(state.recentCompareRows || []);
   });
 }
 
@@ -5982,11 +5996,12 @@ function renderRecentCompareChart(svg, series, options = {}) {
     Number(svg.clientWidth || (typeof svg.getBoundingClientRect === "function" ? svg.getBoundingClientRect().width : 0) || 620)
   );
   const viewportHeight = Math.max(
-    1,
+    132,
     Number(svg.clientHeight || (typeof svg.getBoundingClientRect === "function" ? svg.getBoundingClientRect().height : 0) || 132)
   );
-  const height = 168;
-  const width = Math.max(620, Math.round((viewportWidth / viewportHeight) * height));
+  // Keep SVG coordinates 1:1 with rendered viewport, so marker circles never stretch into ellipses.
+  const width = Math.round(viewportWidth);
+  const height = Math.round(viewportHeight);
   svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
   const padTop = 14;
   const padBottom = 24;
@@ -6675,16 +6690,6 @@ function applyTheme(themeValue = state.settings?.theme || "system") {
   const resolved = resolveThemeMode(selected);
   document.documentElement.setAttribute("data-theme", resolved);
   document.documentElement.setAttribute("data-theme-preference", selected);
-  const themeMeta = document.getElementById("themeColorMeta");
-  if (themeMeta) {
-    themeMeta.setAttribute("content", THEME_CHROME_COLOR[resolved] || THEME_CHROME_COLOR.light);
-  }
-  const appleStatusBarMeta = document.getElementById("appleStatusBarStyleMeta");
-  if (appleStatusBarMeta) {
-    // iOS standalone mode: keep light themes on default bar, dark themes on translucent bar.
-    const statusBarStyle = resolved === "dark" || resolved === "aurora" ? "black-translucent" : "default";
-    appleStatusBarMeta.setAttribute("content", statusBarStyle);
-  }
 }
 
 if (systemThemeMedia) {
