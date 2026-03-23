@@ -1423,6 +1423,80 @@ test("bearer token is isolated by user and revoked token is rejected", async () 
   assert.equal(afterRevoke.status, 401);
 });
 
+test("onboarding state tracks progress and completion", async () => {
+  const { api } = createHarness();
+
+  const settingsRes = await api.get("/api/v1/settings").send();
+  assert.equal(settingsRes.status, 200);
+  assert.equal(settingsRes.body.onboarding_completed, false);
+  assert.equal(settingsRes.body.onboarding_current_step, "step1");
+
+  const updateSettingsRes = await api.put("/api/v1/settings").send({
+    living_country_code: "TH",
+    monthly_income_band: "3000_8000",
+    timezone: "Asia/Bangkok",
+    base_currency: "USD"
+  });
+  assert.equal(updateSettingsRes.status, 200);
+  assert.equal(updateSettingsRes.body.living_country_code, "TH");
+  assert.equal(updateSettingsRes.body.monthly_income_band, "3000_8000");
+
+  const initialState = await api.get("/api/v1/onboarding/state").send();
+  assert.equal(initialState.status, 200);
+  assert.equal(initialState.body.completed, false);
+  assert.equal(initialState.body.current_step, "step1");
+
+  const step2Res = await api.put("/api/v1/onboarding/state").send({ current_step: "step2" });
+  assert.equal(step2Res.status, 200);
+  assert.equal(step2Res.body.completed, false);
+  assert.equal(step2Res.body.current_step, "step2");
+
+  const completeRes = await api.put("/api/v1/onboarding/state").send({ completed: true });
+  assert.equal(completeRes.status, 200);
+  assert.equal(completeRes.body.completed, true);
+  assert.equal(completeRes.body.current_step, "completed");
+  assert.ok(typeof completeRes.body.completed_at === "string" && completeRes.body.completed_at.length > 0);
+});
+
+test("onboarding budget suggestion allocates 70 percent budget pool and keeps custom categories at zero", async () => {
+  const { api } = createHarness();
+  const addCustomL1 = await api.post("/api/v1/categories/l1").send({ name: "Family" });
+  assert.equal(addCustomL1.status, 201);
+
+  const suggestRes = await api.post("/api/v1/onboarding/budget-suggestion").send({
+    income_band: "3000_8000",
+    base_currency: "USD",
+    active_l1: ["Living", "Lifestyle", "Family"]
+  });
+  assert.equal(suggestRes.status, 200);
+  assert.equal(suggestRes.body.estimated_monthly_income, 5500);
+  assert.equal(suggestRes.body.budget_pool, 3850);
+  assert.equal(suggestRes.body.savings_buffer, 1650);
+  assert.equal(suggestRes.body.base_currency, "USD");
+
+  const byCategory = new Map((suggestRes.body.allocations || []).map((row) => [row.category_l1, row]));
+  assert.equal(Number(byCategory.get("Living")?.recommended_amount || 0), 2450);
+  assert.equal(Number(byCategory.get("Lifestyle")?.recommended_amount || 0), 1400);
+  assert.equal(Number(byCategory.get("Family")?.recommended_amount || 0), 0);
+
+  const allocatedTotal = Number(
+    (suggestRes.body.allocations || []).reduce((sum, row) => sum + Number(row.recommended_amount || 0), 0).toFixed(2)
+  );
+  assert.equal(allocatedTotal, 3850);
+});
+
+test("onboarding geo suggestion uses country headers when available", async () => {
+  const { api } = createHarness();
+  const res = await api
+    .get("/api/v1/onboarding/geo-suggest")
+    .set("x-country-code", "JP")
+    .send();
+  assert.equal(res.status, 200);
+  assert.equal(res.body.country_code, "JP");
+  assert.equal(res.body.timezone, "Asia/Tokyo");
+  assert.equal(res.body.source, "header");
+});
+
 test("x-user-id bypass is disabled when AUTH_ALLOW_DEV_BYPASS is false", async () => {
   const { rawApi } = createHarness({ allowDevBypass: false });
   const res = await rawApi.get("/api/v1/settings").set("x-user-id", "1").send();

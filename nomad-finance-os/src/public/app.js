@@ -14,7 +14,13 @@ const state = {
   detailTransactionId: null,
   quickEntryMax: 0,
   quickEntryType: "expense",
-  txTagFilter: "",
+  txFilters: {
+    tag: "",
+    type: "",
+    categoryL1: "",
+    start: "",
+    end: ""
+  },
   auth: {
     ready: false,
     authenticated: false,
@@ -42,10 +48,13 @@ const state = {
     showRisk: false,
     showRecentExpenses: true,
     showToday: true,
-    showRecentCompare: true,
-    showAccounts: false,
+    showRecentCompare: false,
+    showAccounts: true,
     showDebug: false,
-    budgetPieView: false
+    budgetPieView: false,
+    currencyModeToggling: false,
+    accountCompositionPercent: false,
+    hideSensitiveAmounts: false
   },
   debug: {
     requests: [],
@@ -59,6 +68,22 @@ const state = {
     l2: {}
   },
   widgetsOpenedFromDashboard: false,
+  onboarding: {
+    stateLoaded: false,
+    completed: false,
+    currentStep: "step1",
+    step: "step1",
+    countryCode: "CN",
+    timezone: "Asia/Shanghai",
+    baseCurrency: "USD",
+    incomeBand: "8000_20000",
+    incomeEstimate: 0,
+    budgetPool: 0,
+    savingsBuffer: 0,
+    budgetDraft: {},
+    agentChoice: "",
+    finishing: false
+  },
   quickPreferences: {
     expense: {
       account_from_id: "",
@@ -127,6 +152,16 @@ const CATEGORY_L2_EMOJI = {
   Certification: "📜",
   Workshops: "🧪"
 };
+const ACCOUNT_TYPE_META = Object.freeze({
+  bank: { emoji: "🏦", i18nKey: "accountTypeBankName" },
+  cash: { emoji: "💵", i18nKey: "accountTypeCashName" },
+  wise: { emoji: "💸", i18nKey: "accountTypeWiseName" },
+  crypto_wallet: { emoji: "₿", i18nKey: "accountTypeCryptoName" },
+  exchange: { emoji: "📈", i18nKey: "accountTypeExchangeName" },
+  alipay: { emoji: "🅰", i18nKey: "accountTypeAlipayName" },
+  wechat: { emoji: "💬", i18nKey: "accountTypeWechatName" },
+  restricted_cash: { emoji: "🔒", i18nKey: "accountTypeRestrictedName" }
+});
 const DEFAULT_CATEGORY_L1_LABELS = {
   Living: { en: "Living", zh: "生活" },
   Travel: { en: "Travel", zh: "旅行" },
@@ -167,6 +202,15 @@ const TRANSFER_REASON_EMOJI = {
   deposit_lock: "🔒",
   deposit_release: "🔓"
 };
+const ONBOARDING_INCOME_BANDS = new Set([
+  "lt_3000",
+  "3000_8000",
+  "8000_20000",
+  "20000_50000",
+  "50000_plus"
+]);
+const ONBOARDING_STEPS = new Set(["step1", "step2", "step3", "completed"]);
+const DEFAULT_ONBOARDING_COUNTRY_CODE = "CN";
 
 const I18N = {
   en: {
@@ -187,6 +231,7 @@ const I18N = {
     riskMetrics: "⚠️ Risk Metrics",
     budgetStatus: "Budget Status (L1 only)",
     netWorthComposition: "🧩 Net Worth Composition",
+    compositionToggleHint: "Click to switch amount / percent",
     plannedBudget: "📋 Planned Budget",
     recentExpenses: "🧾 Transactions",
     viewAllExpenses: "View All",
@@ -198,6 +243,9 @@ const I18N = {
     budgetPieCenterLabel: "Spent",
     budgetPieEmpty: "No spent budget yet.",
     budgetPieOther: "Other",
+    budgetScope: "Scope",
+    budgetPeriod: "Period",
+    budgetEditHint: "Set amount to 0 to remove this budget.",
     periodMonthly: "month",
     periodYearly: "yearly",
     editBudget: "Edit Budget",
@@ -222,6 +270,70 @@ const I18N = {
     authRequestFailed: "Failed to request verification code.",
     authVerifyFailed: "Verification failed. Please try again.",
     authSessionExpired: "Session expired. Please sign in again.",
+    onboardingTitle: "Build Your Financial Profile",
+    onboardingSubtitle: "Tell us about your baseline so we can personalize planning advice.",
+    onboardingProgress: "Step {current} / 3",
+    onboardingStep1Title: "Step 1 · Basic Profile",
+    onboardingStep2Title: "Step 2 · Financial Snapshot",
+    onboardingStep3Title: "Step 3 · Agent Setup",
+    onboardingCountry: "Country / Region",
+    onboardingTimezone: "Timezone",
+    onboardingIncomeBand: "Monthly Income Range",
+    onboardingGeoHint: "Default country is China. You can edit both country and timezone.",
+    onboardingContinue: "Continue",
+    onboardingStep2Intro:
+      "Add at least one account. We'll suggest a monthly allocation ratio that you can adjust later in Budget.",
+    onboardingCategoryHint: "Default categories are enabled. You can fine-tune them later.",
+    onboardingAccountsTitle: "Accounts",
+    onboardingCategoriesTitle: "Categories",
+    onboardingBudgetTitle: "Suggested Monthly Budget",
+    onboardingBudgetHint:
+      "Based on your income band, here's an estimated monthly allocation by category. You can adjust it later in Budget.",
+    onboardingBudgetRatioText: "Approx. {percent}% · {amount} {currency}/mo",
+    onboardingBudgetHintWithValues:
+      "Estimated income: {income} {currency} · Budget pool: {budget} {currency} · Buffer: {buffer} {currency}",
+    onboardingNeedAccount: "Add at least one account before continuing.",
+    onboardingSavedStep2: "Snapshot saved. You can move to the final step.",
+    onboardingDefaultAccountName: "default",
+    onboardingStep3Intro:
+      "Nomad Finance OS supports smooth, fast bookkeeping with your own agent. Choose whether to connect now:",
+    onboardingHasAgentYes: "Yes, connect now",
+    onboardingHasAgentNo: "No, connect later",
+    onboardingEnterProduct: "Enter Product",
+    onboardingGoAgent: "Go to Agent Access",
+    onboardingCountryPlaceholder: "US",
+    onboardingCountryOptionCN: "China (CN)",
+    onboardingCountryOptionUS: "United States (US)",
+    onboardingCountryOptionHK: "Hong Kong SAR (HK)",
+    onboardingCountryOptionMO: "Macao SAR (MO)",
+    onboardingCountryOptionTW: "Taiwan (TW)",
+    onboardingCountryOptionSG: "Singapore (SG)",
+    onboardingCountryOptionJP: "Japan (JP)",
+    onboardingCountryOptionKR: "South Korea (KR)",
+    onboardingCountryOptionTH: "Thailand (TH)",
+    onboardingCountryOptionMY: "Malaysia (MY)",
+    onboardingCountryOptionGB: "United Kingdom (GB)",
+    onboardingCountryOptionDE: "Germany (DE)",
+    onboardingCountryOptionFR: "France (FR)",
+    onboardingCountryOptionCA: "Canada (CA)",
+    onboardingCountryOptionAU: "Australia (AU)",
+    onboardingCountryOptionCH: "Switzerland (CH)",
+    onboardingCountryOptionIN: "India (IN)",
+    onboardingCountryOptionAE: "United Arab Emirates (AE)",
+    onboardingTimezonePlaceholder: "Asia/Shanghai",
+    onboardingAccountNamePlaceholder: "Account name",
+    onboardingNewL1Placeholder: "New L1 category",
+    onboardingNewL2Placeholder: "New L2 tag",
+    onboardingAdd: "Add",
+    onboardingAddL1: "Add L1",
+    onboardingAddL2: "Add L2",
+    onboardingNoAccounts: "No accounts yet.",
+    onboardingNoCategories: "No active categories.",
+    onboardingIncomeBandLt3000: "< 3,000",
+    onboardingIncomeBand3000_8000: "3,000 - 8,000",
+    onboardingIncomeBand8000_20000: "8,000 - 20,000",
+    onboardingIncomeBand20000_50000: "20,000 - 50,000",
+    onboardingIncomeBand50000Plus: "50,000+",
     close: "Close",
     date: "Date",
     type: "Type",
@@ -234,6 +346,14 @@ const I18N = {
     categoryL2: "Category L2",
     account: "Account",
     accountType: "Account Type",
+    accountTypeBankName: "Bank",
+    accountTypeCashName: "Cash",
+    accountTypeWiseName: "Wise",
+    accountTypeCryptoName: "Crypto",
+    accountTypeExchangeName: "Exchange",
+    accountTypeAlipayName: "Alipay",
+    accountTypeWechatName: "WeChat",
+    accountTypeRestrictedName: "Restricted",
     accountTo: "Account To",
     transferMode: "Transfer Type",
     currency: "Currency",
@@ -261,6 +381,10 @@ const I18N = {
     currencyDisplay: "Currency Display",
     currencyDisplayCode: "Code (USD)",
     currencyDisplaySymbol: "Symbol ($)",
+    topCurrencyToggleHint: "Select base currency",
+    heroCurrencyToggleHint: "Click currency unit to toggle Code/Symbol",
+    hideAmounts: "Hide amounts",
+    showAmounts: "Show amounts",
     theme: "Theme",
     themeSystem: "System",
     themeLight: "Light",
@@ -391,6 +515,13 @@ const I18N = {
     emptyNoExpenseMonth: "No expense records for this month.",
     emptyNoExpenseToday: "No expenses today.",
     emptyNoRecentExpense: "No transactions yet.",
+    txFilterTagPlaceholder: "Filter by tag...",
+    txFilterAllTypes: "All types",
+    txFilterAllCategories: "All categories",
+    txFilterStartDate: "Start date",
+    txFilterEndDate: "End date",
+    txFilterApply: "Apply",
+    txFilterReset: "Reset",
     recentSpendToday: "Today",
     recentSpendYesterday: "Yesterday",
     recentSpendDayBefore: "2d ago",
@@ -518,6 +649,7 @@ const I18N = {
     riskMetrics: "⚠️ 风险指标",
     budgetStatus: "预算进度（仅一级分类）",
     netWorthComposition: "🧩 净资产结构",
+    compositionToggleHint: "点击可切换金额 / 百分比",
     plannedBudget: "📋 预算计划",
     recentExpenses: "🧾 交易记录",
     viewAllExpenses: "查看全部",
@@ -529,6 +661,9 @@ const I18N = {
     budgetPieCenterLabel: "已花",
     budgetPieEmpty: "暂无已花预算数据。",
     budgetPieOther: "其他",
+    budgetScope: "范围",
+    budgetPeriod: "周期",
+    budgetEditHint: "将金额设为 0 可删除此预算。",
     periodMonthly: "月",
     periodYearly: "每年",
     editBudget: "编辑预算",
@@ -553,6 +688,66 @@ const I18N = {
     authRequestFailed: "验证码发送失败，请重试。",
     authVerifyFailed: "验证码校验失败，请重试。",
     authSessionExpired: "登录已过期，请重新登录。",
+    onboardingTitle: "完善你的财务画像",
+    onboardingSubtitle: "通过这份问卷，我们会为后续规划建议建立基线。",
+    onboardingProgress: "第 {current} / 3 步",
+    onboardingStep1Title: "第 1 步 · 基础画像",
+    onboardingStep2Title: "第 2 步 · 财务现状",
+    onboardingStep3Title: "第 3 步 · Agent 引导",
+    onboardingCountry: "国家/地区",
+    onboardingTimezone: "时区",
+    onboardingIncomeBand: "月收入区间",
+    onboardingGeoHint: "国家默认中国（China），国家和时区都可以随时修改。",
+    onboardingContinue: "继续",
+    onboardingStep2Intro: "请至少创建一个账户。系统会先给出建议预算配比，后续可在预算页再调整。",
+    onboardingCategoryHint: "分类已默认启用，后续可在分类页面再细调。",
+    onboardingAccountsTitle: "账户",
+    onboardingCategoriesTitle: "分类",
+    onboardingBudgetTitle: "建议月预算",
+    onboardingBudgetHint: "我们已根据你的收入区间生成分类预算配比，后续可在预算页自行调整。",
+    onboardingBudgetRatioText: "约 {percent}% · {amount} {currency}/月",
+    onboardingBudgetHintWithValues: "估算收入：{income} {currency} · 预算盘子：{budget} {currency} · 缓冲：{buffer} {currency}",
+    onboardingNeedAccount: "请至少创建一个账户后再继续。",
+    onboardingSavedStep2: "财务快照已保存，可以进入下一步。",
+    onboardingDefaultAccountName: "默认账户",
+    onboardingStep3Intro: "我们支持你的 agent 丝滑快速记账。请选择是否现在接入：",
+    onboardingHasAgentYes: "有，我现在接入",
+    onboardingHasAgentNo: "没有，稍后接入",
+    onboardingEnterProduct: "进入产品",
+    onboardingGoAgent: "前往 Agent Access",
+    onboardingCountryPlaceholder: "CN",
+    onboardingCountryOptionCN: "中国 (CN)",
+    onboardingCountryOptionUS: "美国 (US)",
+    onboardingCountryOptionHK: "中国香港 (HK)",
+    onboardingCountryOptionMO: "中国澳门 (MO)",
+    onboardingCountryOptionTW: "中国台湾 (TW)",
+    onboardingCountryOptionSG: "新加坡 (SG)",
+    onboardingCountryOptionJP: "日本 (JP)",
+    onboardingCountryOptionKR: "韩国 (KR)",
+    onboardingCountryOptionTH: "泰国 (TH)",
+    onboardingCountryOptionMY: "马来西亚 (MY)",
+    onboardingCountryOptionGB: "英国 (GB)",
+    onboardingCountryOptionDE: "德国 (DE)",
+    onboardingCountryOptionFR: "法国 (FR)",
+    onboardingCountryOptionCA: "加拿大 (CA)",
+    onboardingCountryOptionAU: "澳大利亚 (AU)",
+    onboardingCountryOptionCH: "瑞士 (CH)",
+    onboardingCountryOptionIN: "印度 (IN)",
+    onboardingCountryOptionAE: "阿联酋 (AE)",
+    onboardingTimezonePlaceholder: "Asia/Shanghai",
+    onboardingAccountNamePlaceholder: "账户名称",
+    onboardingNewL1Placeholder: "新增一级分类",
+    onboardingNewL2Placeholder: "新增二级标签",
+    onboardingAdd: "添加",
+    onboardingAddL1: "新增 L1",
+    onboardingAddL2: "新增 L2",
+    onboardingNoAccounts: "还没有账户。",
+    onboardingNoCategories: "暂无可用分类。",
+    onboardingIncomeBandLt3000: "< 3,000",
+    onboardingIncomeBand3000_8000: "3,000 - 8,000",
+    onboardingIncomeBand8000_20000: "8,000 - 20,000",
+    onboardingIncomeBand20000_50000: "20,000 - 50,000",
+    onboardingIncomeBand50000Plus: "50,000+",
     close: "关闭",
     date: "日期",
     type: "类型",
@@ -565,6 +760,14 @@ const I18N = {
     categoryL2: "二级分类",
     account: "账户",
     accountType: "账户类型",
+    accountTypeBankName: "银行",
+    accountTypeCashName: "现金",
+    accountTypeWiseName: "Wise",
+    accountTypeCryptoName: "加密资产",
+    accountTypeExchangeName: "交易所",
+    accountTypeAlipayName: "支付宝",
+    accountTypeWechatName: "微信",
+    accountTypeRestrictedName: "受限资金",
     accountTo: "入账账户",
     transferMode: "转账类型",
     currency: "币种",
@@ -592,6 +795,10 @@ const I18N = {
     currencyDisplay: "货币显示",
     currencyDisplayCode: "代码（USD）",
     currencyDisplaySymbol: "符号（$）",
+    topCurrencyToggleHint: "选择基准货币",
+    heroCurrencyToggleHint: "点击净资产币种可切换代码/符号显示",
+    hideAmounts: "隐藏金额",
+    showAmounts: "显示金额",
     theme: "主题",
     themeSystem: "跟随系统",
     themeLight: "浅色",
@@ -721,6 +928,13 @@ const I18N = {
     emptyNoExpenseMonth: "本月暂无消费记录。",
     emptyNoExpenseToday: "今天暂无支出。",
     emptyNoRecentExpense: "暂无交易记录。",
+    txFilterTagPlaceholder: "按标签筛选...",
+    txFilterAllTypes: "全部类型",
+    txFilterAllCategories: "全部分类",
+    txFilterStartDate: "开始日期",
+    txFilterEndDate: "结束日期",
+    txFilterApply: "筛选",
+    txFilterReset: "重置",
     recentSpendToday: "今天",
     recentSpendYesterday: "昨天",
     recentSpendDayBefore: "前天",
@@ -822,6 +1036,7 @@ const I18N = {
 const FX_QUOTE_CACHE = new Map();
 const AUTH_RESEND_COOLDOWN_SECONDS = 60;
 const TOPBAR_COMPACT_SCROLL_Y = 56;
+const UI_STATE_VERSION = 3;
 const MONEY_FORMATTER = new Intl.NumberFormat(undefined, {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2
@@ -880,6 +1095,40 @@ function bindUI() {
       void logoutCurrentSession();
     });
   }
+  const onboardingStep1Form = $("#onboardingStep1Form");
+  if (onboardingStep1Form) {
+    onboardingStep1Form.addEventListener("submit", submitOnboardingStep1Form);
+  }
+  const onboardingAccountForm = $("#onboardingAccountForm");
+  if (onboardingAccountForm) {
+    onboardingAccountForm.addEventListener("submit", submitOnboardingAccountForm);
+  }
+  const onboardingAddL1Btn = $("#onboardingAddL1Btn");
+  if (onboardingAddL1Btn) {
+    onboardingAddL1Btn.addEventListener("click", () => {
+      void addOnboardingL1Category();
+    });
+  }
+  const onboardingAddL2Btn = $("#onboardingAddL2Btn");
+  if (onboardingAddL2Btn) {
+    onboardingAddL2Btn.addEventListener("click", () => {
+      void addOnboardingL2Category();
+    });
+  }
+  const onboardingStep2ContinueBtn = $("#onboardingStep2ContinueBtn");
+  if (onboardingStep2ContinueBtn) {
+    onboardingStep2ContinueBtn.addEventListener("click", () => {
+      void submitOnboardingStep2();
+    });
+  }
+  for (const input of document.querySelectorAll("input[name=onboarding_agent_choice]")) {
+    input.addEventListener("change", () => {
+      const checked = document.querySelector("input[name=onboarding_agent_choice]:checked");
+      const nextChoice = checked instanceof HTMLInputElement ? checked.value : "";
+      state.onboarding.agentChoice = nextChoice;
+      void finishOnboarding({ openAgentAccess: nextChoice === "yes" });
+    });
+  }
   window.addEventListener("focus", () => {
     if (state.auth.authenticated) return;
     void resumeSessionIfAvailable();
@@ -890,15 +1139,61 @@ function bindUI() {
     syncControlState();
     await loadAll();
   });
-  $("#topBaseCurrencySelect").addEventListener("change", async (event) => {
-    const select = event.currentTarget;
-    if (!(select instanceof HTMLSelectElement)) return;
-    await switchTopBaseCurrency(select.value);
-  });
-  $("#applyTxFilterBtn").addEventListener("click", async () => {
-    state.txTagFilter = $("#transactionTagFilter").value.trim();
-    await loadTransactions();
-  });
+  const heroCompositionLabel = $("#heroCompositionLabel");
+  if (heroCompositionLabel) {
+    heroCompositionLabel.addEventListener("click", () => {
+      toggleHeroCompositionLegendMode();
+    });
+    heroCompositionLabel.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      toggleHeroCompositionLegendMode();
+    });
+  }
+  const heroPrivacyToggleBtn = $("#heroPrivacyToggleBtn");
+  if (heroPrivacyToggleBtn) {
+    heroPrivacyToggleBtn.addEventListener("click", () => {
+      toggleAmountPrivacyVisibility();
+    });
+  }
+  const topBaseCurrencySelect = $("#topBaseCurrencySelect");
+  if (topBaseCurrencySelect instanceof HTMLSelectElement) {
+    topBaseCurrencySelect.addEventListener("change", async (event) => {
+      const select = event.currentTarget;
+      if (!(select instanceof HTMLSelectElement)) return;
+      await switchTopBaseCurrency(select.value);
+    });
+  }
+  const heroNetWorthValue = $("#heroNetWorthValue");
+  if (heroNetWorthValue) {
+    heroNetWorthValue.addEventListener("click", (event) => {
+      const target = event.target instanceof Element ? event.target.closest(".hero-value-unit-toggle") : null;
+      if (!target) return;
+      void toggleTopCurrencyDisplayMode();
+    });
+    heroNetWorthValue.addEventListener("keydown", (event) => {
+      const target = event.target instanceof Element ? event.target.closest(".hero-value-unit-toggle") : null;
+      if (!target) return;
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      void toggleTopCurrencyDisplayMode();
+    });
+  }
+  const transactionFilterForm = $("#transactionFilterForm");
+  if (transactionFilterForm instanceof HTMLFormElement) {
+    transactionFilterForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      syncTransactionFiltersFromInputs();
+      await loadTransactions();
+    });
+  }
+  const resetTxFilterBtn = $("#resetTxFilterBtn");
+  if (resetTxFilterBtn) {
+    resetTxFilterBtn.addEventListener("click", async () => {
+      resetTransactionFilters();
+      await loadTransactions();
+    });
+  }
   for (const tab of document.querySelectorAll(".tab")) {
     tab.addEventListener("click", () => switchPanel(tab.dataset.panel));
   }
@@ -1494,9 +1789,7 @@ function closeTransactionRecordsOnlyMode() {
 }
 
 async function openTransactionRecordsPanel() {
-  state.txTagFilter = "";
-  const tagInput = $("#transactionTagFilter");
-  if (tagInput) tagInput.value = "";
+  resetTransactionFilters();
   setTransactionRecordsOnlyMode(true);
   openUtilityPanel("transactionsPanel");
   try {
@@ -1685,6 +1978,7 @@ async function api(path, init = {}) {
     error.payload = payload;
     if (res.status === 401) {
       state.auth.authenticated = false;
+      hideOnboardingGate({ keepState: true });
       showAuthGate();
       closeAllSheets();
       closeUtilityPanel();
@@ -1721,13 +2015,90 @@ function formatMoney(value) {
   return MONEY_FORMATTER.format(Number(value || 0));
 }
 
-function formatCurrencyUnit(value) {
+function isAmountPrivacyEnabled() {
+  return Boolean(state.ui.hideSensitiveAmounts);
+}
+
+function maskedAmountText(text) {
+  return isAmountPrivacyEnabled() ? "••••" : String(text);
+}
+
+function formatMoneyMasked(value) {
+  return isAmountPrivacyEnabled() ? "••••" : formatMoney(value);
+}
+
+function formatSignedMoneyMasked(value) {
+  return isAmountPrivacyEnabled() ? "••••" : formatSignedMoney(value);
+}
+
+function renderMoneyWithUnit(amountText, currencyText) {
+  const amount = String(amountText ?? "").trim();
+  const currency = String(currencyText ?? "").trim();
+  if (isAmountPrivacyEnabled()) return "••••";
+  if (!currency) return `<span class="money-amount">${escapeHtml(amount)}</span>`;
+  return `<span class="money-amount">${escapeHtml(amount)}</span><span class="money-unit">${escapeHtml(currency)}</span>`;
+}
+
+function formatCurrencyUnitWithMode(value, mode) {
   const code = ensureUICurrency(value || "USD");
-  const mode = ensureCurrencyDisplayMode(state.settings?.currency_display_mode || "code");
   if (mode === "symbol") {
     return CURRENCY_SYMBOL_MAP[code] || code;
   }
   return code;
+}
+
+function formatCurrencyUnit(value) {
+  const mode = ensureCurrencyDisplayMode(state.settings?.currency_display_mode || "code");
+  return formatCurrencyUnitWithMode(value, mode);
+}
+
+function syncTopCurrencyModeControl() {
+  const select = $("#topBaseCurrencySelect");
+  if (!(select instanceof HTMLSelectElement)) return;
+  for (const option of Array.from(select.options)) {
+    option.textContent = ensureUICurrency(option.value);
+  }
+  const hint = t("topCurrencyToggleHint") || t("baseCurrency");
+  select.setAttribute("title", hint);
+  select.setAttribute("aria-label", hint);
+}
+
+function syncHeroCompositionToggleControl() {
+  const label = $("#heroCompositionLabel");
+  if (!label) return;
+  const isPercent = Boolean(state.ui.accountCompositionPercent);
+  label.classList.add("hero-label-toggleable");
+  label.classList.toggle("hero-label-toggleable--percent", isPercent);
+  label.setAttribute("role", "button");
+  label.setAttribute("tabindex", "0");
+  const hint = t("compositionToggleHint");
+  label.setAttribute("title", hint);
+  label.setAttribute("aria-label", hint);
+}
+
+function renderHeroPrivacyToggleControl() {
+  const btn = $("#heroPrivacyToggleBtn");
+  if (!btn) return;
+  const hidden = isAmountPrivacyEnabled();
+  const hint = t(hidden ? "showAmounts" : "hideAmounts");
+  btn.classList.toggle("active", hidden);
+  btn.setAttribute("title", hint);
+  btn.setAttribute("aria-label", hint);
+  const icon = hidden
+    ? `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"></path>
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M4 4l16 16"></path>
+      </svg>
+    `
+    : `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"></path>
+        <circle cx="12" cy="12" r="3"></circle>
+      </svg>
+    `;
+  btn.innerHTML = `${icon}<span class="sr-only">${escapeHtml(hint)}</span>`;
 }
 
 function resolveCurrencyForDisplay(value, fallback = "USD") {
@@ -1999,11 +2370,15 @@ async function initializeAuthFlow() {
     return;
   }
   if (!state.auth.authenticated) {
+    hideOnboardingGate({ keepState: true });
     showAuthGate();
     return;
   }
   hideAuthGate();
-  await loadAll();
+  const onboardingActive = await maybeStartOnboardingFlow();
+  if (!onboardingActive) {
+    await loadAll();
+  }
 }
 
 async function loadAuthSession() {
@@ -2046,10 +2421,14 @@ async function resumeSessionIfAvailable() {
   }
   if (!state.auth.authenticated) return;
   hideAuthGate();
-  await loadAll();
+  const onboardingActive = await maybeStartOnboardingFlow();
+  if (!onboardingActive) {
+    await loadAll();
+  }
 }
 
 function showAuthGate() {
+  hideOnboardingGate({ keepState: true });
   const gate = $("#authGate");
   if (gate) {
     gate.classList.remove("hidden");
@@ -2068,6 +2447,495 @@ function hideAuthGate() {
   }
   document.body.classList.remove("auth-required");
   resetAuthFormState();
+}
+
+async function maybeStartOnboardingFlow() {
+  let onboardingState;
+  try {
+    onboardingState = await api("/api/v1/onboarding/state");
+  } catch (error) {
+    showErrorToast(error);
+    hideOnboardingGate({ keepState: true });
+    return false;
+  }
+  state.onboarding.stateLoaded = true;
+  state.onboarding.completed = Boolean(onboardingState?.completed);
+  state.onboarding.currentStep = normalizeOnboardingStep(onboardingState?.current_step || "step1");
+  if (state.onboarding.completed) {
+    hideOnboardingGate({ keepState: true });
+    return false;
+  }
+  try {
+    await Promise.all([loadSettings(), loadCategories(), loadAccounts()]);
+    await initializeOnboardingDraftState();
+  } catch (error) {
+    showErrorToast(error);
+    return false;
+  }
+  showOnboardingGate();
+  return true;
+}
+
+function showOnboardingGate() {
+  closeAllSheets();
+  closeUtilityPanel();
+  const gate = $("#onboardingGate");
+  if (gate) {
+    gate.classList.remove("hidden");
+    gate.setAttribute("aria-hidden", "false");
+  }
+  document.body.classList.add("onboarding-required");
+  renderOnboardingGate();
+}
+
+function hideOnboardingGate(options = {}) {
+  const keepState = Boolean(options.keepState);
+  const gate = $("#onboardingGate");
+  if (gate) {
+    gate.classList.add("hidden");
+    gate.setAttribute("aria-hidden", "true");
+  }
+  document.body.classList.remove("onboarding-required");
+  if (!keepState) {
+    state.onboarding.step = "step1";
+  }
+}
+
+async function initializeOnboardingDraftState() {
+  state.onboarding.countryCode = ensureOnboardingCountryCode(
+    String(state.settings?.living_country_code || DEFAULT_ONBOARDING_COUNTRY_CODE)
+  );
+  state.onboarding.timezone = String(state.settings?.timezone || "Asia/Shanghai");
+  state.onboarding.baseCurrency = ensureUICurrency(state.settings?.base_currency || "USD");
+  state.onboarding.incomeBand = ensureOnboardingIncomeBand(state.settings?.monthly_income_band || "8000_20000");
+  state.onboarding.currentStep = normalizeOnboardingStep(state.onboarding.currentStep || "step1");
+  state.onboarding.step = state.onboarding.currentStep === "completed" ? "step1" : state.onboarding.currentStep;
+  state.onboarding.agentChoice = "";
+  state.onboarding.finishing = false;
+
+  if (!state.onboarding.timezone || state.onboarding.timezone === "UTC") {
+    try {
+      const geo = await api("/api/v1/onboarding/geo-suggest");
+      if (
+        (!state.onboarding.timezone || state.onboarding.timezone === "UTC") &&
+        typeof geo?.timezone === "string" &&
+        geo.timezone.trim()
+      ) {
+        state.onboarding.timezone = geo.timezone.trim();
+      }
+    } catch {
+      // best-effort prefill; keep manual values when unavailable
+    }
+  }
+
+  if (state.onboarding.step === "step2" || state.onboarding.step === "step3") {
+    await refreshOnboardingBudgetSuggestion({ preserveExisting: true });
+    await ensureOnboardingDefaultAccount();
+  }
+  renderOnboardingGate();
+}
+
+function renderOnboardingGate() {
+  const currentStep = normalizeOnboardingStep(state.onboarding.step || "step1");
+  const displayStep = currentStep === "step2" ? 2 : currentStep === "step3" ? 3 : 1;
+  setText("onboardingProgressText", t("onboardingProgress", { current: String(displayStep) }));
+
+  const step1 = $("#onboardingStep1");
+  const step2 = $("#onboardingStep2");
+  const step3 = $("#onboardingStep3");
+  if (step1) step1.classList.toggle("hidden", currentStep !== "step1");
+  if (step2) step2.classList.toggle("hidden", currentStep !== "step2");
+  if (step3) step3.classList.toggle("hidden", currentStep !== "step3");
+
+  const countryInput = $("#onboardingCountryInput");
+  if (countryInput instanceof HTMLSelectElement) {
+    const nextCountry = ensureOnboardingCountryCode(state.onboarding.countryCode || DEFAULT_ONBOARDING_COUNTRY_CODE);
+    const hasOption = Array.from(countryInput.options).some((option) => option.value === nextCountry);
+    if (!hasOption) {
+      countryInput.appendChild(new Option(nextCountry, nextCountry));
+    }
+    countryInput.value = nextCountry;
+  }
+  const timezoneInput = $("#onboardingTimezoneInput");
+  if (timezoneInput instanceof HTMLInputElement) timezoneInput.value = state.onboarding.timezone || "UTC";
+  const baseInput = $("#onboardingBaseCurrencyInput");
+  if (baseInput instanceof HTMLSelectElement) baseInput.value = ensureUICurrency(state.onboarding.baseCurrency || "USD");
+  const bandInput = $("#onboardingIncomeBandInput");
+  if (bandInput instanceof HTMLSelectElement) bandInput.value = ensureOnboardingIncomeBand(state.onboarding.incomeBand);
+  const accountCurrency = $("#onboardingAccountCurrencyInput");
+  if (accountCurrency instanceof HTMLSelectElement) {
+    accountCurrency.value = ensureUICurrency(state.onboarding.baseCurrency || "USD");
+  }
+  const accountNameInput = $("#onboardingAccountNameInput");
+  if (accountNameInput instanceof HTMLInputElement) {
+    if (!accountNameInput.value.trim() && (!Array.isArray(state.accounts) || state.accounts.length === 0)) {
+      accountNameInput.value = t("onboardingDefaultAccountName");
+    }
+  }
+  renderOnboardingAccounts();
+  renderOnboardingCategorySummary();
+  renderOnboardingBudgetDraft();
+  const yesInput = $("#onboardingHasAgentYes");
+  const noInput = $("#onboardingHasAgentNo");
+  const choice = state.onboarding.agentChoice === "yes" ? "yes" : state.onboarding.agentChoice === "no" ? "no" : "";
+  if (yesInput instanceof HTMLInputElement) {
+    yesInput.checked = choice === "yes";
+    yesInput.disabled = Boolean(state.onboarding.finishing);
+  }
+  if (noInput instanceof HTMLInputElement) {
+    noInput.checked = choice === "no";
+    noInput.disabled = Boolean(state.onboarding.finishing);
+  }
+}
+
+async function ensureOnboardingDefaultAccount() {
+  const step = normalizeOnboardingStep(state.onboarding.step || "step1");
+  if (step !== "step2" && step !== "step3") return;
+  if (Array.isArray(state.accounts) && state.accounts.length > 0) return;
+  try {
+    await api("/api/v1/accounts", {
+      method: "POST",
+      body: JSON.stringify({
+        name: t("onboardingDefaultAccountName"),
+        type: "bank",
+        currency: ensureUICurrency(state.onboarding.baseCurrency || state.settings?.base_currency || "USD"),
+        balance: 0
+      })
+    });
+    await loadAccounts();
+  } catch (error) {
+    showErrorToast(error);
+  }
+}
+
+function isAutoDefaultOnboardingAccount(row) {
+  if (!row) return false;
+  const normalizedName = String(row.name || "").trim().toLowerCase();
+  const expectedNames = new Set(
+    [
+      String(t("onboardingDefaultAccountName") || "").trim().toLowerCase(),
+      "default",
+      "默认账户"
+    ].filter(Boolean)
+  );
+  const balance = Number(row.balance || 0);
+  return expectedNames.has(normalizedName) && String(row.type || "") === "bank" && Math.abs(balance) < 0.000001;
+}
+
+async function cleanupRedundantOnboardingDefaultAccounts() {
+  const accounts = Array.isArray(state.accounts) ? state.accounts : [];
+  if (accounts.length <= 1) return false;
+  const removable = accounts.filter((row) => isAutoDefaultOnboardingAccount(row));
+  if (!removable.length) return false;
+  const hasNonDefaultAccount = accounts.some((row) => !isAutoDefaultOnboardingAccount(row));
+  if (!hasNonDefaultAccount) return false;
+  for (const row of removable) {
+    try {
+      await api(`/api/v1/accounts/${row.id}?force=true`, { method: "DELETE" });
+    } catch {
+      // best effort cleanup only
+    }
+  }
+  return true;
+}
+
+function renderOnboardingAccounts() {
+  const target = $("#onboardingAccountList");
+  if (!target) return;
+  const rows = Array.isArray(state.accounts) ? state.accounts : [];
+  if (!rows.length) {
+    target.innerHTML = `<p class="muted">${escapeHtml(t("onboardingNoAccounts"))}</p>`;
+    return;
+  }
+  target.innerHTML = rows
+    .map(
+      (row) => `
+        <article class="list-row">
+          <div>
+            <strong>${escapeHtml(String(row.name || ""))}</strong>
+            <p class="muted small">${escapeHtml(accountTypeLabel(row.type || ""))} · ${escapeHtml(String(row.currency || ""))}</p>
+          </div>
+          <div class="mono">${formatMoney(row.balance || 0)}</div>
+        </article>
+      `
+    )
+    .join("");
+}
+
+function getActiveOnboardingL1Categories() {
+  return Object.entries(state.categories || {})
+    .filter(([, cfg]) => Boolean(cfg?.active))
+    .map(([name]) => String(name));
+}
+
+function renderOnboardingCategorySummary() {
+  const target = $("#onboardingCategoryList");
+  const parentSelect = $("#onboardingL2ParentSelect");
+  if (parentSelect instanceof HTMLSelectElement) {
+    parentSelect.innerHTML = "";
+  }
+  if (!target) return;
+  const activeL1 = getActiveOnboardingL1Categories();
+  if (!activeL1.length) {
+    target.innerHTML = `<p class="muted">${escapeHtml(t("onboardingNoCategories"))}</p>`;
+    return;
+  }
+  if (parentSelect instanceof HTMLSelectElement) {
+    for (const l1 of activeL1) {
+      parentSelect.appendChild(new Option(l1, l1));
+    }
+  }
+  target.innerHTML = activeL1
+    .map((l1) => {
+      const l2Count = (state.categories?.[l1]?.l2 || []).filter((row) => row.active).length;
+      return `
+        <article class="list-row">
+          <div>
+            <strong>${escapeHtml(withL1Emoji(l1, { bilingualDefault: true, isDefault: Boolean(state.categories?.[l1]?.is_default) }))}</strong>
+          </div>
+          <div class="muted small">${l2Count} L2</div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderOnboardingBudgetDraft() {
+  const target = $("#onboardingBudgetList");
+  if (!target) return;
+  const activeL1 = getActiveOnboardingL1Categories();
+  if (!activeL1.length) {
+    target.innerHTML = "";
+    return;
+  }
+  const rows = activeL1
+    .map((l1) => ({
+      l1,
+      amount: Number(state.onboarding.budgetDraft?.[l1] || 0)
+    }))
+    .sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0));
+  const budgetPool = Number(state.onboarding.budgetPool || 0);
+  const currency = formatCurrencyUnit(state.onboarding.baseCurrency || state.settings?.base_currency || "USD");
+  target.innerHTML = rows
+    .map(
+      ({ l1, amount }) => {
+        const safeAmount = Number.isFinite(amount) ? Math.max(0, amount) : 0;
+        const percent = budgetPool > 0 ? Math.round((safeAmount / budgetPool) * 100) : 0;
+        return `
+          <article class="onboarding-budget-row">
+            <span class="onboarding-budget-name">${escapeHtml(withL1Emoji(l1, { localizeDefault: true, isDefault: Boolean(state.categories?.[l1]?.is_default) }))}</span>
+            <span class="onboarding-budget-ratio">${escapeHtml(
+              t("onboardingBudgetRatioText", {
+                percent: String(percent),
+                amount: formatMoney(safeAmount),
+                currency
+              })
+            )}</span>
+          </article>
+        `;
+      }
+    )
+    .join("");
+  const hint = $("#onboardingBudgetHint");
+  if (hint) {
+    hint.textContent = t("onboardingBudgetHint");
+  }
+}
+
+async function refreshOnboardingBudgetSuggestion(options = {}) {
+  const preserveExisting = Boolean(options.preserveExisting);
+  const activeL1 = getActiveOnboardingL1Categories();
+  const suggestion = await api("/api/v1/onboarding/budget-suggestion", {
+    method: "POST",
+    body: JSON.stringify({
+      income_band: ensureOnboardingIncomeBand(state.onboarding.incomeBand || "8000_20000"),
+      base_currency: ensureUICurrency(state.onboarding.baseCurrency || "USD"),
+      active_l1: activeL1
+    })
+  });
+  state.onboarding.incomeEstimate = Number(suggestion?.estimated_monthly_income || 0);
+  state.onboarding.budgetPool = Number(suggestion?.budget_pool || 0);
+  state.onboarding.savingsBuffer = Number(suggestion?.savings_buffer || 0);
+  const previous = preserveExisting && state.onboarding.budgetDraft ? { ...state.onboarding.budgetDraft } : {};
+  const next = {};
+  for (const row of suggestion?.allocations || []) {
+    const key = String(row?.category_l1 || "");
+    if (!key) continue;
+    const fallback = Number(row?.recommended_amount || 0);
+    const fromExisting = Number(previous[key]);
+    next[key] = Number.isFinite(fromExisting) ? fromExisting : fallback;
+  }
+  for (const l1 of activeL1) {
+    if (next[l1] === undefined) {
+      const fromExisting = Number(previous[l1]);
+      next[l1] = Number.isFinite(fromExisting) ? fromExisting : 0;
+    }
+  }
+  state.onboarding.budgetDraft = next;
+}
+
+async function submitOnboardingStep1Form(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  if (!(form instanceof HTMLFormElement)) return;
+  const fd = new FormData(form);
+  const livingCountryCode = ensureOnboardingCountryCode(fd.get("living_country_code"));
+  const timezone = String(fd.get("timezone") || "").trim() || "UTC";
+  const baseCurrency = ensureUICurrency(fd.get("base_currency") || "USD");
+  const incomeBand = ensureOnboardingIncomeBand(fd.get("monthly_income_band") || "8000_20000");
+
+  try {
+    const updated = await api("/api/v1/settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        living_country_code: livingCountryCode,
+        timezone,
+        base_currency: baseCurrency,
+        monthly_income_band: incomeBand
+      })
+    });
+    state.settings = { ...(state.settings || {}), ...(updated || {}) };
+    state.onboarding.countryCode = livingCountryCode;
+    state.onboarding.timezone = timezone;
+    state.onboarding.baseCurrency = baseCurrency;
+    state.onboarding.incomeBand = incomeBand;
+    await refreshOnboardingBudgetSuggestion({ preserveExisting: false });
+    await api("/api/v1/onboarding/state", {
+      method: "PUT",
+      body: JSON.stringify({ current_step: "step2" })
+    });
+    state.onboarding.currentStep = "step2";
+    state.onboarding.step = "step2";
+    await ensureOnboardingDefaultAccount();
+    renderOnboardingGate();
+  } catch (error) {
+    showErrorToast(error);
+  }
+}
+
+async function submitOnboardingAccountForm(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  if (!(form instanceof HTMLFormElement)) return;
+  const fd = new FormData(form);
+  const name = String(fd.get("name") || "").trim();
+  if (!name) return;
+  const payload = {
+    name,
+    type: String(fd.get("type") || "cash"),
+    currency: ensureUICurrency(fd.get("currency") || state.onboarding.baseCurrency || "USD"),
+    balance: Number(fd.get("balance") || 0)
+  };
+  if (!Number.isFinite(payload.balance)) payload.balance = 0;
+  try {
+    await api("/api/v1/accounts", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+    form.reset();
+    const currencyInput = $("#onboardingAccountCurrencyInput");
+    if (currencyInput instanceof HTMLSelectElement) {
+      currencyInput.value = ensureUICurrency(state.onboarding.baseCurrency || "USD");
+    }
+    await loadAccounts();
+    const cleaned = await cleanupRedundantOnboardingDefaultAccounts();
+    if (cleaned) await loadAccounts();
+    renderOnboardingGate();
+  } catch (error) {
+    showErrorToast(error);
+  }
+}
+
+async function addOnboardingL1Category() {
+  const input = $("#onboardingNewL1Input");
+  if (!(input instanceof HTMLInputElement)) return;
+  const value = input.value.trim();
+  if (!value) return;
+  const ok = await createL1CategoryRecord(value);
+  if (!ok) return;
+  input.value = "";
+  try {
+    await refreshOnboardingBudgetSuggestion({ preserveExisting: true });
+  } catch (error) {
+    showErrorToast(error);
+  }
+  renderOnboardingGate();
+}
+
+async function addOnboardingL2Category() {
+  const parentSelect = $("#onboardingL2ParentSelect");
+  const input = $("#onboardingNewL2Input");
+  if (!(parentSelect instanceof HTMLSelectElement) || !(input instanceof HTMLInputElement)) return;
+  const l1Name = String(parentSelect.value || "").trim();
+  const l2Name = input.value.trim();
+  if (!l1Name || !l2Name) return;
+  const ok = await createL2CategoryRecord(l1Name, l2Name);
+  if (!ok) return;
+  input.value = "";
+  renderOnboardingGate();
+}
+
+async function submitOnboardingStep2() {
+  if (!Array.isArray(state.accounts) || state.accounts.length < 1) {
+    const message = t("onboardingNeedAccount");
+    const node = $("#onboardingStep2Message");
+    if (node) node.textContent = message;
+    showToast(message, true);
+    return;
+  }
+  const month = state.month || new Date().toISOString().slice(0, 7);
+  const rows = Object.entries(state.onboarding.budgetDraft || {});
+  try {
+    for (const [categoryL1, rawAmount] of rows) {
+      const amount = Number(rawAmount || 0);
+      if (!Number.isFinite(amount) || amount <= 0) continue;
+      await api("/api/v1/budgets", {
+        method: "POST",
+        body: JSON.stringify({
+          month,
+          category_l1: categoryL1,
+          total_amount: Number(amount.toFixed(2))
+        })
+      });
+    }
+    await api("/api/v1/onboarding/state", {
+      method: "PUT",
+      body: JSON.stringify({ current_step: "step3" })
+    });
+    state.onboarding.currentStep = "step3";
+    state.onboarding.step = "step3";
+    const node = $("#onboardingStep2Message");
+    if (node) node.textContent = t("onboardingSavedStep2");
+    renderOnboardingGate();
+  } catch (error) {
+    showErrorToast(error);
+  }
+}
+
+async function finishOnboarding(options = {}) {
+  if (state.onboarding.finishing) return;
+  const openAgentAccess = Boolean(options.openAgentAccess);
+  state.onboarding.finishing = true;
+  renderOnboardingGate();
+  try {
+    await api("/api/v1/onboarding/state", {
+      method: "PUT",
+      body: JSON.stringify({ completed: true, current_step: "completed" })
+    });
+    state.onboarding.completed = true;
+    hideOnboardingGate({ keepState: true });
+    await loadAll();
+    if (openAgentAccess) {
+      switchPanel("settingsPanel");
+    }
+  } catch (error) {
+    showErrorToast(error);
+  } finally {
+    state.onboarding.finishing = false;
+    if (!state.onboarding.completed) {
+      renderOnboardingGate();
+    }
+  }
 }
 
 function setAuthMessage(message, options = {}) {
@@ -2268,7 +3136,10 @@ async function submitAuthGateForm(event) {
     }
     hideAuthGate();
     showToast(t("authSignedIn"));
-    await loadAll();
+    const onboardingActive = await maybeStartOnboardingFlow();
+    if (!onboardingActive) {
+      await loadAll();
+    }
   } catch (error) {
     const message = resolveAuthErrorMessage(error, isCodeStep ? "verify" : "request");
     setAuthMessage(message, { error: true });
@@ -2320,12 +3191,16 @@ async function logoutCurrentSession() {
   closeSheet("settingsSheet");
   closeAllSheets();
   closeUtilityPanel();
+  hideOnboardingGate({ keepState: true });
   setAuthMessage("");
   showAuthGate();
 }
 
 async function loadAll() {
   if (!state.auth.authenticated) {
+    return;
+  }
+  if (document.body.classList.contains("onboarding-required")) {
     return;
   }
   try {
@@ -2353,7 +3228,11 @@ async function loadSettings() {
     timezone: "UTC",
     ui_language: "en",
     theme: "system",
-    currency_display_mode: "code"
+    currency_display_mode: "code",
+    living_country_code: "",
+    monthly_income_band: "8000_20000",
+    onboarding_completed: false,
+    onboarding_current_step: "step1"
   };
 
   // Auto-detect local timezone on first use (when server still has UTC default)
@@ -2364,8 +3243,16 @@ async function loadSettings() {
         state.settings.timezone = localTz;
         // Persist silently so it sticks next load
         api("/api/v1/settings", {
-          method: "POST",
-          body: JSON.stringify({ ...state.settings, timezone: localTz })
+          method: "PUT",
+          body: JSON.stringify({
+            base_currency: ensureUICurrency(state.settings.base_currency || "USD"),
+            timezone: localTz,
+            ui_language: ensureUILanguage(state.settings.ui_language || "en"),
+            theme: ensureUITheme(state.settings.theme || "system"),
+            currency_display_mode: ensureCurrencyDisplayMode(state.settings.currency_display_mode || "code"),
+            living_country_code: String(state.settings.living_country_code || "").trim().toUpperCase(),
+            monthly_income_band: ensureOnboardingIncomeBand(state.settings.monthly_income_band || "8000_20000")
+          })
         }).catch(() => {});
       }
     } catch {
@@ -2380,6 +3267,14 @@ async function loadSettings() {
   state.settings.theme = uiTheme;
   const currencyDisplayMode = ensureCurrencyDisplayMode(state.settings.currency_display_mode || "code");
   state.settings.currency_display_mode = currencyDisplayMode;
+  state.settings.living_country_code = String(state.settings.living_country_code || "").trim().toUpperCase();
+  state.settings.monthly_income_band = ensureOnboardingIncomeBand(state.settings.monthly_income_band || "8000_20000");
+  state.settings.onboarding_completed = Boolean(state.settings.onboarding_completed);
+  state.settings.onboarding_current_step = normalizeOnboardingStep(state.settings.onboarding_current_step || "step1");
+  state.onboarding.countryCode = state.settings.living_country_code || state.onboarding.countryCode;
+  state.onboarding.timezone = state.settings.timezone || state.onboarding.timezone;
+  state.onboarding.baseCurrency = uiBase;
+  state.onboarding.incomeBand = ensureOnboardingIncomeBand(state.settings.monthly_income_band || state.onboarding.incomeBand);
   const settingsForm = $("#settingsForm");
   if (settingsForm instanceof HTMLFormElement) {
     const formLanguage = settingsForm.querySelector("[name=ui_language]");
@@ -2400,7 +3295,11 @@ async function loadSettings() {
   $("#quickSettingsForm [name=timezone]").value = state.settings.timezone || "UTC";
   const quickUserIdInput = $("#quickSettingsForm [name=user_id]");
   if (quickUserIdInput) quickUserIdInput.value = String(state.userId);
-  $("#topBaseCurrencySelect").value = uiBase;
+  const topBaseCurrencySelect = $("#topBaseCurrencySelect");
+  if (topBaseCurrencySelect instanceof HTMLSelectElement) {
+    topBaseCurrencySelect.value = uiBase;
+  }
+  syncTopCurrencyModeControl();
   const toggleCashFlow = $("#toggleCashFlow");
   const toggleRisk = $("#toggleRisk");
   const toggleTrend = $("#toggleTrend");
@@ -2421,6 +3320,7 @@ async function loadSettings() {
   if (toggleAccountsEl) toggleAccountsEl.checked = Boolean(state.ui.showAccounts);
   if (debugOnlyFailed) debugOnlyFailed.checked = Boolean(state.debug.onlyFailed);
   if (debugFilterInput) debugFilterInput.value = state.debug.filter || "";
+  applyTransactionFiltersToInputs();
   applyQuickEntryPreferencesForType(state.quickEntryType || "expense");
   syncDevBypassVisibility();
   applyAdvancedVisibility();
@@ -2451,6 +3351,34 @@ async function switchTopBaseCurrency(nextBase) {
   }
 }
 
+async function toggleTopCurrencyDisplayMode() {
+  if (state.ui.currencyModeToggling) return;
+  const currentMode = ensureCurrencyDisplayMode(state.settings?.currency_display_mode || "code");
+  const nextMode = currentMode === "code" ? "symbol" : "code";
+  state.ui.currencyModeToggling = true;
+  try {
+    await api("/api/v1/settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        base_currency: ensureUICurrency(state.settings?.base_currency || "USD"),
+        timezone: state.settings?.timezone || "UTC",
+        ui_language: ensureUILanguage(state.settings?.ui_language || "en"),
+        theme: ensureUITheme(state.settings?.theme || "system"),
+        currency_display_mode: nextMode,
+        living_country_code: String(state.settings?.living_country_code || "").trim().toUpperCase(),
+        monthly_income_band: ensureOnboardingIncomeBand(state.settings?.monthly_income_band || "8000_20000")
+      })
+    });
+    await loadAll();
+    showToast(t(nextMode === "symbol" ? "currencyDisplaySymbol" : "currencyDisplayCode"));
+  } catch (error) {
+    showErrorToast(error);
+  } finally {
+    state.ui.currencyModeToggling = false;
+    syncTopCurrencyModeControl();
+  }
+}
+
 async function loadCategories() {
   state.categories = (await api("/api/v1/categories")) || {};
   pruneCategoryEmojiMap();
@@ -2460,6 +3388,8 @@ async function loadCategories() {
   populateTransactionEditL2Select();
   populateQuickEntryL1();
   populateQuickBudgetL1();
+  populateTransactionFilterCategorySelect();
+  applyTransactionFiltersToInputs();
 }
 
 async function loadAccounts() {
@@ -2539,7 +3469,7 @@ function populateAccountSelects() {
   for (const select of [from, to]) {
     select.innerHTML = '<option value="">-- none --</option>';
     for (const account of state.accounts || []) {
-      const label = `${account.name} · ${account.type} · ${formatMoney(account.balance)} ${formatCurrencyUnit(
+      const label = `${account.name} · ${accountTypeLabel(account.type)} · ${formatMoney(account.balance)} ${formatCurrencyUnit(
         account.currency
       )}`;
       select.appendChild(new Option(label, String(account.id)));
@@ -2582,7 +3512,7 @@ function populateTransactionEditAccountSelects() {
     if (!select) continue;
     select.innerHTML = '<option value="">-- none --</option>';
     for (const account of state.accounts || []) {
-      const label = `${account.name} · ${account.type} · ${formatMoney(account.balance)} ${formatCurrencyUnit(
+      const label = `${account.name} · ${accountTypeLabel(account.type)} · ${formatMoney(account.balance)} ${formatCurrencyUnit(
         account.currency
       )}`;
       select.appendChild(new Option(label, String(account.id)));
@@ -3855,7 +4785,7 @@ function renderCashFlowBars(dashboard) {
         <div class="mini-bar-row">
           <span class="mini-bar-label">${row.label}</span>
           <div class="mini-bar-track"><div class="mini-bar-fill ${row.tone}" style="width:${width}%"></div></div>
-          <span class="mini-bar-value">${formatSignedMoney(row.value)} ${formatCurrencyUnit(base)}</span>
+          <span class="mini-bar-value">${renderMoneyWithUnit(formatSignedMoney(row.value), formatCurrencyUnit(base))}</span>
         </div>
       `;
     })
@@ -3973,24 +4903,50 @@ function renderHeroSummary(dashboard) {
 
   const heroValueEl = $("#heroNetWorthValue");
   if (heroValueEl) {
+    const currencyHint = t("heroCurrencyToggleHint");
     heroValueEl.innerHTML = `<span class="hero-value-amount">${escapeHtml(
-      formatMoney(netWorth)
-    )}</span><span class="hero-value-unit">${escapeHtml(formatCurrencyUnit(base))}</span>`;
+      formatMoneyMasked(netWorth)
+    )}</span><span class="hero-value-unit hero-value-unit-toggle" role="button" tabindex="0" title="${escapeHtml(
+      currencyHint
+    )}" aria-label="${escapeHtml(currencyHint)}">${escapeHtml(formatCurrencyUnit(base))}</span>`;
   }
+  renderHeroPrivacyToggleControl();
   renderAccountComposition(dashboard);
 
   $("#heroSubMetrics").innerHTML = `
-    <div class="hero-subcard"><div class="k">${t("metricMonthlyIncome")}</div><div class="v">${formatMoney(dashboard.monthly_income)} ${formatCurrencyUnit(base)}</div></div>
-    <div class="hero-subcard"><div class="k">${t("metricMonthlyExpense")}</div><div class="v">${formatMoney(dashboard.monthly_expense)} ${formatCurrencyUnit(base)}</div></div>
-    <div class="hero-subcard"><div class="k">${t("metricNetCashFlow")}</div><div class="v">${formatSignedMoney(dashboard.net_cash_flow)} ${formatCurrencyUnit(base)}</div></div>
+    <div class="hero-subcard"><div class="k">${t("metricMonthlyIncome")}</div><div class="v">${renderMoneyWithUnit(formatMoney(dashboard.monthly_income), formatCurrencyUnit(base))}</div></div>
+    <div class="hero-subcard"><div class="k">${t("metricMonthlyExpense")}</div><div class="v">${renderMoneyWithUnit(formatMoney(dashboard.monthly_expense), formatCurrencyUnit(base))}</div></div>
+    <div class="hero-subcard"><div class="k">${t("metricNetCashFlow")}</div><div class="v">${renderMoneyWithUnit(formatSignedMoney(dashboard.net_cash_flow), formatCurrencyUnit(base))}</div></div>
     <div class="hero-subcard secondary"><div class="k">${t("metricRunwayMonths")}</div><div class="v">${runwayLabel}</div></div>
   `;
+}
+
+function toggleHeroCompositionLegendMode() {
+  state.ui.accountCompositionPercent = !Boolean(state.ui.accountCompositionPercent);
+  persistUiState();
+  syncHeroCompositionToggleControl();
+  if (state.dashboard) {
+    renderAccountComposition(state.dashboard);
+  }
+}
+
+function toggleAmountPrivacyVisibility() {
+  state.ui.hideSensitiveAmounts = !Boolean(state.ui.hideSensitiveAmounts);
+  persistUiState();
+  renderHeroPrivacyToggleControl();
+  if (state.dashboard) {
+    renderHeroSummary(state.dashboard);
+    renderInfographics(state.dashboard);
+  }
+  renderDashboardAccountsCard();
+  renderAccounts();
 }
 
 function renderAccountComposition(dashboard) {
   const bar = $("#heroCompositionBar");
   const legend = $("#heroCompositionLegend");
   if (!bar || !legend) return;
+  syncHeroCompositionToggleControl();
   const accounts = Array.isArray(dashboard.account_composition) ? dashboard.account_composition : [];
   const positive = accounts
     .map((row) => ({
@@ -4027,38 +4983,50 @@ function renderAccountComposition(dashboard) {
       resolveCurrencyForDisplay(account.currency, dashboard.base_currency || state.settings?.base_currency || "USD")
     ])
   );
+  const showPercent = Boolean(state.ui.accountCompositionPercent);
   legend.innerHTML = segments
     .map((row, index) => {
       const color = palette[index % palette.length];
       const label = row.name || row.type || "Account";
       let amountStr;
-      const fmt = (n) => new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(n);
-      if (row.account_id === "other") {
-        const base = dashboard.base_currency || state.settings?.base_currency || "USD";
-        amountStr = `${fmt(row.amount_base)} ${formatCurrencyUnit(base)}`;
-      } else if (row.balance !== undefined && row.balance !== null) {
-        const base = dashboard.base_currency || state.settings?.base_currency || "USD";
-        const currency = resolveCurrencyForDisplay(
-          row.currency || accountCurrencyById.get(String(row.account_id)),
-          base
-        );
-        amountStr = `${fmt(row.balance)} ${formatCurrencyUnit(currency)}`;
+      if (showPercent) {
+        const percent = total > 0 ? (Number(row.amount_base || 0) / total) * 100 : 0;
+        amountStr = `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(percent)}%`;
       } else {
-        const base = dashboard.base_currency || state.settings?.base_currency || "USD";
-        amountStr = `${fmt(row.amount_base)} ${formatCurrencyUnit(base)}`;
+        const fmt = (n) => new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(n);
+        if (row.account_id === "other") {
+          const base = dashboard.base_currency || state.settings?.base_currency || "USD";
+          amountStr = `${fmt(row.amount_base)} ${formatCurrencyUnit(base)}`;
+        } else if (row.balance !== undefined && row.balance !== null) {
+          const base = dashboard.base_currency || state.settings?.base_currency || "USD";
+          const currency = resolveCurrencyForDisplay(
+            row.currency || accountCurrencyById.get(String(row.account_id)),
+            base
+          );
+          amountStr = `${fmt(row.balance)} ${formatCurrencyUnit(currency)}`;
+        } else {
+          const base = dashboard.base_currency || state.settings?.base_currency || "USD";
+          amountStr = `${fmt(row.amount_base)} ${formatCurrencyUnit(base)}`;
+        }
       }
+      amountStr = maskedAmountText(amountStr);
       return `<span class="hero-legend-item"><span class="hero-legend-dot" style="background:${color};"></span>${escapeHtml(label)} · ${amountStr}</span>`;
     })
     .join("");
 }
 
 function renderPlannedBudgetCard(dashboard) {
-  const monthlyRows = dashboard.budget_status || [];
-  const yearlyRows = dashboard.budget_status_yearly || [];
+  const hasSpent = (row) => Number(row?.spent_amount || 0) > 0;
+  const monthlyRows = (dashboard.budget_status || []).filter((row) => hasSpent(row));
+  const yearlyRows = (dashboard.budget_status_yearly || []).filter((row) => hasSpent(row));
   const summary = $("#budgetPlanSummary");
   const list = $("#budgetPlanList");
   const pieView = $("#budgetPlanPieView");
+  const card = document.querySelector('[data-sort-id="budgetPlanCard"]');
   if (!summary || !list || !pieView) return;
+  if (card) {
+    card.classList.toggle("hidden", monthlyRows.length === 0 && yearlyRows.length === 0);
+  }
 
   const showPie = Boolean(state.ui.budgetPieView);
   document.querySelectorAll("#budgetViewTabs .acct-period-btn").forEach((btn) => {
@@ -4076,10 +5044,9 @@ function renderPlannedBudgetCard(dashboard) {
   summary.textContent = "";
   summary.classList.add("hidden");
 
-  const renderRows = (rows, periodLabel, limit = 3) =>
+  const renderRows = (rows, periodLabel) =>
     [...rows]
       .sort((a, b) => Number(b.spent_amount || 0) - Number(a.spent_amount || 0))
-      .slice(0, limit)
       .map((row) => {
         const total = Number(row.total_amount || 0);
         const used = Number(row.spent_amount || 0);
@@ -4093,20 +5060,24 @@ function renderPlannedBudgetCard(dashboard) {
         const remainText = remaining < 0 ? `-${formatMoney(Math.abs(remaining))}` : formatMoney(remaining);
         const scope = row.year !== undefined ? "yearly" : "monthly";
         const period = scope === "yearly" ? String(row.year) : String(row.month || state.month);
+        const l1Display = withL1Emoji(row.category_l1, {
+          localizeDefault: true,
+          isDefault: Boolean(state.categories?.[row.category_l1]?.is_default)
+        });
         return `
           <article class="budget-plan-row clickable" data-action="edit-budget" data-scope="${scope}" data-period="${escapeHtml(period)}" data-category="${escapeHtml(row.category_l1)}" data-amount="${total}">
             <div class="top">
               <span class="budget-plan-name">
-                <strong>${escapeHtml(withL1Emoji(row.category_l1))}</strong>
+                <strong>${escapeHtml(l1Display)}</strong>
+                <span class="budget-plan-period-chip">/ ${escapeHtml(periodLabel)}</span>
               </span>
               <span class="budget-plan-amounts ${row.overspend ? "overspend" : ratio >= 0.8 ? "warn" : "muted"}">
                 ${formatMoney(used)}<span class="budget-plan-total"> / ${formatMoney(total)}</span>
               </span>
             </div>
-            <div class="progress-wrap"><div class="progress-fill ${tone}" style="width:${pct}%"></div></div>
-            <div class="budget-plan-meta">
-              <span class="muted">${escapeHtml(periodLabel)}</span>
-              <span class="${remainClass}">${remaining >= 0 ? escapeHtml(t("remaining")) + ": " + remainText : "−" + formatMoney(Math.abs(remaining))}</span>
+            <div class="budget-plan-bottom">
+              <div class="progress-wrap"><div class="progress-fill ${tone}" style="width:${pct}%"></div></div>
+              <span class="budget-plan-remaining ${remainClass}">${remaining >= 0 ? escapeHtml(t("remaining")) + ": " + remainText : "−" + formatMoney(Math.abs(remaining))}</span>
             </div>
           </article>
         `;
@@ -4197,17 +5168,15 @@ function renderAccounts() {
     target.innerHTML = '<div class="list-row muted" style="padding:16px;text-align:center">No accounts yet. Create one above.</div>';
     return;
   }
-  const typeIcon = { bank:"🏦", cash:"💵", wise:"💸", crypto_wallet:"₿", exchange:"📈", alipay:"🅰", wechat:"💬", restricted_cash:"🔒" };
-  const typeLabel = { bank:"Bank", cash:"Cash", wise:"Wise", crypto_wallet:"Crypto", exchange:"Exchange", alipay:"Alipay", wechat:"WeChat", restricted_cash:"Restricted" };
   target.innerHTML = state.accounts
     .map((row) => {
-      const icon = typeIcon[row.type] || "💼";
-      const label = typeLabel[row.type] || row.type;
+      const icon = accountTypeEmoji(row.type);
+      const label = accountTypeLabel(row.type);
       const accountCurrency = resolveCurrencyForDisplay(
         row.currency,
         state.settings?.base_currency || "USD"
       );
-      const bal = formatMoney(row.balance);
+      const bal = maskedAmountText(formatMoney(row.balance));
       const isNeg = Number(row.balance) < 0;
       return `
       <article class="list-row clickable account-list-row" data-action="edit-account" data-id="${row.id}">
@@ -4234,12 +5203,11 @@ function renderDashboardAccountsCard() {
     target.innerHTML = '<div class="muted" style="padding:8px 0;text-align:center;font-size:0.875rem">No accounts</div>';
     return;
   }
-  const typeIcon = { bank:"🏦", cash:"💵", wise:"💸", crypto_wallet:"₿", exchange:"📈", alipay:"🅰", wechat:"💬", restricted_cash:"🔒" };
   const baseCurrency = ensureUICurrency(state.settings?.base_currency || "USD");
   const txs = state.accountPeriodTxs || [];
   const fmt = (n) => new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(n);
   target.innerHTML = accounts.map((row) => {
-    const icon = typeIcon[row.type] || "💼";
+    const icon = accountTypeEmoji(row.type);
     const isNeg = Number(row.balance) < 0;
     const accountCurrency = resolveCurrencyForDisplay(row.currency, baseCurrency);
     let net = 0;
@@ -4252,7 +5220,8 @@ function renderDashboardAccountsCard() {
     if (net !== 0) {
       const sign = net > 0 ? "+" : "";
       const cls = net > 0 ? "acct-delta-in" : "acct-delta-out";
-      deltaHtml = `<span class="acct-delta ${cls}">${sign}${fmt(net)} ${escapeHtml(
+      deltaHtml = `<span class="acct-delta ${cls}">${renderMoneyWithUnit(
+        `${sign}${fmt(net)}`,
         formatCurrencyUnit(baseCurrency)
       )}</span>`;
     }
@@ -4261,7 +5230,8 @@ function renderDashboardAccountsCard() {
       <span class="account-type-icon">${icon}</span>
       <span class="account-name">${escapeHtml(row.name)}</span>
       <div class="acct-right">
-        <span class="account-balance mono${isNeg ? " overspend" : ""}">${fmt(row.balance)} ${escapeHtml(
+        <span class="account-balance mono${isNeg ? " overspend" : ""}">${renderMoneyWithUnit(
+          fmt(row.balance),
           formatCurrencyUnit(accountCurrency)
         )}</span>
         ${deltaHtml}
@@ -4372,7 +5342,7 @@ function openBudgetEditSheet(scope, period, category_l1, totalAmount) {
   form.elements.scope.value = scope;
   form.elements.period.value = period;
   form.elements.category_l1_orig.value = category_l1;
-  form.elements.scope_display.value = scope === "yearly" ? t("yearly") : t("monthly");
+  form.elements.scope_display.value = scope === "yearly" ? t("periodYearly") : t("periodMonthly");
   form.elements.period_display.value = period;
   form.elements.category_display.value = withL1Emoji(category_l1);
   form.elements.total_amount.value = String(totalAmount);
@@ -4723,13 +5693,99 @@ async function loadTransactions(options = {}) {
   return loadTransactionsWithOptions(options);
 }
 
+function normalizeTransactionFilterDate(value) {
+  const text = String(value || "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : "";
+}
+
+function syncTransactionFiltersFromInputs() {
+  const tagInput = $("#transactionTagFilter");
+  const typeSelect = $("#transactionTypeFilter");
+  const categorySelect = $("#transactionCategoryFilter");
+  const startInput = $("#transactionStartFilter");
+  const endInput = $("#transactionEndFilter");
+  state.txFilters.tag = tagInput instanceof HTMLInputElement ? tagInput.value.trim() : "";
+  state.txFilters.type =
+    typeSelect instanceof HTMLSelectElement ? String(typeSelect.value || "").trim().toLowerCase() : "";
+  state.txFilters.categoryL1 =
+    categorySelect instanceof HTMLSelectElement ? String(categorySelect.value || "").trim() : "";
+  state.txFilters.start = startInput instanceof HTMLInputElement ? normalizeTransactionFilterDate(startInput.value) : "";
+  state.txFilters.end = endInput instanceof HTMLInputElement ? normalizeTransactionFilterDate(endInput.value) : "";
+}
+
+function applyTransactionFiltersToInputs() {
+  const tagInput = $("#transactionTagFilter");
+  if (tagInput instanceof HTMLInputElement) {
+    tagInput.value = String(state.txFilters.tag || "");
+  }
+  const typeSelect = $("#transactionTypeFilter");
+  if (typeSelect instanceof HTMLSelectElement) {
+    const nextType = String(state.txFilters.type || "");
+    typeSelect.value = ["expense", "income", "transfer"].includes(nextType) ? nextType : "";
+  }
+  const categorySelect = $("#transactionCategoryFilter");
+  if (categorySelect instanceof HTMLSelectElement) {
+    const nextCategory = String(state.txFilters.categoryL1 || "");
+    const hasOption = Array.from(categorySelect.options).some((option) => option.value === nextCategory);
+    categorySelect.value = hasOption ? nextCategory : "";
+  }
+  const startInput = $("#transactionStartFilter");
+  if (startInput instanceof HTMLInputElement) {
+    startInput.value = normalizeTransactionFilterDate(state.txFilters.start);
+  }
+  const endInput = $("#transactionEndFilter");
+  if (endInput instanceof HTMLInputElement) {
+    endInput.value = normalizeTransactionFilterDate(state.txFilters.end);
+  }
+}
+
+function resetTransactionFilters() {
+  state.txFilters = {
+    tag: "",
+    type: "",
+    categoryL1: "",
+    start: "",
+    end: ""
+  };
+  applyTransactionFiltersToInputs();
+}
+
+function populateTransactionFilterCategorySelect() {
+  const select = $("#transactionCategoryFilter");
+  if (!(select instanceof HTMLSelectElement)) return;
+  const currentValue = String(state.txFilters?.categoryL1 || select.value || "").trim();
+  const activeL1 = Object.entries(state.categories || {}).filter(([, cfg]) => cfg.active);
+  select.innerHTML = "";
+  const allOption = new Option(t("txFilterAllCategories"), "");
+  allOption.id = "transactionCategoryFilterAllOption";
+  select.appendChild(allOption);
+  for (const [name, cfg] of activeL1) {
+    select.appendChild(new Option(withL1Emoji(name, { bilingualDefault: true, isDefault: Boolean(cfg?.is_default) }), name));
+  }
+  const nextValue = activeL1.some(([name]) => name === currentValue) ? currentValue : "";
+  state.txFilters.categoryL1 = nextValue;
+  select.value = nextValue;
+}
+
 async function loadTransactionsWithOptions(options = {}) {
   const expenseOnly =
     typeof options.expenseOnly === "boolean" ? options.expenseOnly : isTransactionRecordsOnlyMode();
-  let path = `/api/v1/transactions?month=${state.month}`;
-  if (state.txTagFilter) {
-    path += `&tag=${encodeURIComponent(state.txTagFilter)}`;
+  const params = new URLSearchParams();
+  const start = normalizeTransactionFilterDate(state.txFilters?.start);
+  const end = normalizeTransactionFilterDate(state.txFilters?.end);
+  if (start || end) {
+    if (start) params.set("start", start);
+    if (end) params.set("end", end);
+  } else {
+    params.set("month", state.month);
   }
+  const tag = String(state.txFilters?.tag || "").trim();
+  if (tag) params.set("tag", tag);
+  const type = String(state.txFilters?.type || "").trim().toLowerCase();
+  if (["expense", "income", "transfer"].includes(type)) params.set("type", type);
+  const categoryL1 = String(state.txFilters?.categoryL1 || "").trim();
+  if (categoryL1) params.set("category_l1", categoryL1);
+  const path = `/api/v1/transactions?${params.toString()}`;
   const rows = await api(path);
   state.transactions = Array.isArray(rows) ? rows : [];
   if (!expenseOnly) {
@@ -4954,34 +6010,37 @@ function renderRecentCompareChart(svg, series, options = {}) {
   const splitPercentRaw = hasUpperBound ? (upperY / height) * 100 : 38;
   const splitPercent = Math.max(14, Math.min(86, splitPercentRaw));
   const lineSegments = [];
-  for (let i = 0; i < points.length - 1; i += 1) {
-    const left = points[i];
-    const right = points[i + 1];
-    const leftHas = hasData[i];
-    const rightHas = hasData[i + 1];
-    if (!leftHas && !rightHas) continue;
-    if (leftHas && rightHas) {
-      lineSegments.push(
-        `<line class="recent-compare-line" x1="${left.x.toFixed(2)}" y1="${left.y.toFixed(2)}" x2="${right.x.toFixed(
-          2
-        )}" y2="${right.y.toFixed(2)}"></line>`
-      );
-      continue;
-    }
-    const midX = (left.x + right.x) / 2;
-    const midY = (left.y + right.y) / 2;
-    if (leftHas) {
-      lineSegments.push(
-        `<line class="recent-compare-line" x1="${left.x.toFixed(2)}" y1="${left.y.toFixed(2)}" x2="${midX.toFixed(
-          2
-        )}" y2="${midY.toFixed(2)}"></line>`
-      );
-    } else if (rightHas) {
-      lineSegments.push(
-        `<line class="recent-compare-line" x1="${midX.toFixed(2)}" y1="${midY.toFixed(2)}" x2="${right.x.toFixed(
-          2
-        )}" y2="${right.y.toFixed(2)}"></line>`
-      );
+  const validPointCount = hasData.filter(Boolean).length;
+  if (validPointCount >= 2) {
+    for (let i = 0; i < points.length - 1; i += 1) {
+      const left = points[i];
+      const right = points[i + 1];
+      const leftHas = hasData[i];
+      const rightHas = hasData[i + 1];
+      if (!leftHas && !rightHas) continue;
+      if (leftHas && rightHas) {
+        lineSegments.push(
+          `<line class="recent-compare-line" x1="${left.x.toFixed(2)}" y1="${left.y.toFixed(2)}" x2="${right.x.toFixed(
+            2
+          )}" y2="${right.y.toFixed(2)}"></line>`
+        );
+        continue;
+      }
+      const midX = (left.x + right.x) / 2;
+      const midY = (left.y + right.y) / 2;
+      if (leftHas) {
+        lineSegments.push(
+          `<line class="recent-compare-line" x1="${left.x.toFixed(2)}" y1="${left.y.toFixed(2)}" x2="${midX.toFixed(
+            2
+          )}" y2="${midY.toFixed(2)}"></line>`
+        );
+      } else if (rightHas) {
+        lineSegments.push(
+          `<line class="recent-compare-line" x1="${midX.toFixed(2)}" y1="${midY.toFixed(2)}" x2="${right.x.toFixed(
+            2
+          )}" y2="${right.y.toFixed(2)}"></line>`
+        );
+      }
     }
   }
   const dots = points
@@ -5309,7 +6368,12 @@ function addDaysLocal(date, deltaDays) {
 
 function getRecentCompareRange() {
   const now = new Date();
-  const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const mondayOffset = (today.getDay() + 6) % 7;
+  const weekStart = addDaysLocal(today, -mondayOffset);
+  const weekEnd = addDaysLocal(weekStart, 6);
+  // Query full current week + previous week so future-dated demo rows (within this week) can be rendered.
+  const endDate = weekEnd;
   const startDate = addDaysLocal(endDate, -13);
   return {
     start: formatDateOnlyLocal(startDate),
@@ -5584,6 +6648,21 @@ function ensureUITheme(value) {
   return UI_THEMES.has(mode) ? mode : "system";
 }
 
+function ensureOnboardingIncomeBand(value) {
+  const band = String(value || "8000_20000").trim();
+  return ONBOARDING_INCOME_BANDS.has(band) ? band : "8000_20000";
+}
+
+function ensureOnboardingCountryCode(value) {
+  const code = String(value || "").trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(code) ? code : DEFAULT_ONBOARDING_COUNTRY_CODE;
+}
+
+function normalizeOnboardingStep(value) {
+  const step = String(value || "step1").trim();
+  return ONBOARDING_STEPS.has(step) ? step : "step1";
+}
+
 function resolveThemeMode(themeValue) {
   const mode = ensureUITheme(themeValue);
   if (mode === "aurora") return "aurora";
@@ -5599,6 +6678,12 @@ function applyTheme(themeValue = state.settings?.theme || "system") {
   const themeMeta = document.getElementById("themeColorMeta");
   if (themeMeta) {
     themeMeta.setAttribute("content", THEME_CHROME_COLOR[resolved] || THEME_CHROME_COLOR.light);
+  }
+  const appleStatusBarMeta = document.getElementById("appleStatusBarStyleMeta");
+  if (appleStatusBarMeta) {
+    // iOS standalone mode: keep light themes on default bar, dark themes on translucent bar.
+    const statusBarStyle = resolved === "dark" || resolved === "aurora" ? "black-translucent" : "default";
+    appleStatusBarMeta.setAttribute("content", statusBarStyle);
   }
 }
 
@@ -5638,10 +6723,78 @@ function applyI18n() {
   setText("authCodeLabel", t("authCodeLabel"));
   setText("authResendBtn", t("authResendBtn"));
   setText("authHint", t("authHint"));
+  setText("onboardingTitle", t("onboardingTitle"));
+  setText("onboardingSubtitle", t("onboardingSubtitle"));
+  setText("onboardingStep1Title", t("onboardingStep1Title"));
+  setText("onboardingStep2Title", t("onboardingStep2Title"));
+  setText("onboardingStep3Title", t("onboardingStep3Title"));
+  setText("onboardingCountryLabel", t("onboardingCountry"));
+  setText("onboardingTimezoneLabel", t("onboardingTimezone"));
+  setText("onboardingBaseCurrencyLabel", t("baseCurrency"));
+  setText("onboardingIncomeBandLabel", t("onboardingIncomeBand"));
+  setText("onboardingGeoHint", t("onboardingGeoHint"));
+  setText("onboardingStep1ContinueBtn", t("onboardingContinue"));
+  setText("onboardingStep2Intro", t("onboardingStep2Intro"));
+  setText("onboardingCategoryHint", t("onboardingCategoryHint"));
+  setText("onboardingAccountsTitle", t("onboardingAccountsTitle"));
+  setText("onboardingCategoriesTitle", t("onboardingCategoriesTitle"));
+  setText("onboardingBudgetTitle", t("onboardingBudgetTitle"));
+  setText("onboardingBudgetHint", t("onboardingBudgetHint"));
+  setText("onboardingAddAccountBtn", t("onboardingAdd"));
+  setText("onboardingAddL1Btn", t("onboardingAddL1"));
+  setText("onboardingAddL2Btn", t("onboardingAddL2"));
+  setText("onboardingStep2ContinueBtn", t("onboardingContinue"));
+  setText("onboardingStep3Intro", t("onboardingStep3Intro"));
+  setText("onboardingHasAgentYesLabel", t("onboardingHasAgentYes"));
+  setText("onboardingHasAgentNoLabel", t("onboardingHasAgentNo"));
+  setText("onboardingCountryOptionCN", t("onboardingCountryOptionCN"));
+  setText("onboardingCountryOptionUS", t("onboardingCountryOptionUS"));
+  setText("onboardingCountryOptionHK", t("onboardingCountryOptionHK"));
+  setText("onboardingCountryOptionMO", t("onboardingCountryOptionMO"));
+  setText("onboardingCountryOptionTW", t("onboardingCountryOptionTW"));
+  setText("onboardingCountryOptionSG", t("onboardingCountryOptionSG"));
+  setText("onboardingCountryOptionJP", t("onboardingCountryOptionJP"));
+  setText("onboardingCountryOptionKR", t("onboardingCountryOptionKR"));
+  setText("onboardingCountryOptionTH", t("onboardingCountryOptionTH"));
+  setText("onboardingCountryOptionMY", t("onboardingCountryOptionMY"));
+  setText("onboardingCountryOptionGB", t("onboardingCountryOptionGB"));
+  setText("onboardingCountryOptionDE", t("onboardingCountryOptionDE"));
+  setText("onboardingCountryOptionFR", t("onboardingCountryOptionFR"));
+  setText("onboardingCountryOptionCA", t("onboardingCountryOptionCA"));
+  setText("onboardingCountryOptionAU", t("onboardingCountryOptionAU"));
+  setText("onboardingCountryOptionCH", t("onboardingCountryOptionCH"));
+  setText("onboardingCountryOptionIN", t("onboardingCountryOptionIN"));
+  setText("onboardingCountryOptionAE", t("onboardingCountryOptionAE"));
+  const onboardingTimezoneInput = $("#onboardingTimezoneInput");
+  if (onboardingTimezoneInput) onboardingTimezoneInput.placeholder = t("onboardingTimezonePlaceholder");
+  const onboardingAccountNameInput = $("#onboardingAccountNameInput");
+  if (onboardingAccountNameInput) onboardingAccountNameInput.placeholder = t("onboardingAccountNamePlaceholder");
+  const onboardingNewL1Input = $("#onboardingNewL1Input");
+  if (onboardingNewL1Input) onboardingNewL1Input.placeholder = t("onboardingNewL1Placeholder");
+  const onboardingNewL2Input = $("#onboardingNewL2Input");
+  if (onboardingNewL2Input) onboardingNewL2Input.placeholder = t("onboardingNewL2Placeholder");
+  setText("onboardingIncomeBandLt3000", t("onboardingIncomeBandLt3000"));
+  setText("onboardingIncomeBand3000_8000", t("onboardingIncomeBand3000_8000"));
+  setText("onboardingIncomeBand8000_20000", t("onboardingIncomeBand8000_20000"));
+  setText("onboardingIncomeBand20000_50000", t("onboardingIncomeBand20000_50000"));
+  setText("onboardingIncomeBand50000Plus", t("onboardingIncomeBand50000Plus"));
+  localizeAccountTypeSelectOptions();
+  syncTopCurrencyModeControl();
   setText("subtitleText", t("subtitle"));
   setText("monthLabelText", t("month"));
   setText("tabDashboardBtn", `🏠 ${t("tabDashboard")}`);
   setText("tabTransactionsBtn", `🧾 ${t("tabTransactions")}`);
+  setText("transactionTypeFilterAllOption", t("txFilterAllTypes"));
+  setText("transactionTypeFilterExpenseOption", t("txTypeExpense"));
+  setText("transactionTypeFilterIncomeOption", t("txTypeIncome"));
+  setText("transactionTypeFilterTransferOption", t("txTypeTransfer"));
+  setText("transactionCategoryFilterAllOption", t("txFilterAllCategories"));
+  setText("applyTxFilterBtn", t("txFilterApply"));
+  setText("resetTxFilterBtn", t("txFilterReset"));
+  const transactionTagFilterInput = $("#transactionTagFilter");
+  if (transactionTagFilterInput) transactionTagFilterInput.placeholder = t("txFilterTagPlaceholder");
+  setAttr("transactionStartFilter", "aria-label", t("txFilterStartDate"));
+  setAttr("transactionEndFilter", "aria-label", t("txFilterEndDate"));
   setText("tabBudgetsBtn", `📋 ${t("tabBudgets")}`);
   setText("tabAccountsBtn", `🏦 ${t("tabAccounts")}`);
   setText("tabReviewBtn", `🗓️ ${t("tabReview")}`);
@@ -5653,7 +6806,9 @@ function applyI18n() {
   setText("todayCardTitle", `☀️ ${t("relativeToday")}`);
   setText("recentCompareTitle", t("recentCompareTitle"));
   setText("heroNetWorthLabel", t("metricNetWorth"));
+  renderHeroPrivacyToggleControl();
   setText("heroCompositionLabel", t("netWorthComposition"));
+  syncHeroCompositionToggleControl();
   setText("heroLiquidLegend", t("labelLiquid"));
   setText("heroRestrictedLegend", t("labelRestricted"));
   setText("budgetPlanTitle", t("plannedBudget"));
@@ -5783,6 +6938,13 @@ function applyI18n() {
   setText("accountEditSaveBtn", t("saveAccount"));
   setText("accountDeleteBtn", t("deleteAccount"));
   setText("accountForceDeleteBtn", t("forceDeleteAccount"));
+  setText("budgetEditTitle", t("editBudget"));
+  setText("budgetEditScopeLabel", t("budgetScope"));
+  setText("budgetEditPeriodLabel", t("budgetPeriod"));
+  setText("budgetEditCatLabel", t("categoryL1"));
+  setText("budgetEditAmtLabel", t("amount"));
+  setText("budgetEditHint", t("budgetEditHint"));
+  setText("budgetEditSaveBtn", t("saveBudget"));
   setText("transactionEditTitle", t("editTransaction"));
   setText("transactionEditTypeLabel", t("type"));
   setText("transactionEditDateLabel", t("date"));
@@ -5849,6 +7011,11 @@ function applyI18n() {
   if (debugFilterInput) {
     debugFilterInput.placeholder = t("debugFilterPlaceholder");
   }
+  populateTransactionFilterCategorySelect();
+  applyTransactionFiltersToInputs();
+  if (state.onboarding.stateLoaded) {
+    renderOnboardingGate();
+  }
   renderRecentExpensesCard(state.transactions || []);
   renderTodayExpensesCard(state.transactions || []);
   renderRecentCompareCard(state.recentCompareRows || []);
@@ -5880,15 +7047,24 @@ function loadUiState() {
     const raw = localStorage.getItem("nfos_ui_state");
     if (!raw) return;
     const parsed = JSON.parse(raw);
+    const isLegacyUiState = Number(parsed.uiVersion || 0) < UI_STATE_VERSION;
     state.ui.showCashFlow = Boolean(parsed.showCashFlow);
     state.ui.showTrend = Boolean(parsed.showTrend);
     state.ui.showRisk = Boolean(parsed.showRisk);
     state.ui.showRecentExpenses = parsed.showRecentExpenses !== false;
     state.ui.showToday = parsed.showToday !== false;
-    state.ui.showRecentCompare = parsed.showRecentCompare !== false;
-    state.ui.showAccounts = Boolean(parsed.showAccounts);
+    state.ui.showRecentCompare = parsed.showRecentCompare === true;
+    state.ui.showAccounts = parsed.showAccounts !== false;
+    if (isLegacyUiState) {
+      state.ui.showRecentCompare = false;
+      if (parsed.showAccounts === false && parsed.showRecentCompare !== false) {
+        state.ui.showAccounts = true;
+      }
+    }
     state.ui.showDebug = Boolean(parsed.showDebug);
     state.ui.budgetPieView = Boolean(parsed.budgetPieView);
+    state.ui.accountCompositionPercent = Boolean(parsed.accountCompositionPercent);
+    state.ui.hideSensitiveAmounts = Boolean(parsed.hideSensitiveAmounts);
     if (parsed.debug) {
       state.debug.onlyFailed = Boolean(parsed.debug.onlyFailed);
       state.debug.filter = String(parsed.debug.filter || "");
@@ -5914,6 +7090,7 @@ function persistUiState() {
     localStorage.setItem(
       "nfos_ui_state",
       JSON.stringify({
+        uiVersion: UI_STATE_VERSION,
         showCashFlow: state.ui.showCashFlow,
         showTrend: state.ui.showTrend,
         showRisk: state.ui.showRisk,
@@ -5923,6 +7100,8 @@ function persistUiState() {
         showAccounts: state.ui.showAccounts,
         showDebug: state.ui.showDebug,
         budgetPieView: state.ui.budgetPieView,
+        accountCompositionPercent: state.ui.accountCompositionPercent,
+        hideSensitiveAmounts: state.ui.hideSensitiveAmounts,
         trend: {
           start: state.trend.start,
           end: state.trend.end,
@@ -6027,19 +7206,54 @@ function pruneCategoryEmojiMap() {
 function withL1Emoji(name, options = {}) {
   const label = String(name || "").trim();
   if (!label || label === "-") return "-";
-  return `${getL1EmojiSymbol(label)} ${getL1DisplayName(label, options)}`;
+  const localizeDefault =
+    typeof options.localizeDefault === "boolean" ? options.localizeDefault : true;
+  return `${getL1EmojiSymbol(label)} ${getL1DisplayName(label, { ...options, localizeDefault })}`;
 }
 
 function withL2Emoji(name, l1Name = "", options = {}) {
   const label = String(name || "").trim();
   if (!label || label === "-") return "-";
-  return `${getL2EmojiSymbol(l1Name, label)} ${getL2DisplayName(label, l1Name, options)}`;
+  const localizeDefault =
+    typeof options.localizeDefault === "boolean" ? options.localizeDefault : true;
+  return `${getL2EmojiSymbol(l1Name, label)} ${getL2DisplayName(label, l1Name, { ...options, localizeDefault })}`;
 }
 
 function formatCategoryPair(l1, l2) {
   const left = l1 ? withL1Emoji(l1) : "-";
   const right = l2 ? withL2Emoji(l2, l1) : "-";
   return `${left} / ${right}`;
+}
+
+function accountTypeEmoji(type) {
+  const key = String(type || "").trim();
+  return ACCOUNT_TYPE_META[key]?.emoji || "💼";
+}
+
+function accountTypeLabel(type) {
+  const key = String(type || "").trim();
+  const i18nKey = ACCOUNT_TYPE_META[key]?.i18nKey;
+  if (!i18nKey) return key || "-";
+  return t(i18nKey);
+}
+
+function accountTypeDisplay(type) {
+  return `${accountTypeEmoji(type)} ${accountTypeLabel(type)}`;
+}
+
+function localizeAccountTypeSelectOptions() {
+  const selectors = [
+    "#onboardingAccountTypeInput",
+    "#accountForm [name=type]",
+    "#accountEditForm [name=type]"
+  ];
+  for (const selector of selectors) {
+    const select = $(selector);
+    if (!(select instanceof HTMLSelectElement)) continue;
+    for (const option of Array.from(select.options)) {
+      option.textContent = accountTypeDisplay(option.value);
+    }
+  }
 }
 
 function txTypeLabel(type) {
@@ -6052,17 +7266,40 @@ function txTypeLabel(type) {
 // ── Dashboard drag-to-reorder ──────────────────────────────────────────────
 
 const DASH_ORDER_KEY = "nomad-dash-order";
+const DEFAULT_DASH_ORDER = [
+  "dashboardAccountsCard",
+  "budgetPlanCard",
+  "recentExpensesCard",
+  "todayExpensesCard",
+  "recentCompareCard",
+  "cashFlowCard",
+  "trendCard",
+  "riskCard"
+];
 
 function applyDashboardOrder() {
   const container = document.getElementById("dashboardSortable");
   if (!container) return;
   let order;
   try { order = JSON.parse(localStorage.getItem(DASH_ORDER_KEY) || "null"); } catch { order = null; }
-  if (!Array.isArray(order) || !order.length) return;
+  const hasCustomOrder = Array.isArray(order) && order.length > 0;
+  const targetOrder = hasCustomOrder ? order : DEFAULT_DASH_ORDER;
+  if (!Array.isArray(targetOrder) || !targetOrder.length) return;
+  const cards = [...container.querySelectorAll("[data-sort-id]")];
   const map = {};
-  for (const el of container.querySelectorAll("[data-sort-id]")) map[el.dataset.sortId] = el;
-  for (const id of order) {
-    if (map[id]) container.appendChild(map[id]);
+  for (const el of cards) map[el.dataset.sortId] = el;
+  const placed = new Set();
+  for (const id of targetOrder) {
+    if (map[id]) {
+      container.appendChild(map[id]);
+      placed.add(id);
+    }
+  }
+  for (const el of cards) {
+    const id = String(el.dataset.sortId || "");
+    if (id && !placed.has(id)) {
+      container.appendChild(el);
+    }
   }
 }
 

@@ -3,6 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Nomad Finance OS" />
+    <meta name="apple-mobile-web-app-status-bar-style" id="appleStatusBarStyleMeta" content="default" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#c9d7e3" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#2b2c2f" />
     <meta name="theme-color" id="themeColorMeta" content="#c9d7e3" />
     <title>Nomad Finance OS</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -56,6 +63,123 @@
         <p id="authMessage" class="muted" aria-live="polite"></p>
       </article>
     </section>
+    <section id="onboardingGate" class="onboarding-gate hidden" aria-hidden="true">
+      <article class="onboarding-card">
+        <header class="onboarding-head">
+          <p id="onboardingProgressText" class="onboarding-progress">Step 1 / 3</p>
+          <h2 id="onboardingTitle">Build Your Financial Profile</h2>
+          <p id="onboardingSubtitle" class="muted">Tell us about your baseline so we can personalize planning advice.</p>
+        </header>
+
+        <section id="onboardingStep1" class="onboarding-step">
+          <h3 id="onboardingStep1Title">Step 1 · Basic Profile</h3>
+          <form id="onboardingStep1Form" class="onboarding-form">
+            <label class="form-field">
+              <span id="onboardingCountryLabel">Country / Region</span>
+              <select id="onboardingCountryInput" name="living_country_code" required>
+                <option id="onboardingCountryOptionCN" value="CN" selected>China (CN)</option>
+                <option id="onboardingCountryOptionUS" value="US">United States (US)</option>
+                <option id="onboardingCountryOptionHK" value="HK">Hong Kong SAR (HK)</option>
+                <option id="onboardingCountryOptionMO" value="MO">Macao SAR (MO)</option>
+                <option id="onboardingCountryOptionTW" value="TW">Taiwan (TW)</option>
+                <option id="onboardingCountryOptionSG" value="SG">Singapore (SG)</option>
+                <option id="onboardingCountryOptionJP" value="JP">Japan (JP)</option>
+                <option id="onboardingCountryOptionKR" value="KR">South Korea (KR)</option>
+                <option id="onboardingCountryOptionTH" value="TH">Thailand (TH)</option>
+                <option id="onboardingCountryOptionMY" value="MY">Malaysia (MY)</option>
+                <option id="onboardingCountryOptionGB" value="GB">United Kingdom (GB)</option>
+                <option id="onboardingCountryOptionDE" value="DE">Germany (DE)</option>
+                <option id="onboardingCountryOptionFR" value="FR">France (FR)</option>
+                <option id="onboardingCountryOptionCA" value="CA">Canada (CA)</option>
+                <option id="onboardingCountryOptionAU" value="AU">Australia (AU)</option>
+                <option id="onboardingCountryOptionCH" value="CH">Switzerland (CH)</option>
+                <option id="onboardingCountryOptionIN" value="IN">India (IN)</option>
+                <option id="onboardingCountryOptionAE" value="AE">United Arab Emirates (AE)</option>
+              </select>
+            </label>
+            <label class="form-field">
+              <span id="onboardingTimezoneLabel">Timezone</span>
+              <input id="onboardingTimezoneInput" name="timezone" type="text" placeholder="Asia/Shanghai" required />
+            </label>
+            <label class="form-field">
+              <span id="onboardingBaseCurrencyLabel">Base Currency</span>
+              <select id="onboardingBaseCurrencyInput" name="base_currency" required>
+                <option value="CNY">CNY</option>
+                <option value="EUR">EUR</option>
+                <option value="THB">THB</option>
+                <option value="USD" selected>USD</option>
+                <option value="JPY">JPY</option>
+                <option value="KRW">KRW</option>
+              </select>
+            </label>
+            <label class="form-field">
+              <span id="onboardingIncomeBandLabel">Monthly Income Range</span>
+              <select id="onboardingIncomeBandInput" name="monthly_income_band" required>
+                <option id="onboardingIncomeBandLt3000" value="lt_3000">&lt; 3,000</option>
+                <option id="onboardingIncomeBand3000_8000" value="3000_8000">3,000 - 8,000</option>
+                <option id="onboardingIncomeBand8000_20000" value="8000_20000" selected>8,000 - 20,000</option>
+                <option id="onboardingIncomeBand20000_50000" value="20000_50000">20,000 - 50,000</option>
+                <option id="onboardingIncomeBand50000Plus" value="50000_plus">50,000+</option>
+              </select>
+            </label>
+            <p id="onboardingGeoHint" class="muted small">We'll auto-suggest region/timezone and you can edit them.</p>
+            <button id="onboardingStep1ContinueBtn" class="btn btn-solid" type="submit">Continue</button>
+          </form>
+        </section>
+
+        <section id="onboardingStep2" class="onboarding-step hidden">
+          <h3 id="onboardingStep2Title">Step 2 · Financial Snapshot</h3>
+          <p id="onboardingStep2Intro" class="muted">Add at least one account and edit your suggested monthly budget.</p>
+
+          <article class="onboarding-block">
+            <h4 id="onboardingAccountsTitle">Accounts</h4>
+            <form id="onboardingAccountForm" class="onboarding-inline-form">
+              <input id="onboardingAccountNameInput" name="name" type="text" placeholder="Account name" required />
+              <select id="onboardingAccountTypeInput" name="type" required>
+                <option value="bank">🏦 Bank</option>
+                <option value="cash">💵 Cash</option>
+                <option value="wise">💸 Wise</option>
+                <option value="crypto_wallet">₿ Crypto</option>
+                <option value="exchange">📈 Exchange</option>
+                <option value="alipay">🅰 Alipay</option>
+                <option value="wechat">💬 WeChat</option>
+                <option value="restricted_cash">🔒 Restricted</option>
+              </select>
+              <select id="onboardingAccountCurrencyInput" name="currency" required>
+                <option value="CNY">CNY</option>
+                <option value="EUR">EUR</option>
+                <option value="THB">THB</option>
+                <option value="USD" selected>USD</option>
+                <option value="JPY">JPY</option>
+                <option value="KRW">KRW</option>
+              </select>
+              <input id="onboardingAccountBalanceInput" name="balance" type="number" step="0.01" placeholder="0" />
+              <button id="onboardingAddAccountBtn" class="btn btn-ghost" type="submit">Add</button>
+            </form>
+            <div id="onboardingAccountList" class="list-block compact-list"></div>
+          </article>
+          <p id="onboardingCategoryHint" class="muted small">Default categories are enabled. You can fine-tune them later.</p>
+
+          <article class="onboarding-block">
+            <h4 id="onboardingBudgetTitle">Suggested Monthly Budget</h4>
+            <p id="onboardingBudgetHint" class="muted small"></p>
+            <div id="onboardingBudgetList" class="onboarding-budget-list"></div>
+          </article>
+
+          <button id="onboardingStep2ContinueBtn" class="btn btn-solid" type="button">Continue</button>
+          <p id="onboardingStep2Message" class="muted small" aria-live="polite"></p>
+        </section>
+
+        <section id="onboardingStep3" class="onboarding-step hidden">
+          <h3 id="onboardingStep3Title">Step 3 · Agent Setup</h3>
+          <p id="onboardingStep3Intro" class="muted">Nomad Finance OS supports smooth, fast bookkeeping with your own agent. Choose whether to connect now:</p>
+          <div class="onboarding-agent-choices" role="radiogroup" aria-label="Agent availability">
+            <label><input id="onboardingHasAgentYes" type="radio" name="onboarding_agent_choice" value="yes" /> <span id="onboardingHasAgentYesLabel">Yes, connect now</span></label>
+            <label><input id="onboardingHasAgentNo" type="radio" name="onboarding_agent_choice" value="no" /> <span id="onboardingHasAgentNoLabel">No, connect later</span></label>
+          </div>
+        </section>
+      </article>
+    </section>
     <header class="topbar minimal-topbar" id="mainTopbar">
       <div class="topbar-main" id="topbarMain">
       <button id="openSettingsBtn" class="icon-btn topbar-icon" type="button" aria-label="Open settings">
@@ -102,8 +226,17 @@
         <h2 id="dashboardTitle">Summary</h2>
         <article class="card hero-card">
           <div class="hero-top">
-            <div>
+            <div class="hero-networth-head">
               <div class="hero-label" id="heroNetWorthLabel">Net Worth</div>
+              <button
+                class="hero-privacy-btn hero-privacy-btn-floating"
+                id="heroPrivacyToggleBtn"
+                type="button"
+                aria-label="Hide amounts"
+                title="Hide amounts"
+              >
+                <span class="sr-only" id="heroPrivacyToggleText">Hide amounts</span>
+              </button>
               <div class="hero-value" id="heroNetWorthValue">0.00</div>
             </div>
           </div>
@@ -117,7 +250,7 @@
           <button class="dash-edit-btn" id="dashWidgetsEditBtn" type="button">Edit</button>
         </div>
         <div id="dashboardSortable">
-        <article class="card dashboard-card hidden" id="dashboardAccountsCard" data-sort-id="dashboardAccountsCard">
+        <article class="card dashboard-card" id="dashboardAccountsCard" data-sort-id="dashboardAccountsCard">
           <div class="section-head">
             <button class="section-title-btn" id="dashboardAccountsTitle" type="button">Accounts</button>
             <div class="acct-period-tabs" id="acctPeriodTabs" role="group">
@@ -135,7 +268,7 @@
           </div>
           <div id="todayExpensesList" class="list-block compact-list"></div>
         </article>
-        <article class="card dashboard-card" id="recentCompareCard" data-sort-id="recentCompareCard">
+        <article class="card dashboard-card hidden" id="recentCompareCard" data-sort-id="recentCompareCard">
           <div class="section-head">
             <h3 class="section-title-btn" id="recentCompareTitle">🗓️ Recent</h3>
           </div>
@@ -302,11 +435,29 @@
         </form>
 
         <div class="card tx-filter-card" id="transactionFilterCard">
-          <div class="tx-filter-inner">
-            <svg class="tx-filter-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input id="transactionTagFilter" type="text" placeholder="Filter by tag…" />
-            <button id="applyTxFilterBtn" class="btn">Go</button>
-          </div>
+          <form id="transactionFilterForm" class="tx-filter-inner">
+            <div class="tx-filter-main">
+              <svg class="tx-filter-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input id="transactionTagFilter" type="text" placeholder="Filter by tag…" />
+            </div>
+            <div class="tx-filter-fields">
+              <select id="transactionTypeFilter">
+                <option id="transactionTypeFilterAllOption" value="">All types</option>
+                <option id="transactionTypeFilterExpenseOption" value="expense">Expense</option>
+                <option id="transactionTypeFilterIncomeOption" value="income">Income</option>
+                <option id="transactionTypeFilterTransferOption" value="transfer">Transfer</option>
+              </select>
+              <select id="transactionCategoryFilter">
+                <option id="transactionCategoryFilterAllOption" value="">All categories</option>
+              </select>
+              <input id="transactionStartFilter" type="date" />
+              <input id="transactionEndFilter" type="date" />
+            </div>
+            <div class="tx-filter-actions">
+              <button id="applyTxFilterBtn" class="btn" type="submit">Apply</button>
+              <button id="resetTxFilterBtn" class="btn btn-ghost" type="button">Reset</button>
+            </div>
+          </form>
         </div>
         <div id="transactionList" class="list-block"></div>
       </section>

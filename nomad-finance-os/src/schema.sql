@@ -139,6 +139,11 @@ CREATE TABLE IF NOT EXISTS user_settings (
     ui_language TEXT NOT NULL DEFAULT 'en',
     theme TEXT NOT NULL DEFAULT 'system',
     currency_display_mode TEXT NOT NULL DEFAULT 'code',
+    living_country_code TEXT NOT NULL DEFAULT '',
+    monthly_income_band TEXT NOT NULL DEFAULT '8000_20000',
+    onboarding_completed INTEGER NOT NULL DEFAULT 0,
+    onboarding_current_step TEXT NOT NULL DEFAULT 'step1',
+    onboarding_completed_at TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

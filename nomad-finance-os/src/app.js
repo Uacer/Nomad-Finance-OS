@@ -100,6 +100,46 @@ const CRYPTO_ACCOUNT_TYPES = new Set(["crypto_wallet", "exchange"]);
 const UNASSIGNED_ACCOUNT_NAME_ZH = "未分配账户";
 const UNASSIGNED_ACCOUNT_NAME_EN = "Unassigned Account";
 const CURRENCY_DISPLAY_MODES = new Set(["code", "symbol"]);
+const ONBOARDING_STEPS = new Set(["step1", "step2", "step3", "completed"]);
+const INCOME_BAND_MIDPOINTS = Object.freeze({
+  lt_3000: 2000,
+  "3000_8000": 5500,
+  "8000_20000": 14000,
+  "20000_50000": 35000,
+  "50000_plus": 65000
+});
+const DEFAULT_INCOME_BAND = "8000_20000";
+const ONBOARDING_BUDGET_RATIO = 0.7;
+const ONBOARDING_BUDGET_TEMPLATE = Object.freeze({
+  Living: 0.35,
+  Lifestyle: 0.2,
+  Investment: 0.15,
+  Work: 0.1,
+  Travel: 0.1,
+  Study: 0.1
+});
+const COUNTRY_TIMEZONE_HINTS = Object.freeze({
+  CN: "Asia/Shanghai",
+  US: "America/New_York",
+  GB: "Europe/London",
+  DE: "Europe/Berlin",
+  FR: "Europe/Paris",
+  ES: "Europe/Madrid",
+  IT: "Europe/Rome",
+  JP: "Asia/Tokyo",
+  KR: "Asia/Seoul",
+  TH: "Asia/Bangkok",
+  SG: "Asia/Singapore",
+  HK: "Asia/Hong_Kong",
+  AU: "Australia/Sydney",
+  NZ: "Pacific/Auckland",
+  CA: "America/Toronto",
+  BR: "America/Sao_Paulo",
+  MX: "America/Mexico_City",
+  IN: "Asia/Kolkata",
+  AE: "Asia/Dubai",
+  ZA: "Africa/Johannesburg"
+});
 
 function createApp(db) {
   const app = express();
@@ -484,7 +524,9 @@ function createApp(db) {
       timezone: z.string().min(2).max(100).optional(),
       ui_language: z.enum(["en", "zh"]).optional(),
       theme: z.enum(["system", "light", "dark", "aurora"]).optional(),
-      currency_display_mode: z.enum(["code", "symbol"]).optional()
+      currency_display_mode: z.enum(["code", "symbol"]).optional(),
+      living_country_code: z.string().max(8).optional(),
+      monthly_income_band: z.enum(Object.keys(INCOME_BAND_MIDPOINTS)).optional()
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
@@ -511,14 +553,147 @@ function createApp(db) {
     const uiLanguage = payload.ui_language || current.ui_language;
     const theme = payload.theme || current.theme;
     const currencyDisplayMode = payload.currency_display_mode || current.currency_display_mode;
+    let livingCountryCode = current.living_country_code;
+    if (payload.living_country_code !== undefined) {
+      try {
+        livingCountryCode = normalizeLivingCountryCode(payload.living_country_code);
+      } catch (error) {
+        return res.status(400).json({ error: String(error.message || "Invalid living_country_code.") });
+      }
+    }
+    const monthlyIncomeBand = payload.monthly_income_band || current.monthly_income_band;
     db.prepare(
       `
         UPDATE user_settings
-        SET base_currency = ?, timezone = ?, ui_language = ?, theme = ?, currency_display_mode = ?, updated_at = CURRENT_TIMESTAMP
+        SET base_currency = ?, timezone = ?, ui_language = ?, theme = ?, currency_display_mode = ?,
+            living_country_code = ?, monthly_income_band = ?, updated_at = CURRENT_TIMESTAMP
         WHERE user_id = ?
       `
-    ).run(baseCurrency, timezone, uiLanguage, theme, currencyDisplayMode, req.userId);
+    ).run(
+      baseCurrency,
+      timezone,
+      uiLanguage,
+      theme,
+      currencyDisplayMode,
+      livingCountryCode,
+      monthlyIncomeBand,
+      req.userId
+    );
     res.json(getUserSettings(db, req.userId));
+  });
+
+  app.get("/api/v1/onboarding/state", (req, res) => {
+    const settings = getUserSettings(db, req.userId);
+    res.json(buildOnboardingStatePayload(settings));
+  });
+
+  app.put("/api/v1/onboarding/state", (req, res) => {
+    const schema = z.object({
+      current_step: z.enum([...ONBOARDING_STEPS]).optional(),
+      completed: z.boolean().optional()
+    });
+    const parsed = schema.safeParse(req.body || {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.flatten() });
+    }
+    const payload = parsed.data || {};
+    if (payload.current_step === undefined && payload.completed === undefined) {
+      return res.status(400).json({ error: "current_step or completed is required." });
+    }
+    const current = getUserSettings(db, req.userId);
+    let nextCompleted = Boolean(current.onboarding_completed);
+    let nextStep = normalizeOnboardingStep(current.onboarding_current_step);
+    let nextCompletedAt = current.onboarding_completed_at || null;
+
+    if (payload.current_step) {
+      nextStep = payload.current_step;
+    }
+    if (payload.completed === true) {
+      nextCompleted = true;
+      nextStep = "completed";
+      nextCompletedAt = new Date().toISOString();
+    } else if (payload.completed === false) {
+      nextCompleted = false;
+      if (nextStep === "completed") nextStep = "step1";
+      nextCompletedAt = null;
+    }
+    if (!nextCompleted && nextStep === "completed") {
+      nextStep = "step3";
+    }
+
+    db.prepare(
+      `
+        UPDATE user_settings
+        SET onboarding_completed = ?,
+            onboarding_current_step = ?,
+            onboarding_completed_at = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = ?
+      `
+    ).run(nextCompleted ? 1 : 0, nextStep, nextCompletedAt, req.userId);
+
+    res.json(buildOnboardingStatePayload(getUserSettings(db, req.userId)));
+  });
+
+  app.get("/api/v1/onboarding/geo-suggest", (req, res) => {
+    const headerCountry =
+      String(req.header("cf-ipcountry") || req.header("x-vercel-ip-country") || req.header("x-country-code") || "")
+        .trim()
+        .toUpperCase();
+    const countryCode = /^[A-Z]{2}$/.test(headerCountry) ? headerCountry : "";
+    const timezone = suggestTimezoneFromCountry(countryCode);
+    const source = countryCode ? "header" : "fallback";
+    const confidence = countryCode ? 0.78 : 0.25;
+    res.json({
+      country_code: countryCode,
+      timezone,
+      source,
+      confidence
+    });
+  });
+
+  app.post("/api/v1/onboarding/budget-suggestion", (req, res) => {
+    const schema = z.object({
+      income_band: z.enum(Object.keys(INCOME_BAND_MIDPOINTS)),
+      base_currency: z.string().min(3).max(8).optional(),
+      active_l1: z.array(z.string().min(1).max(64)).max(100).optional()
+    });
+    const parsed = schema.safeParse(req.body || {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.flatten() });
+    }
+    const payload = parsed.data;
+    const settings = getUserSettings(db, req.userId);
+    let baseCurrency = settings.base_currency;
+    if (payload.base_currency) {
+      try {
+        baseCurrency = normalizeSupportedCurrency(payload.base_currency, "base_currency");
+      } catch (error) {
+        return res.status(400).json({ error: String(error.message || "Invalid base_currency.") });
+      }
+    }
+    const estimatedIncome = Number(INCOME_BAND_MIDPOINTS[payload.income_band] || INCOME_BAND_MIDPOINTS[DEFAULT_INCOME_BAND]);
+    const budgetPool = roundOnboardingMoney(estimatedIncome * ONBOARDING_BUDGET_RATIO);
+    const savingsBuffer = roundOnboardingMoney(estimatedIncome - budgetPool);
+    const categoryMap = getCategoriesMap(db, req.userId);
+    const activeL1FromDb = Object.entries(categoryMap)
+      .filter(([, cfg]) => Boolean(cfg?.active))
+      .map(([name]) => String(name));
+    const requestedL1 = Array.isArray(payload.active_l1)
+      ? payload.active_l1.map((name) => String(name || "").trim()).filter(Boolean)
+      : [];
+    const activeL1 = [...new Set((requestedL1.length ? requestedL1 : activeL1FromDb))];
+    const allocations = buildOnboardingBudgetAllocations(activeL1, estimatedIncome, budgetPool);
+    res.json({
+      income_band: payload.income_band,
+      estimated_monthly_income: estimatedIncome,
+      budget_pool: budgetPool,
+      savings_buffer: savingsBuffer,
+      budget_ratio: ONBOARDING_BUDGET_RATIO,
+      savings_ratio: roundOnboardingMoney(1 - ONBOARDING_BUDGET_RATIO),
+      base_currency: baseCurrency,
+      allocations
+    });
   });
 
   app.get("/api/v1/fx/supported-currencies", (_req, res) => {
@@ -1790,7 +1965,22 @@ function createApp(db) {
 function getUserSettings(db, userId) {
   const row = db
     .prepare(
-      "SELECT user_id, base_currency, timezone, ui_language, theme, currency_display_mode FROM user_settings WHERE user_id = ?"
+      `
+        SELECT
+          user_id,
+          base_currency,
+          timezone,
+          ui_language,
+          theme,
+          currency_display_mode,
+          living_country_code,
+          monthly_income_band,
+          onboarding_completed,
+          onboarding_current_step,
+          onboarding_completed_at
+        FROM user_settings
+        WHERE user_id = ?
+      `
     )
     .get(userId);
   if (!row) {
@@ -1808,8 +1998,86 @@ function getUserSettings(db, userId) {
       : "system",
     currency_display_mode: CURRENCY_DISPLAY_MODES.has(String(row.currency_display_mode || "code"))
       ? String(row.currency_display_mode)
-      : "code"
+      : "code",
+    living_country_code: /^[A-Z]{2}$/.test(String(row.living_country_code || "").trim().toUpperCase())
+      ? String(row.living_country_code || "").trim().toUpperCase()
+      : "",
+    monthly_income_band: INCOME_BAND_MIDPOINTS[String(row.monthly_income_band || "")]
+      ? String(row.monthly_income_band)
+      : DEFAULT_INCOME_BAND,
+    onboarding_completed: Number(row.onboarding_completed || 0) === 1,
+    onboarding_current_step: normalizeOnboardingStep(row.onboarding_current_step || "step1"),
+    onboarding_completed_at: row.onboarding_completed_at || null
   };
+}
+
+function normalizeOnboardingStep(value) {
+  const step = String(value || "").trim();
+  return ONBOARDING_STEPS.has(step) ? step : "step1";
+}
+
+function normalizeLivingCountryCode(value) {
+  const raw = String(value || "").trim().toUpperCase();
+  if (!raw) return "";
+  if (!/^[A-Z]{2}$/.test(raw)) {
+    throw new Error("living_country_code must be a 2-letter ISO code.");
+  }
+  return raw;
+}
+
+function buildOnboardingStatePayload(settings) {
+  return {
+    completed: Boolean(settings?.onboarding_completed),
+    current_step: normalizeOnboardingStep(settings?.onboarding_current_step || "step1"),
+    completed_at: settings?.onboarding_completed_at || null
+  };
+}
+
+function suggestTimezoneFromCountry(countryCode) {
+  const normalized = String(countryCode || "").trim().toUpperCase();
+  if (normalized && COUNTRY_TIMEZONE_HINTS[normalized]) {
+    return COUNTRY_TIMEZONE_HINTS[normalized];
+  }
+  return "UTC";
+}
+
+function roundOnboardingMoney(value) {
+  const num = Number(value || 0);
+  if (!Number.isFinite(num)) return 0;
+  return Number(num.toFixed(2));
+}
+
+function buildOnboardingBudgetAllocations(activeL1, estimatedIncome, budgetPool) {
+  const categories = Array.isArray(activeL1) ? activeL1.map((name) => String(name || "").trim()).filter(Boolean) : [];
+  const weightCategories = categories.filter((name) => Number(ONBOARDING_BUDGET_TEMPLATE[name]) > 0);
+  const totalWeight = weightCategories.reduce((sum, name) => sum + Number(ONBOARDING_BUDGET_TEMPLATE[name] || 0), 0);
+  const allocations = categories.map((categoryL1) => {
+    const weight = Number(ONBOARDING_BUDGET_TEMPLATE[categoryL1] || 0);
+    const ratio = totalWeight > 0 && weight > 0 ? weight / totalWeight : 0;
+    const recommendedAmount = roundOnboardingMoney(budgetPool * ratio);
+    return {
+      category_l1: categoryL1,
+      ratio,
+      share_of_income: estimatedIncome > 0 ? roundOnboardingMoney(recommendedAmount / estimatedIncome) : 0,
+      recommended_amount: recommendedAmount,
+      auto_allocated: ratio > 0
+    };
+  });
+  const autoAllocated = allocations.filter((row) => row.auto_allocated);
+  if (autoAllocated.length) {
+    const allocatedSum = roundOnboardingMoney(autoAllocated.reduce((sum, row) => sum + Number(row.recommended_amount || 0), 0));
+    const diff = roundOnboardingMoney(budgetPool - allocatedSum);
+    if (Math.abs(diff) > 0) {
+      autoAllocated[autoAllocated.length - 1].recommended_amount = roundOnboardingMoney(
+        Number(autoAllocated[autoAllocated.length - 1].recommended_amount || 0) + diff
+      );
+      autoAllocated[autoAllocated.length - 1].share_of_income =
+        estimatedIncome > 0
+          ? roundOnboardingMoney(autoAllocated[autoAllocated.length - 1].recommended_amount / estimatedIncome)
+          : 0;
+    }
+  }
+  return allocations;
 }
 
 function getAccounts(db, userId) {
@@ -2840,6 +3108,12 @@ function resolveRequiredScope(req) {
   }
   if (path === "/api/v1/settings") {
     return method === "GET" ? "settings:read" : "settings:write";
+  }
+  if (path === "/api/v1/onboarding/state") {
+    return method === "GET" ? "settings:read" : "settings:write";
+  }
+  if (path === "/api/v1/onboarding/geo-suggest" || path === "/api/v1/onboarding/budget-suggestion") {
+    return "settings:read";
   }
   if (path.startsWith("/api/v1/fx/")) {
     return "settings:read";

@@ -18,6 +18,11 @@ function runMigrations(db) {
   ensureColumn(db, "user_settings", "ui_language", "TEXT NOT NULL DEFAULT 'en'");
   ensureColumn(db, "user_settings", "theme", "TEXT NOT NULL DEFAULT 'system'");
   ensureColumn(db, "user_settings", "currency_display_mode", "TEXT NOT NULL DEFAULT 'code'");
+  ensureColumn(db, "user_settings", "living_country_code", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "user_settings", "monthly_income_band", "TEXT NOT NULL DEFAULT '8000_20000'");
+  ensureColumn(db, "user_settings", "onboarding_completed", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, "user_settings", "onboarding_current_step", "TEXT NOT NULL DEFAULT 'step1'");
+  ensureColumn(db, "user_settings", "onboarding_completed_at", "TEXT");
   ensureColumn(db, "budgets", "budget_currency", "TEXT");
   ensureColumn(db, "yearly_budgets", "budget_currency", "TEXT");
   db.exec(`
@@ -235,6 +240,44 @@ function runMigrations(db) {
     SET updated_at = created_at
     WHERE updated_at IS NULL OR trim(updated_at) = ''
   `);
+  db.exec(`
+    UPDATE user_settings
+    SET living_country_code = ''
+    WHERE living_country_code IS NULL
+  `);
+  db.exec(`
+    UPDATE user_settings
+    SET monthly_income_band = '8000_20000'
+    WHERE monthly_income_band IS NULL OR trim(monthly_income_band) = ''
+  `);
+  db.exec(`
+    UPDATE user_settings
+    SET onboarding_completed = 0
+    WHERE onboarding_completed IS NULL
+  `);
+  db.exec(`
+    UPDATE user_settings
+    SET onboarding_current_step = 'step1'
+    WHERE onboarding_current_step IS NULL OR trim(onboarding_current_step) = ''
+  `);
+  db.exec(`
+    UPDATE user_settings
+    SET onboarding_completed = 1,
+        onboarding_current_step = 'completed',
+        onboarding_completed_at = COALESCE(onboarding_completed_at, CURRENT_TIMESTAMP)
+    WHERE COALESCE(onboarding_completed, 0) = 0
+      AND COALESCE(onboarding_current_step, 'step1') = 'step1'
+      AND onboarding_completed_at IS NULL
+      AND user_id IN (
+        SELECT user_id FROM accounts
+        UNION
+        SELECT user_id FROM transactions
+        UNION
+        SELECT user_id FROM budgets
+        UNION
+        SELECT user_id FROM yearly_budgets
+      )
+  `);
 }
 
 function ensureColumn(db, table, column, ddl) {
@@ -254,8 +297,11 @@ function ensureUserAndSeedDefaults(db, userId) {
   db.prepare("INSERT OR IGNORE INTO users (id) VALUES (?)").run(userId);
   db.prepare(
     `
-      INSERT OR IGNORE INTO user_settings (user_id, base_currency, timezone, ui_language, theme, currency_display_mode)
-      VALUES (?, 'USD', 'UTC', 'en', 'system', 'code')
+      INSERT OR IGNORE INTO user_settings (
+        user_id, base_currency, timezone, ui_language, theme, currency_display_mode,
+        living_country_code, monthly_income_band, onboarding_completed, onboarding_current_step, onboarding_completed_at
+      )
+      VALUES (?, 'USD', 'UTC', 'en', 'system', 'code', '', '8000_20000', 0, 'step1', NULL)
     `
   ).run(userId);
 
