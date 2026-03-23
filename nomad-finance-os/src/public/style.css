@@ -18,7 +18,20 @@
   --bg-spot-1: rgba(142, 163, 182, 0.26);
   --bg-spot-2: rgba(79, 130, 156, 0.16);
   --topbar-pill-h: 36px;
+  --recent-dot-fill: #c8d1d9;
   color-scheme: light;
+}
+
+html {
+  background: var(--bg);
+}
+
+:root[data-theme="dark"] html {
+  background: #2b2c2f;
+}
+
+:root[data-theme="aurora"] html {
+  background: #070d0d;
 }
 
 :root[data-theme="dark"] {
@@ -34,6 +47,7 @@
   --danger: #e89991;
   --bg-spot-1: rgba(144, 147, 153, 0.16);
   --bg-spot-2: rgba(90, 93, 98, 0.11);
+  --recent-dot-fill: #8a9cb1;
   color-scheme: dark;
 }
 
@@ -50,6 +64,7 @@
   --danger: #ff9b83;
   --bg-spot-1: rgba(191, 255, 77, 0.26);
   --bg-spot-2: rgba(118, 248, 185, 0.18);
+  --recent-dot-fill: #b0c8d1;
   color-scheme: dark;
 }
 
@@ -160,7 +175,6 @@
 }
 
 :root[data-theme="aurora"] .recent-compare-dot {
-  fill: #e8f9f1;
   stroke: #45c8be;
 }
 
@@ -222,10 +236,6 @@
 
 :root[data-theme="dark"] .recent-compare-chart-shell::after {
   background: rgba(61, 185, 179, 0.16);
-}
-
-:root[data-theme="dark"] .recent-compare-dot {
-  fill: #e6f4f4;
 }
 
 :root[data-theme="dark"] .recent-compare-grid {
@@ -1484,7 +1494,7 @@ h3 {
 }
 
 .recent-compare-dot {
-  fill: #f8fbfd;
+  fill: var(--recent-dot-fill);
   stroke: var(--accent);
   stroke-width: 3.2;
 }
