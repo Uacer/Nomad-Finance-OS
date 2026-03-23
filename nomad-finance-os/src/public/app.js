@@ -81,6 +81,11 @@ const UI_CURRENCIES = new Set(["CNY", "EUR", "THB", "USD", "JPY", "KRW"]);
 const UI_LANGUAGES = new Set(["en", "zh"]);
 const UI_CURRENCY_DISPLAY_MODES = new Set(["code", "symbol"]);
 const UI_THEMES = new Set(["system", "light", "dark", "aurora"]);
+const THEME_CHROME_COLOR = Object.freeze({
+  light: "#f0f3f5",
+  dark: "#2b2c2f",
+  aurora: "#070d0d"
+});
 const CURRENCY_SYMBOL_MAP = {
   USD: "$",
   CNY: "¥",
@@ -1699,6 +1704,12 @@ function formatCurrencyUnit(value) {
     return CURRENCY_SYMBOL_MAP[code] || code;
   }
   return code;
+}
+
+function resolveCurrencyForDisplay(value, fallback = "USD") {
+  const raw = String(value || "").trim().toUpperCase();
+  if (UI_CURRENCIES.has(raw)) return raw;
+  return ensureUICurrency(fallback || "USD");
 }
 
 function formatCompactKMoney(value) {
@@ -3687,7 +3698,8 @@ async function submitSettingsForm(event) {
     });
     showToast(t("settingsUpdated"));
     try {
-      await Promise.all([loadSettings(), loadDashboard(), loadBudgets(), loadYearlyBudgets()]);
+      await loadSettings();
+      await Promise.all([loadDashboard(), loadBudgets(), loadYearlyBudgets(), loadRecentCompareData()]);
     } catch (error) {
       showRefreshFailureToast(error);
     }
@@ -3980,6 +3992,12 @@ function renderAccountComposition(dashboard) {
       return `<div class="hero-part account" style="width:${pct}%; background:${color};"></div>`;
     })
     .join("");
+  const accountCurrencyById = new Map(
+    (state.accounts || []).map((account) => [
+      String(account.id),
+      resolveCurrencyForDisplay(account.currency, dashboard.base_currency || state.settings?.base_currency || "USD")
+    ])
+  );
   legend.innerHTML = segments
     .map((row, index) => {
       const color = palette[index % palette.length];
@@ -3989,8 +4007,13 @@ function renderAccountComposition(dashboard) {
       if (row.account_id === "other") {
         const base = dashboard.base_currency || state.settings?.base_currency || "USD";
         amountStr = `${fmt(row.amount_base)} ${formatCurrencyUnit(base)}`;
-      } else if (row.currency && row.balance !== undefined) {
-        amountStr = `${fmt(row.balance)} ${formatCurrencyUnit(row.currency)}`;
+      } else if (row.balance !== undefined && row.balance !== null) {
+        const base = dashboard.base_currency || state.settings?.base_currency || "USD";
+        const currency = resolveCurrencyForDisplay(
+          row.currency || accountCurrencyById.get(String(row.account_id)),
+          base
+        );
+        amountStr = `${fmt(row.balance)} ${formatCurrencyUnit(currency)}`;
       } else {
         const base = dashboard.base_currency || state.settings?.base_currency || "USD";
         amountStr = `${fmt(row.amount_base)} ${formatCurrencyUnit(base)}`;
@@ -4151,6 +4174,10 @@ function renderAccounts() {
     .map((row) => {
       const icon = typeIcon[row.type] || "💼";
       const label = typeLabel[row.type] || row.type;
+      const accountCurrency = resolveCurrencyForDisplay(
+        row.currency,
+        state.settings?.base_currency || "USD"
+      );
       const bal = formatMoney(row.balance);
       const isNeg = Number(row.balance) < 0;
       return `
@@ -4159,7 +4186,9 @@ function renderAccounts() {
           <span class="account-type-icon">${icon}</span>
           <div class="account-info">
             <span class="account-name">${escapeHtml(row.name)}</span>
-            <span class="account-meta muted">${escapeHtml(label)} · ${escapeHtml(formatCurrencyUnit(row.currency))}</span>
+            <span class="account-meta muted">${escapeHtml(label)} · ${escapeHtml(
+              formatCurrencyUnit(accountCurrency)
+            )}</span>
           </div>
           <span class="account-balance mono${isNeg ? " overspend" : ""}">${bal}</span>
         </div>
@@ -4177,12 +4206,13 @@ function renderDashboardAccountsCard() {
     return;
   }
   const typeIcon = { bank:"🏦", cash:"💵", wise:"💸", crypto_wallet:"₿", exchange:"📈", alipay:"🅰", wechat:"💬", restricted_cash:"🔒" };
-  const baseCurrency = state.settings?.base_currency || "";
+  const baseCurrency = ensureUICurrency(state.settings?.base_currency || "USD");
   const txs = state.accountPeriodTxs || [];
   const fmt = (n) => new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(n);
   target.innerHTML = accounts.map((row) => {
     const icon = typeIcon[row.type] || "💼";
     const isNeg = Number(row.balance) < 0;
+    const accountCurrency = resolveCurrencyForDisplay(row.currency, baseCurrency);
     let net = 0;
     for (const tx of txs) {
       const amt = Number(tx.amount_base || 0);
@@ -4203,7 +4233,7 @@ function renderDashboardAccountsCard() {
       <span class="account-name">${escapeHtml(row.name)}</span>
       <div class="acct-right">
         <span class="account-balance mono${isNeg ? " overspend" : ""}">${fmt(row.balance)} ${escapeHtml(
-          formatCurrencyUnit(row.currency)
+          formatCurrencyUnit(accountCurrency)
         )}</span>
         ${deltaHtml}
       </div>
@@ -4729,8 +4759,10 @@ function buildRecentCompareModel(rows) {
   }
 
   const now = new Date();
-  const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startDate = addDaysLocal(endDate, -6);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const mondayOffset = (today.getDay() + 6) % 7;
+  const startDate = addDaysLocal(today, -mondayOffset);
+  const endDate = addDaysLocal(startDate, 6);
   const series = [];
   for (let i = 0; i < 7; i += 1) {
     const day = addDaysLocal(startDate, i);
@@ -4739,6 +4771,7 @@ function buildRecentCompareModel(rows) {
     const prevKey = formatDateOnlyLocal(prevDay);
     series.push({
       day,
+      hasRecord: totals.has(dayKey),
       value: Number((totals.get(dayKey) || 0).toFixed(2)),
       previous: Number((totals.get(prevKey) || 0).toFixed(2)),
       weekday: t(getRecentCompareWeekdayKey(day))
@@ -4808,12 +4841,22 @@ function renderRecentCompareChart(svg, series, options = {}) {
   if (!(svg instanceof SVGElement) || !Array.isArray(series) || !series.length) {
     return { splitPercent: 38, hasUpperBound: false };
   }
-  const width = 620;
+  const viewportWidth = Math.max(
+    320,
+    Number(svg.clientWidth || (typeof svg.getBoundingClientRect === "function" ? svg.getBoundingClientRect().width : 0) || 620)
+  );
+  const viewportHeight = Math.max(
+    1,
+    Number(svg.clientHeight || (typeof svg.getBoundingClientRect === "function" ? svg.getBoundingClientRect().height : 0) || 132)
+  );
   const height = 168;
+  const width = Math.max(620, Math.round((viewportWidth / viewportHeight) * height));
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
   const padTop = 14;
   const padBottom = 24;
   const padX = 16;
   const current = series.map((row) => Number(row.value || 0));
+  const hasData = series.map((row) => Boolean(row.hasRecord));
   const upperBoundValue = Number(options?.upperBound);
   const hasUpperBound = Number.isFinite(upperBoundValue) && upperBoundValue > 0;
   const max = Math.max(1, ...current, hasUpperBound ? upperBoundValue : 0);
@@ -4822,23 +4865,54 @@ function renderRecentCompareChart(svg, series, options = {}) {
     const ratio = Math.max(0, Math.min(1, value / max));
     return height - padBottom - ratio * (height - padTop - padBottom);
   };
-  const currentPts = current.map((value, idx) => `${(padX + idx * stepX).toFixed(2)},${toY(value).toFixed(2)}`);
-  const firstX = padX;
-  const lastX = padX + stepX * (series.length - 1);
-  const floorY = height - padBottom;
+  const points = current.map((value, idx) => {
+    const x = padX + idx * stepX;
+    const y = toY(value);
+    return { x, y };
+  });
   const upperY = hasUpperBound ? toY(upperBoundValue) : null;
   const splitPercentRaw = hasUpperBound ? (upperY / height) * 100 : 38;
   const splitPercent = Math.max(14, Math.min(86, splitPercentRaw));
-  const dots = current
-    .map((value, idx) => {
-      const x = padX + idx * stepX;
-      const y = toY(value);
-      return `<circle class="recent-compare-dot" cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="8.4"></circle>`;
+  const lineSegments = [];
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const left = points[i];
+    const right = points[i + 1];
+    const leftHas = hasData[i];
+    const rightHas = hasData[i + 1];
+    if (!leftHas && !rightHas) continue;
+    if (leftHas && rightHas) {
+      lineSegments.push(
+        `<line class="recent-compare-line" x1="${left.x.toFixed(2)}" y1="${left.y.toFixed(2)}" x2="${right.x.toFixed(
+          2
+        )}" y2="${right.y.toFixed(2)}"></line>`
+      );
+      continue;
+    }
+    const midX = (left.x + right.x) / 2;
+    const midY = (left.y + right.y) / 2;
+    if (leftHas) {
+      lineSegments.push(
+        `<line class="recent-compare-line" x1="${left.x.toFixed(2)}" y1="${left.y.toFixed(2)}" x2="${midX.toFixed(
+          2
+        )}" y2="${midY.toFixed(2)}"></line>`
+      );
+    } else if (rightHas) {
+      lineSegments.push(
+        `<line class="recent-compare-line" x1="${midX.toFixed(2)}" y1="${midY.toFixed(2)}" x2="${right.x.toFixed(
+          2
+        )}" y2="${right.y.toFixed(2)}"></line>`
+      );
+    }
+  }
+  const dots = points
+    .map((point, idx) => {
+      if (!hasData[idx]) return "";
+      return `<circle class="recent-compare-dot" cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="8.4"></circle>`;
     })
     .join("");
 
   svg.innerHTML = `
-    <polyline class="recent-compare-line" points="${currentPts.join(" ")}"></polyline>
+    ${lineSegments.join("")}
     ${dots}
   `;
   return { splitPercent, hasUpperBound };
@@ -5442,6 +5516,10 @@ function applyTheme(themeValue = state.settings?.theme || "system") {
   const resolved = resolveThemeMode(selected);
   document.documentElement.setAttribute("data-theme", resolved);
   document.documentElement.setAttribute("data-theme-preference", selected);
+  const themeMeta = document.getElementById("themeColorMeta");
+  if (themeMeta) {
+    themeMeta.setAttribute("content", THEME_CHROME_COLOR[resolved] || THEME_CHROME_COLOR.light);
+  }
 }
 
 if (systemThemeMedia) {
