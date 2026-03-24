@@ -479,6 +479,18 @@ body.onboarding-required {
   font-size: 0.95rem;
 }
 
+.onboarding-block-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.onboarding-block-head > div {
+  display: grid;
+  gap: 3px;
+}
+
 .onboarding-inline-form {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -487,6 +499,74 @@ body.onboarding-required {
 
 .onboarding-inline-form .btn {
   min-height: 44px;
+}
+
+.onboarding-account-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(120px, 0.6fr) auto;
+  gap: 10px 12px;
+  align-items: end;
+}
+
+.onboarding-account-name-field,
+.onboarding-account-type-group,
+.onboarding-account-balance-field {
+  align-self: stretch;
+}
+
+.onboarding-account-submit {
+  min-height: 46px;
+}
+
+.account-type-picker-block,
+.onboarding-account-type-group {
+  display: grid;
+  gap: 6px;
+}
+
+.account-type-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.account-type-choice {
+  border: 1px solid color-mix(in oklab, var(--line), transparent 4%);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--paper), white 7%);
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  font: inherit;
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+}
+
+.account-type-choice:hover {
+  border-color: color-mix(in oklab, var(--accent), var(--line) 52%);
+  transform: translateY(-1px);
+}
+
+.account-type-choice:active {
+  transform: translateY(0);
+}
+
+.account-type-choice.is-active {
+  border-color: color-mix(in oklab, var(--accent), var(--line) 36%);
+  background: color-mix(in oklab, var(--paper), var(--accent) 12%);
+  box-shadow: 0 8px 18px rgba(49, 66, 80, 0.08);
+}
+
+.account-type-choice-emoji {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.account-type-choice-label {
+  font-size: 0.86rem;
+  font-weight: 600;
 }
 
 .onboarding-budget-list {
@@ -565,6 +645,13 @@ body.onboarding-required {
 @media (max-width: 720px) {
   .onboarding-inline-form {
     grid-template-columns: 1fr 1fr;
+  }
+  .onboarding-block-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .onboarding-account-form {
+    grid-template-columns: 1fr;
   }
   .onboarding-budget-row {
     flex-direction: column;
@@ -3953,17 +4040,58 @@ body.sheet-open .topbar {
 
 .account-create-form {
   display: grid;
-  gap: 12px;
+  gap: 14px;
+  padding: 18px;
+  background:
+    radial-gradient(circle at top right, rgba(242, 212, 166, 0.28), transparent 32%),
+    linear-gradient(180deg, color-mix(in oklab, var(--paper), white 8%) 0%, var(--paper) 100%);
+  border: 1px solid color-mix(in oklab, var(--line), transparent 16%);
 }
 
 .account-form-title {
   margin-bottom: -4px;
 }
 
+.account-create-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.account-create-head > div {
+  display: grid;
+  gap: 2px;
+}
+
+.account-create-head h4 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
 .account-form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+
+.account-form-row-tight {
+  align-items: end;
+}
+
+.account-create-name,
+.account-create-balance {
+  display: grid;
+  gap: 4px;
+}
+
+.account-form-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.account-form-actions .btn {
+  min-width: 180px;
 }
 
 .field-eyebrow {
@@ -4002,7 +4130,7 @@ body.sheet-open .topbar {
   flex: 1;
   min-width: 0;
   display: grid;
-  gap: 2px;
+  gap: 4px;
 }
 
 .account-name {
@@ -4017,10 +4145,18 @@ body.sheet-open .topbar {
   font-size: 0.78rem;
 }
 
+.account-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
 .account-balance {
   font-size: 0.95rem;
   font-weight: 600;
   flex-shrink: 0;
+  text-align: right;
 }
 
 /* Account edit danger zone */
@@ -4200,6 +4336,19 @@ body.utility-mode #dashboardPanel {
 
   .topbar-right {
     gap: 6px;
+  }
+
+  .account-create-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .account-form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .account-form-actions .btn {
+    width: 100%;
   }
 
   .topbar-month-display {

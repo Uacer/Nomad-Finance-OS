@@ -8,7 +8,7 @@ function parseAmountAndCurrency(text) {
     .replace(/人民币|人民幣|rmb/gi, " CNY ")
     .replace(/美金|美元/gi, " USD ");
   const amountThenCurrency = normalizedText.match(
-    /([0-9]+(?:\.[0-9]+)?)\s*(USDT|USD|THB|RMB|CNY|SGD|EUR|GBP|JPY)/i
+    /([0-9]+(?:\.[0-9]+)?)\s*(USDT|USD|AUD|THB|RMB|CNY|SGD|EUR|GBP|JPY)/i
   );
   if (amountThenCurrency) {
     return {
@@ -17,7 +17,7 @@ function parseAmountAndCurrency(text) {
     };
   }
   const currencyThenAmount = normalizedText.match(
-    /(USDT|USD|THB|RMB|CNY|SGD|EUR|GBP|JPY)\s*([0-9]+(?:\.[0-9]+)?)/i
+    /(USDT|USD|AUD|THB|RMB|CNY|SGD|EUR|GBP|JPY)\s*([0-9]+(?:\.[0-9]+)?)/i
   );
   if (currencyThenAmount) {
     return {

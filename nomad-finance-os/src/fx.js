@@ -1,5 +1,6 @@
 const FALLBACK_USD_RATES = {
   USD: 1,
+  AUD: 1.53,
   EUR: 0.92,
   GBP: 0.79,
   THB: 35.5,
@@ -39,6 +40,7 @@ function normalizeCurrency(currency) {
     "元": "CNY",
     "美元": "USD",
     "美金": "USD",
+    "澳元": "AUD",
     "欧元": "EUR",
     "英镑": "GBP",
     "日元": "JPY",

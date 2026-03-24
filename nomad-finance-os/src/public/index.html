@@ -112,52 +112,62 @@
                 <option id="onboardingIncomeBand50000Plus" value="50000_plus">50,000+</option>
               </select>
             </label>
+            <p id="onboardingIncomeBandHint" class="muted small">These ranges are shown in CNY based on your living country.</p>
             <p id="onboardingStep2Intro" class="muted">Used to generate your suggested monthly budget.</p>
             <button id="onboardingStep2ContinueBtn" class="btn btn-solid" type="submit">Continue</button>
           </form>
         </section>
 
         <section id="onboardingStep3" class="onboarding-step hidden">
-          <h3 id="onboardingStep3Title">Step 3 · Financial Snapshot</h3>
-          <p id="onboardingStep3Intro" class="muted">Add at least one account and review your suggested monthly budget.</p>
+          <h3 id="onboardingStep3Title">Step 3 · Add Your First Account</h3>
 
           <article class="onboarding-block">
-            <h4 id="onboardingAccountsTitle">Accounts</h4>
-            <form id="onboardingAccountForm" class="onboarding-inline-form">
-              <input id="onboardingAccountNameInput" name="name" type="text" placeholder="Account name" required />
-              <select id="onboardingAccountTypeInput" name="type" required>
-                <option value="bank">🏦 Bank</option>
-                <option value="cash">💵 Cash</option>
-                <option value="wise">💸 Wise</option>
-                <option value="crypto_wallet">₿ Crypto</option>
-                <option value="exchange">📈 Exchange</option>
-                <option value="alipay">🅰 Alipay</option>
-                <option value="wechat">💬 WeChat</option>
-                <option value="restricted_cash">🔒 Restricted</option>
+            <div class="onboarding-block-head">
+              <div>
+                <h4 id="onboardingAccountsTitle">Accounts</h4>
+                <p id="onboardingAccountsHint" class="muted small">Start with one account. You can add the rest later.</p>
+              </div>
+            </div>
+            <form id="onboardingAccountForm" class="onboarding-account-form">
+              <label class="onboarding-account-name-field">
+                <span id="onboardingAccountNameLabel" class="field-eyebrow">Account Name</span>
+                <input id="onboardingAccountNameInput" name="name" type="text" value="default" placeholder="Account name" required />
+              </label>
+              <div class="onboarding-account-type-group">
+                <span id="onboardingAccountTypeQuickLabel" class="field-eyebrow">Common Types</span>
+                <div
+                  id="onboardingAccountTypePicker"
+                  class="account-type-picker"
+                  data-account-type-picker="onboarding"
+                  data-account-type-select-id="onboardingAccountTypeInput"
+                ></div>
+              </div>
+              <label class="onboarding-account-balance-field">
+                <span id="onboardingAccountBalanceLabel" class="field-eyebrow">Current Balance</span>
+                <input
+                  id="onboardingAccountBalanceInput"
+                  name="balance"
+                  type="number"
+                  step="0.01"
+                  value="0"
+                  placeholder="0"
+                  inputmode="decimal"
+                />
+              </label>
+              <select id="onboardingAccountTypeInput" name="type" class="hidden" aria-hidden="true" tabindex="-1">
+                <option value="bank">Bank</option>
+                <option value="cash">Cash</option>
+                <option value="wise">Wise</option>
+                <option value="crypto_wallet">Crypto</option>
+                <option value="exchange">Exchange</option>
+                <option value="alipay">Alipay</option>
+                <option value="wechat">WeChat</option>
+                <option value="restricted_cash">Restricted</option>
               </select>
-              <select id="onboardingAccountCurrencyInput" name="currency" required>
-                <option value="CNY">CNY</option>
-                <option value="EUR">EUR</option>
-                <option value="THB">THB</option>
-                <option value="USD" selected>USD</option>
-                <option value="JPY">JPY</option>
-                <option value="KRW">KRW</option>
-              </select>
-              <input id="onboardingAccountBalanceInput" name="balance" type="number" step="0.01" placeholder="0" />
-              <button id="onboardingAddAccountBtn" class="btn btn-ghost" type="submit">Add</button>
+              <button id="onboardingAddAccountBtn" class="btn btn-solid onboarding-account-submit" type="submit">Continue</button>
             </form>
-            <div id="onboardingAccountList" class="list-block compact-list"></div>
+            <p id="onboardingAccountBalanceHint" class="muted small">This amount uses your current base currency.</p>
           </article>
-          <p id="onboardingCategoryHint" class="muted small">Default categories are enabled. You can fine-tune them later.</p>
-
-          <article class="onboarding-block">
-            <h4 id="onboardingBudgetTitle">Suggested Monthly Budget</h4>
-            <p id="onboardingBudgetHint" class="muted small"></p>
-            <div id="onboardingBudgetList" class="onboarding-budget-list"></div>
-          </article>
-
-          <button id="onboardingStep3ContinueBtn" class="btn btn-solid" type="button">Continue</button>
-          <p id="onboardingStep3Message" class="muted small" aria-live="polite"></p>
         </section>
 
         <section id="onboardingStep4" class="onboarding-step hidden">
@@ -187,6 +197,7 @@
       <label class="topbar-base">
         <span id="topBaseCurrencyLabel" class="sr-only">Base Currency</span>
         <select id="topBaseCurrencySelect" aria-label="Base Currency">
+          <option value="AUD">AUD</option>
           <option value="CNY">CNY</option>
           <option value="EUR">EUR</option>
           <option value="THB">THB</option>
@@ -260,7 +271,7 @@
         </article>
         <article class="card dashboard-card hidden" id="recentCompareCard" data-sort-id="recentCompareCard">
           <div class="section-head">
-            <h3 class="section-title-btn" id="recentCompareTitle">🗓️ Recent</h3>
+            <h3 class="section-title-btn" id="recentCompareTitle">📉 SpendingChange</h3>
           </div>
           <p id="recentCompareSummary" class="recent-compare-summary">Past 7 days spending is stable.</p>
           <div class="recent-compare-hero">
@@ -285,10 +296,6 @@
           <div class="budget-threshold-legend" aria-label="Budget status legend"><span class="btl-item btl-ok">Under 80%</span><span class="btl-item btl-warn">80–99%</span><span class="btl-item btl-over">Over limit</span></div>
           <div id="budgetPlanPieView" class="budget-pie-view hidden"></div>
         </article>
-        <article class="card advanced-section dashboard-card" id="cashFlowCard" data-sort-id="cashFlowCard">
-          <h3 id="cashFlowTitle">Cash Flow Pulse</h3>
-          <div id="cashFlowBars" class="mini-bars"></div>
-        </article>
         <article class="card dashboard-card" id="recentExpensesCard" data-sort-id="recentExpensesCard">
           <div class="section-head">
             <button
@@ -302,29 +309,6 @@
           </div>
           <div id="recentExpensesStats" class="recent-expense-mini" aria-live="polite"></div>
           <div id="recentExpensesList" class="list-block compact-list"></div>
-        </article>
-        <article class="card advanced-section dashboard-card" id="trendCard" data-sort-id="trendCard">
-          <div class="section-head">
-            <h3 id="trendTitle">Spending Curve</h3>
-            <select id="trendMode" class="btn btn-ghost">
-              <option value="expense">Daily Expense</option>
-              <option value="networth">Net Worth Change</option>
-            </select>
-          </div>
-          <div class="trend-controls">
-            <label>
-              <span id="trendFromLabel">From</span>
-              <input id="trendStart" type="date" />
-            </label>
-            <label>
-              <span id="trendToLabel">To</span>
-              <input id="trendEnd" type="date" />
-            </label>
-          </div>
-          <div class="trend-chart">
-            <svg id="trendChart" viewBox="0 0 600 180" preserveAspectRatio="none"></svg>
-          </div>
-          <div id="trendLegend" class="muted"></div>
         </article>
         <article class="card advanced-section dashboard-card" id="riskCard" data-sort-id="riskCard">
           <h3 id="riskTitle">Risk Metrics</h3>
@@ -363,6 +347,7 @@
               <label class="form-field">
                 <span class="form-field-label">Currency</span>
                 <select name="currency_original" required>
+                  <option value="AUD">AUD</option>
                   <option value="CNY">CNY</option>
                   <option value="EUR">EUR</option>
                   <option value="THB">THB</option>
@@ -462,28 +447,45 @@
         <div id="accountList" class="list-block"></div>
         <div id="accountCreateWrap" class="panel-form-wrap hidden">
           <form id="accountForm" class="card account-create-form">
-            <p class="panel-form-eyebrow">New Account</p>
-            <label>
-              <span class="field-eyebrow">Name</span>
+            <div class="account-create-head">
+              <div>
+                <p class="panel-form-eyebrow" id="accountCreateEyebrow">New Account</p>
+                <h4 id="accountCreateTitle">Create Your First Account</h4>
+              </div>
+              <span id="accountCreateCurrencyBadge" class="pill">Base USD</span>
+            </div>
+            <p id="accountCreateHint" class="muted small">Keep it simple. Start with the account you use most often.</p>
+            <label class="account-create-name">
+              <span id="accountNameLabel" class="field-eyebrow">Name</span>
               <input name="name" type="text" placeholder="e.g. SCB Savings" required autocomplete="off" />
             </label>
-            <div class="account-form-row">
+            <div class="account-type-picker-block">
+              <span id="accountTypeQuickLabel" class="field-eyebrow">Common Types</span>
+              <div
+                id="accountTypePicker"
+                class="account-type-picker"
+                data-account-type-picker="create"
+                data-account-type-select-id="accountFormTypeInput"
+              ></div>
+            </div>
+            <div class="account-form-row account-form-row-tight">
               <label>
-                <span class="field-eyebrow">Type</span>
-                <select name="type" required>
-                  <option value="bank">🏦 Bank</option>
-                  <option value="cash">💵 Cash</option>
-                  <option value="wise">💸 Wise</option>
-                  <option value="crypto_wallet">₿ Crypto</option>
-                  <option value="exchange">📈 Exchange</option>
-                  <option value="alipay">🅰 Alipay</option>
-                  <option value="wechat">💬 WeChat</option>
-                  <option value="restricted_cash">🔒 Restricted</option>
+                <span id="accountTypeLabel" class="field-eyebrow">All Types</span>
+                <select id="accountFormTypeInput" name="type" required>
+                  <option value="bank">Bank</option>
+                  <option value="cash">Cash</option>
+                  <option value="wise">Wise</option>
+                  <option value="crypto_wallet">Crypto</option>
+                  <option value="exchange">Exchange</option>
+                  <option value="alipay">Alipay</option>
+                  <option value="wechat">WeChat</option>
+                  <option value="restricted_cash">Restricted</option>
                 </select>
               </label>
               <label>
-                <span class="field-eyebrow">Currency</span>
+                <span id="accountCurrencyLabel" class="field-eyebrow">Currency</span>
                 <select name="currency" required>
+                  <option value="AUD">AUD</option>
                   <option value="CNY">CNY</option>
                   <option value="EUR">EUR</option>
                   <option value="THB">THB</option>
@@ -493,11 +495,14 @@
                 </select>
               </label>
             </div>
-            <label>
-              <span class="field-eyebrow">Opening Balance</span>
+            <label class="account-create-balance">
+              <span id="accountBalanceLabel" class="field-eyebrow">Current Balance</span>
               <input name="balance" type="number" step="0.01" value="0" inputmode="decimal" />
             </label>
-            <button class="btn btn-solid" type="submit">Create Account</button>
+            <p id="accountCreateBalanceHint" class="muted small">Use the balance right now. We will treat it as your starting point and keep future transactions on top.</p>
+            <div class="account-form-actions">
+              <button class="btn btn-solid" id="accountCreateSubmitBtn" type="submit">Create Account</button>
+            </div>
           </form>
         </div>
       </section>
@@ -678,6 +683,7 @@
                   <label class="quick-amount-currency-field">
                     <span id="quickEntryCurrencyLabel" class="sr-only">Currency</span>
                     <select name="currency_original" required>
+                      <option value="AUD">澳元 (AUD)</option>
                       <option value="CNY">人民币 (CNY)</option>
                       <option value="EUR">欧元 (EUR)</option>
                       <option value="THB">泰铢 (THB)</option>
@@ -837,11 +843,6 @@
               <span class="settings-nav-label" id="settingsLinkCategoriesLabel">Categories</span>
               <span class="settings-nav-chevron">›</span>
             </button>
-            <button class="settings-nav-row" id="settingsLinkReview" type="button">
-              <span class="settings-nav-icon">📅</span>
-              <span class="settings-nav-label" id="settingsLinkReviewLabel">Monthly Review</span>
-              <span class="settings-nav-chevron">›</span>
-            </button>
             <button class="settings-nav-row" id="settingsLinkAi" type="button">
               <span class="settings-nav-icon">🤖</span>
               <span class="settings-nav-label" id="settingsLinkAiLabel">Agent Access</span>
@@ -907,8 +908,32 @@
                 </select>
               </div>
               <div class="settings-row">
+                <span class="settings-row-label" id="quickSettingsCountryLabel">Country / Region You Live In</span>
+                <select name="living_country_code" class="settings-inline-select">
+                  <option value="CN" selected>China (CN)</option>
+                  <option value="US">United States (US)</option>
+                  <option value="HK">Hong Kong SAR (HK)</option>
+                  <option value="MO">Macao SAR (MO)</option>
+                  <option value="TW">Taiwan (TW)</option>
+                  <option value="SG">Singapore (SG)</option>
+                  <option value="JP">Japan (JP)</option>
+                  <option value="KR">South Korea (KR)</option>
+                  <option value="TH">Thailand (TH)</option>
+                  <option value="MY">Malaysia (MY)</option>
+                  <option value="GB">United Kingdom (GB)</option>
+                  <option value="DE">Germany (DE)</option>
+                  <option value="FR">France (FR)</option>
+                  <option value="CA">Canada (CA)</option>
+                  <option value="AU">Australia (AU)</option>
+                  <option value="CH">Switzerland (CH)</option>
+                  <option value="IN">India (IN)</option>
+                  <option value="AE">United Arab Emirates (AE)</option>
+                </select>
+              </div>
+              <div class="settings-row">
                 <span class="settings-row-label" id="quickSettingsBaseLabel">Base Currency</span>
                 <select name="base_currency" class="settings-inline-select">
+                  <option value="AUD">AUD</option>
                   <option value="CNY">CNY</option>
                   <option value="EUR">EUR</option>
                   <option value="THB">THB</option>
@@ -966,24 +991,12 @@
               <input id="toggleToday" type="checkbox" role="switch" />
             </label>
             <label class="settings-toggle-row">
-              <span id="toggleRecentCompareLabel">Recent 3-Day Card</span>
+              <span id="toggleRecentCompareLabel">SpendingChange</span>
               <input id="toggleRecentCompare" type="checkbox" role="switch" />
-            </label>
-            <label class="settings-toggle-row">
-              <span id="toggleCashFlowLabel">Cash Flow Pulse</span>
-              <input id="toggleCashFlow" type="checkbox" role="switch" />
-            </label>
-            <label class="settings-toggle-row">
-              <span id="toggleTrendLabel">Spending Curve</span>
-              <input id="toggleTrend" type="checkbox" role="switch" />
             </label>
             <label class="settings-toggle-row">
               <span id="toggleRiskLabel">Risk Metrics</span>
               <input id="toggleRisk" type="checkbox" role="switch" />
-            </label>
-            <label class="settings-toggle-row">
-              <span id="toggleDebugLabel">Debug Panel</span>
-              <input id="toggleDebug" type="checkbox" role="switch" />
             </label>
           </div>
         </div>
@@ -1001,8 +1014,12 @@
         <form id="accountEditForm" class="sheet-form">
           <input name="account_id" type="hidden" />
           <label>
-            <span id="accountEditNameLabel" class="field-eyebrow">Account</span>
-            <input name="account_name" type="text" readonly style="color:var(--ink-soft)" />
+            <span id="accountEditNameLabel" class="field-eyebrow">Account Name</span>
+            <input name="name" type="text" required autocomplete="off" />
+          </label>
+          <label>
+            <span id="accountEditCurrencyLabel" class="field-eyebrow">Currency</span>
+            <input name="account_currency" type="text" readonly style="color:var(--ink-soft)" />
           </label>
           <label>
             <span id="accountEditTypeLabel" class="field-eyebrow">Type</span>
@@ -1021,6 +1038,7 @@
             <span id="accountEditBalanceLabel" class="field-eyebrow">Current Balance</span>
             <input name="balance" type="number" step="0.01" inputmode="decimal" required />
           </label>
+          <p id="accountEditBalanceHint" class="muted small">Changing current balance will update this account's starting point while keeping linked transactions intact.</p>
           <button class="btn btn-solid" id="accountEditSaveBtn" type="submit">Save Changes</button>
         </form>
         <div class="account-edit-danger">
@@ -1092,6 +1110,7 @@
           <label>
             <span id="transactionEditCurrencyLabel">Currency</span>
             <select name="currency_original" required>
+              <option value="AUD">澳元 (AUD)</option>
               <option value="CNY">人民币 (CNY)</option>
               <option value="EUR">欧元 (EUR)</option>
               <option value="THB">泰铢 (THB)</option>

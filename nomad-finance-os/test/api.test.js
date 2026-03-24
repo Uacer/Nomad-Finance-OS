@@ -641,6 +641,24 @@ test("rejects unsupported currencies for settings and accounts", async () => {
   assert.match(accountRes.body.error, /currency must be one of/i);
 });
 
+test("supports AUD for settings and accounts", async () => {
+  const { api } = createHarness();
+  const settingsRes = await api.put("/api/v1/settings").send({
+    base_currency: "AUD"
+  });
+  assert.equal(settingsRes.status, 200);
+  assert.equal(settingsRes.body.base_currency, "AUD");
+
+  const accountRes = await api.post("/api/v1/accounts").send({
+    name: "AUD Wallet",
+    type: "cash",
+    currency: "AUD",
+    balance: 120
+  });
+  assert.equal(accountRes.status, 201);
+  assert.equal(accountRes.body.currency, "AUD");
+});
+
 test("settings persists ui_language", async () => {
   const { api } = createHarness();
   const initial = await api.get("/api/v1/settings").send();
@@ -776,7 +794,7 @@ test("account balances are updated in account currency, dashboard unified in bas
   });
 });
 
-test("account edit supports changing account type and balance together", async () => {
+test("account edit supports changing name, type, and balance together", async () => {
   const { api } = createHarness();
   const account = await createAccount(api, {
     name: "Wallet To Edit",
@@ -786,10 +804,12 @@ test("account edit supports changing account type and balance together", async (
   });
 
   const patchRes = await api.patch(`/api/v1/accounts/${account.id}`).send({
+    name: "Travel Wallet",
     type: "crypto_wallet",
     balance: 250
   });
   assert.equal(patchRes.status, 200);
+  assert.equal(patchRes.body.name, "Travel Wallet");
   assert.equal(patchRes.body.type, "crypto_wallet");
   assert.equal(Number(patchRes.body.balance), 250);
 
@@ -797,6 +817,7 @@ test("account edit supports changing account type and balance together", async (
   assert.equal(accountsRes.status, 200);
   const updated = accountsRes.body.find((row) => row.id === account.id);
   assert.ok(updated);
+  assert.equal(updated.name, "Travel Wallet");
   assert.equal(updated.type, "crypto_wallet");
   assert.equal(Number(updated.balance), 250);
 });

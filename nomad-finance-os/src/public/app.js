@@ -102,11 +102,12 @@ const state = {
   }
 };
 
-const UI_CURRENCIES = new Set(["CNY", "EUR", "THB", "USD", "JPY", "KRW"]);
+const UI_CURRENCIES = new Set(["AUD", "CNY", "EUR", "THB", "USD", "JPY", "KRW"]);
 const UI_LANGUAGES = new Set(["en", "zh"]);
 const UI_CURRENCY_DISPLAY_MODES = new Set(["code", "symbol"]);
 const UI_THEMES = new Set(["system", "light", "dark", "aurora"]);
 const CURRENCY_SYMBOL_MAP = {
+  AUD: "A$",
   USD: "$",
   CNY: "¥",
   EUR: "€",
@@ -207,6 +208,7 @@ const ONBOARDING_INCOME_BANDS = new Set([
 const ONBOARDING_STEPS = new Set(["step1", "step2", "step3", "step4", "completed"]);
 const DEFAULT_ONBOARDING_COUNTRY_CODE = "CN";
 const ONBOARDING_COUNTRY_BASE_CURRENCY = Object.freeze({
+  AU: "AUD",
   CN: "CNY",
   HK: "CNY",
   MO: "CNY",
@@ -217,6 +219,10 @@ const ONBOARDING_COUNTRY_BASE_CURRENCY = Object.freeze({
   DE: "EUR",
   FR: "EUR",
   CH: "EUR"
+});
+const ACCOUNT_TYPE_PICKER_PRESETS = Object.freeze({
+  en: ["bank", "cash", "wise", "exchange", "crypto_wallet"],
+  zh: ["bank", "cash", "alipay", "wechat", "wise"]
 });
 
 const I18N = {
@@ -232,7 +238,6 @@ const I18N = {
     tabSettings: "Settings",
     dashboard: "Summary",
     pinned: "PINNED",
-    cashFlowPulse: "📈 Cash Flow Pulse",
     liquiditySplit: "Liquidity Split",
     runwaySignal: "Runway Signal",
     riskMetrics: "⚠️ Risk Metrics",
@@ -282,27 +287,25 @@ const I18N = {
     onboardingProgress: "Step {current} / 4",
     onboardingStep1Title: "Step 1 · Where You Live",
     onboardingStep2Title: "Step 2 · Income Range",
-    onboardingStep3Title: "Step 3 · Financial Snapshot",
+    onboardingStep3Title: "Step 3 · Add Your First Account",
     onboardingStep4Title: "Step 4 · Agent Setup",
     onboardingCountry: "Country / Region You Live In",
     onboardingTimezone: "Timezone",
     onboardingIncomeBand: "Monthly Income Range",
+    onboardingIncomeBandWithCurrency: "Monthly Income Range ({currency})",
+    onboardingIncomeBandHint: "These ranges are shown in {currency} based on your living country.",
     onboardingGeoHint: "Tell us where you currently live. We'll auto-map your base currency by country.",
     onboardingContinue: "Continue",
     onboardingStep2Intro: "Used to generate your suggested monthly budget.",
-    onboardingStep3Intro:
-      "Add at least one account. We'll suggest a monthly allocation ratio that you can adjust later in Budget.",
-    onboardingCategoryHint: "Default categories are enabled. You can fine-tune them later.",
     onboardingAccountsTitle: "Accounts",
+    onboardingAccountsHint: "Start with your main account, salary card, or cash wallet.",
+    onboardingAccountNameLabel: "Account Name",
+    onboardingAccountTypeQuickLabel: "Common Types",
+    onboardingAccountBalanceLabel: "Current Balance",
+    onboardingAccountBalanceHint: "This amount uses your current base currency.",
     onboardingCategoriesTitle: "Categories",
-    onboardingBudgetTitle: "Suggested Monthly Budget",
-    onboardingBudgetHint:
-      "Based on your income band, here's an estimated monthly allocation by category. You can adjust it later in Budget.",
-    onboardingBudgetRatioText: "Approx. {percent}% · {amount} {currency}/mo",
-    onboardingBudgetHintWithValues:
-      "Estimated income: {income} {currency} · Budget pool: {budget} {currency} · Buffer: {buffer} {currency}",
     onboardingNeedAccount: "Add at least one account before continuing.",
-    onboardingSavedStep2: "Snapshot saved. You can move to the final step.",
+    onboardingSavedStep2: "Account saved. You can move to the final step.",
     onboardingDefaultAccountName: "default",
     onboardingStep4Intro:
       "Nomad Finance OS supports smooth, fast bookkeeping with your own agent. Choose whether to connect now:",
@@ -338,11 +341,11 @@ const I18N = {
     onboardingAddL2: "Add L2",
     onboardingNoAccounts: "No accounts yet.",
     onboardingNoCategories: "No active categories.",
-    onboardingIncomeBandLt3000: "< 3,000",
-    onboardingIncomeBand3000_8000: "3,000 - 8,000",
-    onboardingIncomeBand8000_20000: "8,000 - 20,000",
-    onboardingIncomeBand20000_50000: "20,000 - 50,000",
-    onboardingIncomeBand50000Plus: "50,000+",
+    onboardingIncomeBandLt3000: "< 3,000 {currency}",
+    onboardingIncomeBand3000_8000: "3,000 - 8,000 {currency}",
+    onboardingIncomeBand8000_20000: "8,000 - 20,000 {currency}",
+    onboardingIncomeBand20000_50000: "20,000 - 50,000 {currency}",
+    onboardingIncomeBand50000Plus: "50,000+ {currency}",
     close: "Close",
     date: "Date",
     type: "Type",
@@ -402,13 +405,10 @@ const I18N = {
     timezone: "Timezone",
     saveSettings: "Save Settings",
     general: "General",
-    advancedInsights: "Advanced Insights",
-    showCashFlow: "Cash Flow Pulse",
-    showTrend: "Spending Curve",
     showRisk: "Risk Metrics",
     showRecentExpenses: "Recent Transactions Card",
     showToday: "Today Card",
-    showRecentCompare: "Recent 3-Day Card",
+    showRecentCompare: "SpendingChange",
     showAccounts: "Accounts Card",
     showDebug: "Debug Panel",
     logout: "Logout",
@@ -425,7 +425,6 @@ const I18N = {
     debugCopyDone: "Diagnostics copied",
     debugCopyFailed: "Copy failed",
     refreshFailedAfterSave: "Saved, but refresh failed.",
-    trendTitle: "📉 Spending Curve",
     trendModeExpense: "Daily Expense",
     trendModeNetWorth: "Net Worth Change",
     trendFrom: "From",
@@ -437,6 +436,19 @@ const I18N = {
     categories: "🧩 Categories",
     navBudget: "Budget",
     navAccounts: "Accounts",
+    accountsEmptyTitle: "No accounts yet",
+    accountsEmptyHint: "Create one account to start tracking balances and transactions.",
+    accountBaseCurrencyBadge: "Base {currency}",
+    accountCreateEyebrow: "New Account",
+    accountCreateTitle: "Create Your First Account",
+    accountCreateHint: "Keep it simple. Start with the account you use most often.",
+    accountNameLabel: "Name",
+    accountTypeQuickLabel: "Common Types",
+    accountTypeLabel: "All Types",
+    accountCurrencyLabel: "Currency",
+    accountBalanceLabel: "Current Balance",
+    accountCreateBalanceHint: "Use the balance right now. We will treat it as your starting point and keep future transactions on top.",
+    createAccount: "Create Account",
     navReview: "Monthly Review",
     navCategories: "Categories",
     navAgentAccess: "Agent Access",
@@ -498,6 +510,8 @@ const I18N = {
     accountForceDeleteConfirm:
       "Force delete this account and all linked transactions ({count})? This cannot be undone.",
     accountUpdated: "Account updated",
+    accountEditCurrencyLabel: "Currency",
+    accountEditBalanceHint: "Changing current balance updates this account's starting point while keeping linked transactions intact.",
     accountDeleted: "Account deleted",
     accountForceDeleted: "Account and linked transactions deleted",
     metricNetWorth: "Net Worth",
@@ -537,7 +551,7 @@ const I18N = {
     emptyNoMonthlyBudget: "No monthly budgets.",
     emptyNoYearlyBudget: "No yearly budgets.",
     emptyNoQuickBudget: "No budgets yet.",
-    recentCompareTitle: "📉 Spending Change",
+    recentCompareTitle: "📉 SpendingChange",
     recentCompareSummaryQuiet: "No spending spikes over the past 7 days.",
     recentCompareSummaryDown: "Spent {amount} {currency} in the past 7 days, down {pct} vs last week.",
     recentCompareSummaryUp: "Spent {amount} {currency} in the past 7 days, up {pct} vs last week.",
@@ -652,7 +666,6 @@ const I18N = {
     tabSettings: "设置",
     dashboard: "总览",
     pinned: "置顶",
-    cashFlowPulse: "📈 现金流脉冲",
     liquiditySplit: "流动性结构",
     runwaySignal: "Runway 信号",
     riskMetrics: "⚠️ 风险指标",
@@ -702,24 +715,25 @@ const I18N = {
     onboardingProgress: "第 {current} / 4 步",
     onboardingStep1Title: "第 1 步 · 居住信息",
     onboardingStep2Title: "第 2 步 · 收入区间",
-    onboardingStep3Title: "第 3 步 · 财务现状",
+    onboardingStep3Title: "第 3 步 · 添加第一个账户",
     onboardingStep4Title: "第 4 步 · Agent 引导",
     onboardingCountry: "你生活的国家/地区",
     onboardingTimezone: "时区",
     onboardingIncomeBand: "月收入区间",
+    onboardingIncomeBandWithCurrency: "月收入区间（{currency}）",
+    onboardingIncomeBandHint: "这里的区间会按你所在国家对应的 {currency} 来理解。",
     onboardingGeoHint: "请填写你当前生活的国家/地区。系统会按国家自动映射基础币种。",
     onboardingContinue: "继续",
     onboardingStep2Intro: "用于生成你的建议月预算。",
-    onboardingStep3Intro: "请至少创建一个账户。系统会先给出建议预算配比，后续可在预算页再调整。",
-    onboardingCategoryHint: "分类已默认启用，后续可在分类页面再细调。",
     onboardingAccountsTitle: "账户",
+    onboardingAccountsHint: "先填你的主账户、工资卡，或者最常用的现金钱包。",
+    onboardingAccountNameLabel: "账户名称",
+    onboardingAccountTypeQuickLabel: "常用类型",
+    onboardingAccountBalanceLabel: "当前余额",
+    onboardingAccountBalanceHint: "这个金额会默认使用你当前的基础币种。",
     onboardingCategoriesTitle: "分类",
-    onboardingBudgetTitle: "建议月预算",
-    onboardingBudgetHint: "我们已根据你的收入区间生成分类预算配比，后续可在预算页自行调整。",
-    onboardingBudgetRatioText: "约 {percent}% · {amount} {currency}/月",
-    onboardingBudgetHintWithValues: "估算收入：{income} {currency} · 预算盘子：{budget} {currency} · 缓冲：{buffer} {currency}",
     onboardingNeedAccount: "请至少创建一个账户后再继续。",
-    onboardingSavedStep2: "财务快照已保存，可以进入下一步。",
+    onboardingSavedStep2: "账户已保存，可以进入下一步。",
     onboardingDefaultAccountName: "默认账户",
     onboardingStep4Intro: "我们支持你的 agent 丝滑快速记账。请选择是否现在接入：",
     onboardingHasAgentYes: "有，我现在接入",
@@ -754,11 +768,11 @@ const I18N = {
     onboardingAddL2: "新增 L2",
     onboardingNoAccounts: "还没有账户。",
     onboardingNoCategories: "暂无可用分类。",
-    onboardingIncomeBandLt3000: "< 3,000",
-    onboardingIncomeBand3000_8000: "3,000 - 8,000",
-    onboardingIncomeBand8000_20000: "8,000 - 20,000",
-    onboardingIncomeBand20000_50000: "20,000 - 50,000",
-    onboardingIncomeBand50000Plus: "50,000+",
+    onboardingIncomeBandLt3000: "< 3,000 {currency}",
+    onboardingIncomeBand3000_8000: "3,000 - 8,000 {currency}",
+    onboardingIncomeBand8000_20000: "8,000 - 20,000 {currency}",
+    onboardingIncomeBand20000_50000: "20,000 - 50,000 {currency}",
+    onboardingIncomeBand50000Plus: "50,000+ {currency}",
     close: "关闭",
     date: "日期",
     type: "类型",
@@ -818,13 +832,10 @@ const I18N = {
     timezone: "时区",
     saveSettings: "保存设置",
     general: "通用",
-    advancedInsights: "高级洞察",
-    showCashFlow: "现金流脉冲",
-    showTrend: "支出曲线",
     showRisk: "风险指标",
     showRecentExpenses: "最近交易卡片",
     showToday: "今日卡片",
-    showRecentCompare: "最近三日卡片",
+    showRecentCompare: "支出变化",
     showAccounts: "账户卡片",
     showDebug: "调试面板",
     logout: "退出登录",
@@ -841,7 +852,6 @@ const I18N = {
     debugCopyDone: "诊断信息已复制",
     debugCopyFailed: "复制失败",
     refreshFailedAfterSave: "保存成功，但刷新失败。",
-    trendTitle: "📉 支出曲线",
     trendModeExpense: "每日支出",
     trendModeNetWorth: "净资产变化",
     trendFrom: "开始",
@@ -853,6 +863,19 @@ const I18N = {
     categories: "🧩 分类管理",
     navBudget: "预算",
     navAccounts: "账户管理",
+    accountsEmptyTitle: "还没有账户",
+    accountsEmptyHint: "先创建一个账户，再开始记账和看余额。",
+    accountBaseCurrencyBadge: "基准 {currency}",
+    accountCreateEyebrow: "新账户",
+    accountCreateTitle: "创建你的第一个账户",
+    accountCreateHint: "先从最常用的账户开始，后面的账户可以慢慢补。",
+    accountNameLabel: "名称",
+    accountTypeQuickLabel: "常用类型",
+    accountTypeLabel: "全部类型",
+    accountCurrencyLabel: "币种",
+    accountBalanceLabel: "当前余额",
+    accountCreateBalanceHint: "填写此刻余额即可。系统会把它当作起点，后续交易在这个基础上累加。",
+    createAccount: "创建账户",
     navReview: "月度回顾",
     navCategories: "分类管理",
     navAgentAccess: "Agent 接入",
@@ -913,6 +936,8 @@ const I18N = {
     accountDeleteConfirm: "确认删除该账户？删除后不可恢复。",
     accountForceDeleteConfirm: "强制删除该账户及其关联交易（{count}）？删除后不可恢复。",
     accountUpdated: "账户已更新",
+    accountEditCurrencyLabel: "币种",
+    accountEditBalanceHint: "修改当前余额时，系统会调整这个账户的起始点，但会保留已关联交易。",
     accountDeleted: "账户已删除",
     accountForceDeleted: "账户及关联交易已删除",
     metricNetWorth: "净资产",
@@ -1119,6 +1144,7 @@ function bindUI() {
   if (onboardingAccountForm) {
     onboardingAccountForm.addEventListener("submit", submitOnboardingAccountForm);
   }
+  bindAccountTypePickers();
   const onboardingAddL1Btn = $("#onboardingAddL1Btn");
   if (onboardingAddL1Btn) {
     onboardingAddL1Btn.addEventListener("click", () => {
@@ -1129,12 +1155,6 @@ function bindUI() {
   if (onboardingAddL2Btn) {
     onboardingAddL2Btn.addEventListener("click", () => {
       void addOnboardingL2Category();
-    });
-  }
-  const onboardingStep3ContinueBtn = $("#onboardingStep3ContinueBtn");
-  if (onboardingStep3ContinueBtn) {
-    onboardingStep3ContinueBtn.addEventListener("click", () => {
-      void submitOnboardingStep3();
     });
   }
   for (const input of document.querySelectorAll("input[name=onboarding_agent_choice]")) {
@@ -2331,8 +2351,8 @@ async function copyTextToClipboard(text) {
 }
 
 function buildAgentSetupGuide(tokenOverride = "") {
-  const skillFolderUrl =
-    "https://github.com/Uacer/Nomad-Finance-OS/tree/main/skills/nomad-capture-ledger";
+  const repoUrl = "https://github.com/Uacer/Nomad-Finance-OS";
+  const skillPath = "skills/nomad-capture-ledger";
   const token = String(tokenOverride || "").trim() || "<PASTE_AGENT_API_TOKEN>";
   const lang = ensureUILanguage(state.settings?.ui_language);
 
@@ -2340,7 +2360,8 @@ function buildAgentSetupGuide(tokenOverride = "") {
     return [
       "请安装 `nomad-capture-ledger` skill（包含目录内全部文件）：",
       "",
-      `- GitHub Skill: ${skillFolderUrl}`,
+      `- GitHub Repo: ${repoUrl}`,
+      `- Skill Path: ${skillPath}`,
       `- Agent API Token: ${token}`
     ].join("\n");
   }
@@ -2348,7 +2369,8 @@ function buildAgentSetupGuide(tokenOverride = "") {
   return [
     "Please install the `nomad-capture-ledger` skill (include all files):",
     "",
-    `- GitHub Skill: ${skillFolderUrl}`,
+    `- GitHub Repo: ${repoUrl}`,
+    `- Skill Path: ${skillPath}`,
     `- Agent API Token: ${token}`
   ].join("\n");
 }
@@ -2549,10 +2571,6 @@ async function initializeOnboardingDraftState() {
   state.onboarding.agentChoice = "";
   state.onboarding.finishing = false;
 
-  if (state.onboarding.step === "step3" || state.onboarding.step === "step4") {
-    await refreshOnboardingBudgetSuggestion({ preserveExisting: true });
-    await ensureOnboardingDefaultAccount();
-  }
   renderOnboardingGate();
 }
 
@@ -2560,6 +2578,8 @@ function renderOnboardingGate() {
   const currentStep = normalizeOnboardingStep(state.onboarding.step || "step1");
   const displayStep = currentStep === "step2" ? 2 : currentStep === "step3" ? 3 : currentStep === "step4" ? 4 : 1;
   setText("onboardingProgressText", t("onboardingProgress", { current: String(displayStep) }));
+  updateAccountCurrencyBadges();
+  updateOnboardingIncomeBandCopy();
 
   const step1 = $("#onboardingStep1");
   const step2 = $("#onboardingStep2");
@@ -2581,19 +2601,8 @@ function renderOnboardingGate() {
   }
   const bandInput = $("#onboardingIncomeBandInput");
   if (bandInput instanceof HTMLSelectElement) bandInput.value = ensureOnboardingIncomeBand(state.onboarding.incomeBand);
-  const accountCurrency = $("#onboardingAccountCurrencyInput");
-  if (accountCurrency instanceof HTMLSelectElement) {
-    accountCurrency.value = ensureUICurrency(state.onboarding.baseCurrency || "USD");
-  }
-  const accountNameInput = $("#onboardingAccountNameInput");
-  if (accountNameInput instanceof HTMLInputElement) {
-    if (!accountNameInput.value.trim() && (!Array.isArray(state.accounts) || state.accounts.length === 0)) {
-      accountNameInput.value = t("onboardingDefaultAccountName");
-    }
-  }
-  renderOnboardingAccounts();
+  renderAccountTypePickers();
   renderOnboardingCategorySummary();
-  renderOnboardingBudgetDraft();
   const yesInput = $("#onboardingHasAgentYes");
   const noInput = $("#onboardingHasAgentNo");
   const choice = state.onboarding.agentChoice === "yes" ? "yes" : state.onboarding.agentChoice === "no" ? "no" : "";
@@ -2605,80 +2614,6 @@ function renderOnboardingGate() {
     noInput.checked = choice === "no";
     noInput.disabled = Boolean(state.onboarding.finishing);
   }
-}
-
-async function ensureOnboardingDefaultAccount() {
-  const step = normalizeOnboardingStep(state.onboarding.step || "step1");
-  if (step !== "step3" && step !== "step4") return;
-  if (Array.isArray(state.accounts) && state.accounts.length > 0) return;
-  try {
-    await api("/api/v1/accounts", {
-      method: "POST",
-      body: JSON.stringify({
-        name: t("onboardingDefaultAccountName"),
-        type: "bank",
-        currency: ensureUICurrency(state.onboarding.baseCurrency || state.settings?.base_currency || "USD"),
-        balance: 0
-      })
-    });
-    await loadAccounts();
-  } catch (error) {
-    showErrorToast(error);
-  }
-}
-
-function isAutoDefaultOnboardingAccount(row) {
-  if (!row) return false;
-  const normalizedName = String(row.name || "").trim().toLowerCase();
-  const expectedNames = new Set(
-    [
-      String(t("onboardingDefaultAccountName") || "").trim().toLowerCase(),
-      "default",
-      "默认账户"
-    ].filter(Boolean)
-  );
-  const balance = Number(row.balance || 0);
-  return expectedNames.has(normalizedName) && String(row.type || "") === "bank" && Math.abs(balance) < 0.000001;
-}
-
-async function cleanupRedundantOnboardingDefaultAccounts() {
-  const accounts = Array.isArray(state.accounts) ? state.accounts : [];
-  if (accounts.length <= 1) return false;
-  const removable = accounts.filter((row) => isAutoDefaultOnboardingAccount(row));
-  if (!removable.length) return false;
-  const hasNonDefaultAccount = accounts.some((row) => !isAutoDefaultOnboardingAccount(row));
-  if (!hasNonDefaultAccount) return false;
-  for (const row of removable) {
-    try {
-      await api(`/api/v1/accounts/${row.id}?force=true`, { method: "DELETE" });
-    } catch {
-      // best effort cleanup only
-    }
-  }
-  return true;
-}
-
-function renderOnboardingAccounts() {
-  const target = $("#onboardingAccountList");
-  if (!target) return;
-  const rows = Array.isArray(state.accounts) ? state.accounts : [];
-  if (!rows.length) {
-    target.innerHTML = `<p class="muted">${escapeHtml(t("onboardingNoAccounts"))}</p>`;
-    return;
-  }
-  target.innerHTML = rows
-    .map(
-      (row) => `
-        <article class="list-row">
-          <div>
-            <strong>${escapeHtml(String(row.name || ""))}</strong>
-            <p class="muted small">${escapeHtml(accountTypeLabel(row.type || ""))} · ${escapeHtml(String(row.currency || ""))}</p>
-          </div>
-          <div class="mono">${formatMoney(row.balance || 0)}</div>
-        </article>
-      `
-    )
-    .join("");
 }
 
 function getActiveOnboardingL1Categories() {
@@ -2717,80 +2652,6 @@ function renderOnboardingCategorySummary() {
       `;
     })
     .join("");
-}
-
-function renderOnboardingBudgetDraft() {
-  const target = $("#onboardingBudgetList");
-  if (!target) return;
-  const activeL1 = getActiveOnboardingL1Categories();
-  if (!activeL1.length) {
-    target.innerHTML = "";
-    return;
-  }
-  const rows = activeL1
-    .map((l1) => ({
-      l1,
-      amount: Number(state.onboarding.budgetDraft?.[l1] || 0)
-    }))
-    .sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0));
-  const budgetPool = Number(state.onboarding.budgetPool || 0);
-  const currency = formatCurrencyUnit(state.onboarding.baseCurrency || state.settings?.base_currency || "USD");
-  target.innerHTML = rows
-    .map(
-      ({ l1, amount }) => {
-        const safeAmount = Number.isFinite(amount) ? Math.max(0, amount) : 0;
-        const percent = budgetPool > 0 ? Math.round((safeAmount / budgetPool) * 100) : 0;
-        return `
-          <article class="onboarding-budget-row">
-            <span class="onboarding-budget-name">${escapeHtml(withL1Emoji(l1, { localizeDefault: true, isDefault: Boolean(state.categories?.[l1]?.is_default) }))}</span>
-            <span class="onboarding-budget-ratio">${escapeHtml(
-              t("onboardingBudgetRatioText", {
-                percent: String(percent),
-                amount: formatMoney(safeAmount),
-                currency
-              })
-            )}</span>
-          </article>
-        `;
-      }
-    )
-    .join("");
-  const hint = $("#onboardingBudgetHint");
-  if (hint) {
-    hint.textContent = t("onboardingBudgetHint");
-  }
-}
-
-async function refreshOnboardingBudgetSuggestion(options = {}) {
-  const preserveExisting = Boolean(options.preserveExisting);
-  const activeL1 = getActiveOnboardingL1Categories();
-  const suggestion = await api("/api/v1/onboarding/budget-suggestion", {
-    method: "POST",
-    body: JSON.stringify({
-      income_band: ensureOnboardingIncomeBand(state.onboarding.incomeBand || "8000_20000"),
-      base_currency: ensureUICurrency(state.onboarding.baseCurrency || "USD"),
-      active_l1: activeL1
-    })
-  });
-  state.onboarding.incomeEstimate = Number(suggestion?.estimated_monthly_income || 0);
-  state.onboarding.budgetPool = Number(suggestion?.budget_pool || 0);
-  state.onboarding.savingsBuffer = Number(suggestion?.savings_buffer || 0);
-  const previous = preserveExisting && state.onboarding.budgetDraft ? { ...state.onboarding.budgetDraft } : {};
-  const next = {};
-  for (const row of suggestion?.allocations || []) {
-    const key = String(row?.category_l1 || "");
-    if (!key) continue;
-    const fallback = Number(row?.recommended_amount || 0);
-    const fromExisting = Number(previous[key]);
-    next[key] = Number.isFinite(fromExisting) ? fromExisting : fallback;
-  }
-  for (const l1 of activeL1) {
-    if (next[l1] === undefined) {
-      const fromExisting = Number(previous[l1]);
-      next[l1] = Number.isFinite(fromExisting) ? fromExisting : 0;
-    }
-  }
-  state.onboarding.budgetDraft = next;
 }
 
 async function submitOnboardingStep1Form(event) {
@@ -2840,14 +2701,12 @@ async function submitOnboardingStep2Form(event) {
     });
     state.settings = { ...(state.settings || {}), ...(updated || {}) };
     state.onboarding.incomeBand = incomeBand;
-    await refreshOnboardingBudgetSuggestion({ preserveExisting: false });
     await api("/api/v1/onboarding/state", {
       method: "PUT",
       body: JSON.stringify({ current_step: "step3" })
     });
     state.onboarding.currentStep = "step3";
     state.onboarding.step = "step3";
-    await ensureOnboardingDefaultAccount();
     renderOnboardingGate();
   } catch (error) {
     showErrorToast(error);
@@ -2864,7 +2723,7 @@ async function submitOnboardingAccountForm(event) {
   const payload = {
     name,
     type: String(fd.get("type") || "cash"),
-    currency: ensureUICurrency(fd.get("currency") || state.onboarding.baseCurrency || "USD"),
+    currency: ensureUICurrency(state.onboarding.baseCurrency || state.settings?.base_currency || "USD"),
     balance: Number(fd.get("balance") || 0)
   };
   if (!Number.isFinite(payload.balance)) payload.balance = 0;
@@ -2873,14 +2732,14 @@ async function submitOnboardingAccountForm(event) {
       method: "POST",
       body: JSON.stringify(payload)
     });
-    form.reset();
-    const currencyInput = $("#onboardingAccountCurrencyInput");
-    if (currencyInput instanceof HTMLSelectElement) {
-      currencyInput.value = ensureUICurrency(state.onboarding.baseCurrency || "USD");
-    }
     await loadAccounts();
-    const cleaned = await cleanupRedundantOnboardingDefaultAccounts();
-    if (cleaned) await loadAccounts();
+    await api("/api/v1/onboarding/state", {
+      method: "PUT",
+      body: JSON.stringify({ current_step: "step4" })
+    });
+    state.onboarding.currentStep = "step4";
+    state.onboarding.step = "step4";
+    resetOnboardingAccountForm();
     renderOnboardingGate();
   } catch (error) {
     showErrorToast(error);
@@ -2895,11 +2754,6 @@ async function addOnboardingL1Category() {
   const ok = await createL1CategoryRecord(value);
   if (!ok) return;
   input.value = "";
-  try {
-    await refreshOnboardingBudgetSuggestion({ preserveExisting: true });
-  } catch (error) {
-    showErrorToast(error);
-  }
   renderOnboardingGate();
 }
 
@@ -2916,43 +2770,6 @@ async function addOnboardingL2Category() {
   renderOnboardingGate();
 }
 
-async function submitOnboardingStep3() {
-  if (!Array.isArray(state.accounts) || state.accounts.length < 1) {
-    const message = t("onboardingNeedAccount");
-    const node = $("#onboardingStep3Message");
-    if (node) node.textContent = message;
-    showToast(message, true);
-    return;
-  }
-  const month = state.month || new Date().toISOString().slice(0, 7);
-  const rows = Object.entries(state.onboarding.budgetDraft || {});
-  try {
-    for (const [categoryL1, rawAmount] of rows) {
-      const amount = Number(rawAmount || 0);
-      if (!Number.isFinite(amount) || amount <= 0) continue;
-      await api("/api/v1/budgets", {
-        method: "POST",
-        body: JSON.stringify({
-          month,
-          category_l1: categoryL1,
-          total_amount: Number(amount.toFixed(2))
-        })
-      });
-    }
-    await api("/api/v1/onboarding/state", {
-      method: "PUT",
-      body: JSON.stringify({ current_step: "step4" })
-    });
-    state.onboarding.currentStep = "step4";
-    state.onboarding.step = "step4";
-    const node = $("#onboardingStep3Message");
-    if (node) node.textContent = t("onboardingSavedStep2");
-    renderOnboardingGate();
-  } catch (error) {
-    showErrorToast(error);
-  }
-}
-
 async function finishOnboarding(options = {}) {
   if (state.onboarding.finishing) return;
   const openAgentAccess = Boolean(options.openAgentAccess);
@@ -2967,7 +2784,7 @@ async function finishOnboarding(options = {}) {
     hideOnboardingGate({ keepState: true });
     await loadAll();
     if (openAgentAccess) {
-      switchPanel("settingsPanel");
+      openAgentAccessSetupFlow();
     }
   } catch (error) {
     showErrorToast(error);
@@ -2977,6 +2794,14 @@ async function finishOnboarding(options = {}) {
       renderOnboardingGate();
     }
   }
+}
+
+function openAgentAccessSetupFlow() {
+  state.utilityReturnSheet = "";
+  openUtilityPanel("settingsPanel");
+  const form = document.getElementById("agentTokenForm");
+  if (form instanceof HTMLFormElement) form.reset();
+  openSheet("agentTokenCreateSheet", { preserveUtility: true });
 }
 
 function setAuthMessage(message, options = {}) {
@@ -3316,18 +3141,41 @@ async function loadSettings() {
   state.onboarding.timezone = state.settings.timezone || state.onboarding.timezone;
   state.onboarding.baseCurrency = uiBase;
   state.onboarding.incomeBand = ensureOnboardingIncomeBand(state.settings.monthly_income_band || state.onboarding.incomeBand);
+  updateAccountCurrencyBadges();
+  const accountCreateWrap = $("#accountCreateWrap");
+  const accountForm = $("#accountForm");
+  if (
+    accountForm instanceof HTMLFormElement &&
+    (!(accountCreateWrap instanceof HTMLElement) || accountCreateWrap.classList.contains("hidden"))
+  ) {
+    applyAccountFormDefaults(accountForm);
+  }
   const settingsForm = $("#settingsForm");
   if (settingsForm instanceof HTMLFormElement) {
     const formLanguage = settingsForm.querySelector("[name=ui_language]");
+    const formCountry = settingsForm.querySelector("[name=living_country_code]");
     const formBase = settingsForm.querySelector("[name=base_currency]");
     const formTheme = settingsForm.querySelector("[name=theme]");
     const formCurrencyDisplay = settingsForm.querySelector("[name=currency_display_mode]");
     const formTimezone = settingsForm.querySelector("[name=timezone]");
     if (formLanguage) formLanguage.value = uiLanguage;
+    if (formCountry instanceof HTMLSelectElement) {
+      const currentCountry = ensureOnboardingCountryCode(state.settings.living_country_code || DEFAULT_ONBOARDING_COUNTRY_CODE);
+      const hasOption = Array.from(formCountry.options).some((option) => option.value === currentCountry);
+      if (!hasOption) formCountry.appendChild(new Option(currentCountry, currentCountry));
+      formCountry.value = currentCountry;
+    }
     if (formBase) formBase.value = uiBase;
     if (formTheme) formTheme.value = uiTheme;
     if (formCurrencyDisplay) formCurrencyDisplay.value = currencyDisplayMode;
     if (formTimezone) formTimezone.value = state.settings.timezone || "UTC";
+  }
+  const quickCountrySelect = $("#quickSettingsForm [name=living_country_code]");
+  if (quickCountrySelect instanceof HTMLSelectElement) {
+    const currentCountry = ensureOnboardingCountryCode(state.settings.living_country_code || DEFAULT_ONBOARDING_COUNTRY_CODE);
+    const hasOption = Array.from(quickCountrySelect.options).some((option) => option.value === currentCountry);
+    if (!hasOption) quickCountrySelect.appendChild(new Option(currentCountry, currentCountry));
+    quickCountrySelect.value = currentCountry;
   }
   $("#quickSettingsForm [name=ui_language]").value = uiLanguage;
   $("#quickSettingsForm [name=base_currency]").value = uiBase;
@@ -4235,7 +4083,7 @@ async function submitAccountForm(event) {
     await api("/api/v1/accounts", {
       method: "POST",
       body: JSON.stringify({
-        name: fd.get("name"),
+        name: String(fd.get("name") || "").trim(),
         type: fd.get("type"),
         currency: String(fd.get("currency")).toUpperCase(),
         balance: Number(fd.get("balance") || "0")
@@ -4244,8 +4092,9 @@ async function submitAccountForm(event) {
     showToast(t("accountCreated"));
     try {
       await Promise.all([loadAccounts(), loadDashboard()]);
-      form.reset();
-      $("#accountForm [name=currency]").value = "USD";
+      resetAccountCreateForm();
+      const wrap = $("#accountCreateWrap");
+      if (wrap) wrap.classList.add("hidden");
     } catch (error) {
       showRefreshFailureToast(error);
     }
@@ -4688,7 +4537,8 @@ async function submitSettingsForm(event) {
         timezone: fd.get("timezone"),
         ui_language: ensureUILanguage(fd.get("ui_language")),
         theme: ensureUITheme(fd.get("theme")),
-        currency_display_mode: ensureCurrencyDisplayMode(fd.get("currency_display_mode"))
+        currency_display_mode: ensureCurrencyDisplayMode(fd.get("currency_display_mode")),
+        living_country_code: ensureOnboardingCountryCode(fd.get("living_country_code") || state.settings?.living_country_code)
       })
     });
     showToast(t("settingsUpdated"));
@@ -4715,6 +4565,7 @@ async function submitQuickSettingsForm(event) {
     state.auth.devBypass = true;
   }
   try {
+    const livingCountryCode = ensureOnboardingCountryCode(fd.get("living_country_code") || state.settings?.living_country_code);
     await api("/api/v1/settings", {
       method: "PUT",
       body: JSON.stringify({
@@ -4722,7 +4573,8 @@ async function submitQuickSettingsForm(event) {
         timezone: fd.get("timezone") || "UTC",
         ui_language: ensureUILanguage(fd.get("ui_language")),
         theme: ensureUITheme(fd.get("theme")),
-        currency_display_mode: ensureCurrencyDisplayMode(fd.get("currency_display_mode"))
+        currency_display_mode: ensureCurrencyDisplayMode(fd.get("currency_display_mode")),
+        living_country_code: livingCountryCode
       })
     });
     showToast(t("settingsUpdated"));
@@ -5206,7 +5058,12 @@ function renderBudgetPieView(monthlyRows, yearlyRows, baseCurrency) {
 function renderAccounts() {
   const target = $("#accountList");
   if (!state.accounts.length) {
-    target.innerHTML = '<div class="list-row muted" style="padding:16px;text-align:center">No accounts yet. Create one above.</div>';
+    target.innerHTML = `
+      <article class="list-row">
+        <strong>${escapeHtml(t("accountsEmptyTitle"))}</strong>
+        <p class="muted small">${escapeHtml(t("accountsEmptyHint"))}</p>
+      </article>
+    `;
     return;
   }
   target.innerHTML = state.accounts
@@ -5225,11 +5082,15 @@ function renderAccounts() {
           <span class="account-type-icon">${icon}</span>
           <div class="account-info">
             <span class="account-name">${escapeHtml(row.name)}</span>
-            <span class="account-meta muted">${escapeHtml(label)} · ${escapeHtml(
-              formatCurrencyUnit(accountCurrency)
-            )}</span>
+            <div class="account-meta-row">
+              <span class="account-meta muted">${escapeHtml(label)}</span>
+              <span class="pill">${escapeHtml(formatCurrencyUnit(accountCurrency))}</span>
+            </div>
           </div>
-          <span class="account-balance mono${isNeg ? " overspend" : ""}">${bal}</span>
+          <span class="account-balance mono${isNeg ? " overspend" : ""}">${renderMoneyWithUnit(
+            bal,
+            formatCurrencyUnit(accountCurrency)
+          )}</span>
         </div>
       </article>`;
     })
@@ -5291,7 +5152,8 @@ function openAccountEditSheet(accountId) {
   const form = $("#accountEditForm");
   if (!(form instanceof HTMLFormElement)) return;
   form.elements.account_id.value = String(account.id);
-  form.elements.account_name.value = `${account.name} · ${account.currency}`;
+  form.elements.name.value = String(account.name || "");
+  form.elements.account_currency.value = String(account.currency || "");
   form.elements.type.value = String(account.type || "bank");
   form.elements.balance.value = String(Number(account.balance || 0));
   openSheet("accountEditSheet", { preserveUtility: true });
@@ -5303,16 +5165,17 @@ async function submitAccountEditForm(event) {
   if (!(form instanceof HTMLFormElement)) return;
   const fd = new FormData(form);
   const accountId = Number(fd.get("account_id"));
+  const name = String(fd.get("name") || "").trim();
   const type = String(fd.get("type") || "").trim();
   const balance = Number(fd.get("balance"));
-  if (!Number.isInteger(accountId) || accountId <= 0 || !type || !Number.isFinite(balance)) {
+  if (!Number.isInteger(accountId) || accountId <= 0 || !name || !type || !Number.isFinite(balance)) {
     showToast(t("invalidAmount"), true);
     return;
   }
   try {
     await api(`/api/v1/accounts/${accountId}`, {
       method: "PATCH",
-      body: JSON.stringify({ type, balance })
+      body: JSON.stringify({ name, type, balance })
     });
     showToast(t("accountUpdated"));
     try {
@@ -6705,6 +6568,30 @@ function getOnboardingBaseCurrencyForCountry(value) {
   return ensureUICurrency(ONBOARDING_COUNTRY_BASE_CURRENCY[countryCode] || "USD");
 }
 
+function updateOnboardingIncomeBandCopy() {
+  const currency = getOnboardingBaseCurrencyForCountry(
+    state.onboarding.countryCode || state.settings?.living_country_code || DEFAULT_ONBOARDING_COUNTRY_CODE
+  );
+  setText("onboardingIncomeBandLabel", t("onboardingIncomeBandWithCurrency", { currency }));
+  setText("onboardingIncomeBandHint", t("onboardingIncomeBandHint", { currency }));
+  setText("onboardingIncomeBandLt3000", t("onboardingIncomeBandLt3000", { currency }));
+  setText("onboardingIncomeBand3000_8000", t("onboardingIncomeBand3000_8000", { currency }));
+  setText("onboardingIncomeBand8000_20000", t("onboardingIncomeBand8000_20000", { currency }));
+  setText("onboardingIncomeBand20000_50000", t("onboardingIncomeBand20000_50000", { currency }));
+  setText("onboardingIncomeBand50000Plus", t("onboardingIncomeBand50000Plus", { currency }));
+}
+
+function syncOnboardingDefaultAccountName() {
+  const input = $("#onboardingAccountNameInput");
+  if (!(input instanceof HTMLInputElement)) return;
+  const defaults = new Set(["default", "默认账户"]);
+  const nextDefault = t("onboardingDefaultAccountName");
+  const current = String(input.value || "").trim();
+  if (!current || defaults.has(current)) {
+    input.value = nextDefault;
+  }
+}
+
 function normalizeOnboardingStep(value) {
   const step = String(value || "step1").trim();
   return ONBOARDING_STEPS.has(step) ? step : "step1";
@@ -6767,21 +6654,21 @@ function applyI18n() {
   setText("onboardingStep3Title", t("onboardingStep3Title"));
   setText("onboardingStep4Title", t("onboardingStep4Title"));
   setText("onboardingCountryLabel", t("onboardingCountry"));
-  setText("onboardingIncomeBandLabel", t("onboardingIncomeBand"));
   setText("onboardingGeoHint", t("onboardingGeoHint"));
   setText("onboardingStep1ContinueBtn", t("onboardingContinue"));
   setText("onboardingStep2Intro", t("onboardingStep2Intro"));
+  setText("onboardingIncomeBandHint", t("onboardingIncomeBandHint", { currency: getOnboardingBaseCurrencyForCountry(state.onboarding.countryCode) }));
   setText("onboardingStep2ContinueBtn", t("onboardingContinue"));
-  setText("onboardingStep3Intro", t("onboardingStep3Intro"));
-  setText("onboardingCategoryHint", t("onboardingCategoryHint"));
   setText("onboardingAccountsTitle", t("onboardingAccountsTitle"));
+  setText("onboardingAccountsHint", t("onboardingAccountsHint"));
+  setText("onboardingAccountNameLabel", t("onboardingAccountNameLabel"));
+  setText("onboardingAccountTypeQuickLabel", t("onboardingAccountTypeQuickLabel"));
+  setText("onboardingAccountBalanceLabel", t("onboardingAccountBalanceLabel"));
+  setText("onboardingAccountBalanceHint", t("onboardingAccountBalanceHint"));
   setText("onboardingCategoriesTitle", t("onboardingCategoriesTitle"));
-  setText("onboardingBudgetTitle", t("onboardingBudgetTitle"));
-  setText("onboardingBudgetHint", t("onboardingBudgetHint"));
-  setText("onboardingAddAccountBtn", t("onboardingAdd"));
+  setText("onboardingAddAccountBtn", t("onboardingContinue"));
   setText("onboardingAddL1Btn", t("onboardingAddL1"));
   setText("onboardingAddL2Btn", t("onboardingAddL2"));
-  setText("onboardingStep3ContinueBtn", t("onboardingContinue"));
   setText("onboardingStep4Intro", t("onboardingStep4Intro"));
   setText("onboardingHasAgentYesLabel", t("onboardingHasAgentYes"));
   setText("onboardingHasAgentNoLabel", t("onboardingHasAgentNo"));
@@ -6805,16 +6692,15 @@ function applyI18n() {
   setText("onboardingCountryOptionAE", t("onboardingCountryOptionAE"));
   const onboardingAccountNameInput = $("#onboardingAccountNameInput");
   if (onboardingAccountNameInput) onboardingAccountNameInput.placeholder = t("onboardingAccountNamePlaceholder");
+  syncOnboardingDefaultAccountName();
   const onboardingNewL1Input = $("#onboardingNewL1Input");
   if (onboardingNewL1Input) onboardingNewL1Input.placeholder = t("onboardingNewL1Placeholder");
   const onboardingNewL2Input = $("#onboardingNewL2Input");
   if (onboardingNewL2Input) onboardingNewL2Input.placeholder = t("onboardingNewL2Placeholder");
-  setText("onboardingIncomeBandLt3000", t("onboardingIncomeBandLt3000"));
-  setText("onboardingIncomeBand3000_8000", t("onboardingIncomeBand3000_8000"));
-  setText("onboardingIncomeBand8000_20000", t("onboardingIncomeBand8000_20000"));
-  setText("onboardingIncomeBand20000_50000", t("onboardingIncomeBand20000_50000"));
-  setText("onboardingIncomeBand50000Plus", t("onboardingIncomeBand50000Plus"));
+  updateOnboardingIncomeBandCopy();
   localizeAccountTypeSelectOptions();
+  updateAccountCurrencyBadges();
+  renderAccountTypePickers();
   syncTopCurrencyModeControl();
   setText("subtitleText", t("subtitle"));
   setText("monthLabelText", t("month"));
@@ -6860,10 +6746,8 @@ function applyI18n() {
   if (bvPie) bvPie.innerHTML = "◔";
   setAttr("quickEntryBackBtn", "title", t("back"));
   setAttr("quickEntryBackBtn", "aria-label", t("back"));
-  setText("trendTitle", t("trendTitle"));
   setText("trendFromLabel", t("trendFrom"));
   setText("trendToLabel", t("trendTo"));
-  setText("cashFlowTitle", t("cashFlowPulse"));
   setText("riskTitle", t("riskMetrics"));
   setText(
     "quickEntryTitle",
@@ -6917,6 +6801,7 @@ function applyI18n() {
   setText("settingsGeneralPageTitle", t("general"));
   setText("quickSettingsUserLabel", t("userId"));
   setText("quickSettingsLangLabel", t("language"));
+  setText("quickSettingsCountryLabel", t("onboardingCountry"));
   setText("quickSettingsBaseLabel", t("baseCurrency"));
   setText("quickSettingsCurrencyDisplayLabel", t("currencyDisplay"));
   setText("quickSettingsCurrencyDisplayCodeOption", t("currencyDisplayCode"));
@@ -6927,13 +6812,10 @@ function applyI18n() {
   setText("quickSettingsThemeDarkOption", t("themeDark"));
   setText("quickSettingsThemeAuroraOption", t("themeAurora"));
   setText("quickSettingsTimezoneLabel", t("timezone"));
-  setText("quickSettingsAdvancedLabel", t("advancedInsights"));
+  setText("quickSettingsAdvancedLabel", t("dashboardWidgets"));
   setText("settingsAdvancedPageTitle", t("dashboardWidgets"));
   setText("settingsAdvancedSectionLabel", t("showOnDashboard"));
-  setText("toggleCashFlowLabel", t("showCashFlow"));
-  setText("toggleTrendLabel", t("showTrend"));
   setText("toggleRiskLabel", t("showRisk"));
-  setText("toggleDebugLabel", t("showDebug"));
   setText("toggleRecentExpensesLabel", t("showRecentExpenses"));
   setText("toggleTodayLabel", t("showToday"));
   setText("toggleRecentCompareLabel", t("showRecentCompare"));
@@ -6949,7 +6831,6 @@ function applyI18n() {
   setText("quickLogoutBtn", t("logout"));
   setText("settingsLinkBudgetLabel", t("navBudget"));
   setText("settingsLinkAccountsLabel", t("navAccounts"));
-  setText("settingsLinkReviewLabel", t("navReview"));
   setText("settingsLinkCategoriesLabel", t("navCategories"));
   setText("addL1BottomBtn", t("addL1Bottom"));
   setText("budgetAddCategoryLabel", t("addCategory"));
@@ -6967,10 +6848,22 @@ function applyI18n() {
   setText("agentTokenRevealOptionSetup", t("agentTokenRevealOptionSetup"));
   setText("agentTokenRevealCopyBtn", t("copyTokenOnly"));
   setText("agentTokenRevealCopySetupBtn", t("copyAgentSetupWithToken"));
+  setText("accountCreateEyebrow", t("accountCreateEyebrow"));
+  setText("accountCreateTitle", t("accountCreateTitle"));
+  setText("accountCreateHint", t("accountCreateHint"));
+  setText("accountNameLabel", t("accountNameLabel"));
+  setText("accountTypeQuickLabel", t("accountTypeQuickLabel"));
+  setText("accountTypeLabel", t("accountTypeLabel"));
+  setText("accountCurrencyLabel", t("accountCurrencyLabel"));
+  setText("accountBalanceLabel", t("accountBalanceLabel"));
+  setText("accountCreateBalanceHint", t("accountCreateBalanceHint"));
+  setText("accountCreateSubmitBtn", t("createAccount"));
   setText("accountEditTitle", t("editAccount"));
-  setText("accountEditNameLabel", t("account"));
+  setText("accountEditNameLabel", t("onboardingAccountNameLabel"));
+  setText("accountEditCurrencyLabel", t("accountEditCurrencyLabel"));
   setText("accountEditTypeLabel", t("accountType"));
-  setText("accountEditBalanceLabel", t("amount"));
+  setText("accountEditBalanceLabel", t("accountBalanceLabel"));
+  setText("accountEditBalanceHint", t("accountEditBalanceHint"));
   setText("accountEditSaveBtn", t("saveAccount"));
   setText("accountDeleteBtn", t("deleteAccount"));
   setText("accountForceDeleteBtn", t("forceDeleteAccount"));
@@ -7277,6 +7170,109 @@ function accountTypeDisplay(type) {
   return `${accountTypeEmoji(type)} ${accountTypeLabel(type)}`;
 }
 
+function getQuickAccountTypeChoices() {
+  const language = ensureUILanguage(state.settings?.ui_language || "en");
+  return ACCOUNT_TYPE_PICKER_PRESETS[language] || ACCOUNT_TYPE_PICKER_PRESETS.en;
+}
+
+function getDefaultAccountCurrency() {
+  return ensureUICurrency(state.settings?.base_currency || state.onboarding.baseCurrency || "USD");
+}
+
+function updateAccountCurrencyBadges() {
+  const currency = formatCurrencyUnit(getDefaultAccountCurrency());
+  setText("accountCreateCurrencyBadge", t("accountBaseCurrencyBadge", { currency }));
+  setText("onboardingAccountCurrencyBadge", t("accountBaseCurrencyBadge", { currency }));
+}
+
+function renderAccountTypePickers() {
+  const quickChoices = getQuickAccountTypeChoices();
+  for (const container of document.querySelectorAll("[data-account-type-picker]")) {
+    const selectId = String(container.getAttribute("data-account-type-select-id") || "").trim();
+    const select = document.getElementById(selectId);
+    if (!(select instanceof HTMLSelectElement)) continue;
+    const currentValue = String(select.value || "bank").trim();
+    const choices = [...new Set([...quickChoices, currentValue])];
+    container.innerHTML = choices
+      .map((type) => {
+        const activeClass = currentValue === type ? " is-active" : "";
+        return `
+          <button class="account-type-choice${activeClass}" type="button" data-value="${escapeHtml(type)}">
+            <span class="account-type-choice-emoji">${escapeHtml(accountTypeEmoji(type))}</span>
+            <span class="account-type-choice-label">${escapeHtml(accountTypeLabel(type))}</span>
+          </button>
+        `;
+      })
+      .join("");
+  }
+}
+
+function bindAccountTypePickers() {
+  for (const container of document.querySelectorAll("[data-account-type-picker]")) {
+    if (!container.dataset.bound) {
+      container.addEventListener("click", (event) => {
+        const button = event.target instanceof Element ? event.target.closest(".account-type-choice") : null;
+        if (!(button instanceof HTMLButtonElement)) return;
+        const value = String(button.dataset.value || "").trim();
+        const selectId = String(container.getAttribute("data-account-type-select-id") || "").trim();
+        const select = document.getElementById(selectId);
+        if (!(select instanceof HTMLSelectElement) || !value) return;
+        select.value = value;
+        renderAccountTypePickers();
+      });
+      container.dataset.bound = "true";
+    }
+    const selectId = String(container.getAttribute("data-account-type-select-id") || "").trim();
+    const select = document.getElementById(selectId);
+    if (select instanceof HTMLSelectElement && !select.dataset.quickPickerBound) {
+      select.addEventListener("change", () => {
+        renderAccountTypePickers();
+      });
+      select.dataset.quickPickerBound = "true";
+    }
+  }
+}
+
+function applyAccountFormDefaults(form, options = {}) {
+  if (!(form instanceof HTMLFormElement)) return;
+  const preserveName = Boolean(options.preserveName);
+  const defaultType = String(options.defaultType || "bank");
+  const defaultCurrency = getDefaultAccountCurrency();
+  const nameField = form.elements.namedItem("name");
+  const typeField = form.elements.namedItem("type");
+  const currencyField = form.elements.namedItem("currency");
+  const balanceField = form.elements.namedItem("balance");
+  if (nameField instanceof HTMLInputElement && !preserveName) {
+    nameField.value =
+      form.id === "onboardingAccountForm" ? t("onboardingDefaultAccountName") : "";
+  }
+  if (typeField instanceof HTMLSelectElement) {
+    typeField.value = defaultType;
+  }
+  if (currencyField instanceof HTMLSelectElement) {
+    currencyField.value = defaultCurrency;
+  }
+  if (balanceField instanceof HTMLInputElement) {
+    balanceField.value = "0";
+  }
+  updateAccountCurrencyBadges();
+  renderAccountTypePickers();
+}
+
+function resetAccountCreateForm() {
+  const form = $("#accountForm");
+  if (!(form instanceof HTMLFormElement)) return;
+  form.reset();
+  applyAccountFormDefaults(form);
+}
+
+function resetOnboardingAccountForm() {
+  const form = $("#onboardingAccountForm");
+  if (!(form instanceof HTMLFormElement)) return;
+  form.reset();
+  applyAccountFormDefaults(form);
+}
+
 function localizeAccountTypeSelectOptions() {
   const selectors = [
     "#onboardingAccountTypeInput",
@@ -7308,8 +7304,6 @@ const DEFAULT_DASH_ORDER = [
   "recentExpensesCard",
   "todayExpensesCard",
   "recentCompareCard",
-  "cashFlowCard",
-  "trendCard",
   "riskCard"
 ];
 
@@ -7575,7 +7569,6 @@ document.addEventListener("DOMContentLoaded", () => {
     settingsLinkAccounts:   "accountsPanel",
     settingsLinkBudget:     "budgetsPanel",
     settingsLinkCategories: "categoriesPanel",
-    settingsLinkReview:     "reviewPanel",
     settingsLinkAi:         "settingsPanel",
   };
   for (const [id, panelId] of Object.entries(navMap)) {
@@ -7605,14 +7598,17 @@ document.addEventListener("DOMContentLoaded", () => {
     btn.addEventListener("click", () => {
       const isHidden = wrap.classList.contains("hidden");
       wrap.classList.toggle("hidden", !isHidden);
-      if (!isHidden && resetFn) resetFn();
+      if (isHidden && resetFn) {
+        resetFn();
+        const firstInput = wrap.querySelector("input, select, textarea");
+        if (firstInput instanceof HTMLElement) firstInput.focus();
+      }
     });
   }
 
   // Accounts
   bindToggle("toggleAccountFormBtn", "accountCreateWrap", () => {
-    const f = document.getElementById("accountForm");
-    if (f) f.reset();
+    resetAccountCreateForm();
   });
 
 
@@ -7620,9 +7616,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const openAgentTokenBtn = document.getElementById("toggleAgentFormBtn");
   if (openAgentTokenBtn) {
     openAgentTokenBtn.addEventListener("click", () => {
-      const form = document.getElementById("agentTokenForm");
-      if (form instanceof HTMLFormElement) form.reset();
-      openSheet("agentTokenCreateSheet", { preserveUtility: true });
+      openAgentAccessSetupFlow();
     });
   }
 

@@ -10,7 +10,7 @@ Web-first MVP backend implementing:
 - Runway and risk metrics
 - Monthly review separating transfers from real expense + snapshot generation
 - FX quote endpoint and auto conversion to base currency
-- Fixed currency list for MVP: `CNY, EUR, THB, USD, JPY, KRW`
+- Fixed currency list for MVP: `AUD, CNY, EUR, THB, USD, JPY, KRW`
 - UI language setting: `en` / `zh` (persisted per user)
 - Product event tracking + analytics summary endpoint
 - Account balances tracked in each account's own currency, while dashboard metrics are unified into base currency
