@@ -74,7 +74,7 @@ const state = {
     currentStep: "step1",
     step: "step1",
     countryCode: "CN",
-    timezone: "Asia/Shanghai",
+    timezone: "UTC",
     baseCurrency: "USD",
     incomeBand: "8000_20000",
     incomeEstimate: 0,
@@ -204,8 +204,20 @@ const ONBOARDING_INCOME_BANDS = new Set([
   "20000_50000",
   "50000_plus"
 ]);
-const ONBOARDING_STEPS = new Set(["step1", "step2", "step3", "completed"]);
+const ONBOARDING_STEPS = new Set(["step1", "step2", "step3", "step4", "completed"]);
 const DEFAULT_ONBOARDING_COUNTRY_CODE = "CN";
+const ONBOARDING_COUNTRY_BASE_CURRENCY = Object.freeze({
+  CN: "CNY",
+  HK: "CNY",
+  MO: "CNY",
+  TW: "CNY",
+  TH: "THB",
+  JP: "JPY",
+  KR: "KRW",
+  DE: "EUR",
+  FR: "EUR",
+  CH: "EUR"
+});
 
 const I18N = {
   en: {
@@ -267,16 +279,18 @@ const I18N = {
     authSessionExpired: "Session expired. Please sign in again.",
     onboardingTitle: "Build Your Financial Profile",
     onboardingSubtitle: "Tell us about your baseline so we can personalize planning advice.",
-    onboardingProgress: "Step {current} / 3",
-    onboardingStep1Title: "Step 1 · Basic Profile",
-    onboardingStep2Title: "Step 2 · Financial Snapshot",
-    onboardingStep3Title: "Step 3 · Agent Setup",
-    onboardingCountry: "Country / Region",
+    onboardingProgress: "Step {current} / 4",
+    onboardingStep1Title: "Step 1 · Where You Live",
+    onboardingStep2Title: "Step 2 · Income Range",
+    onboardingStep3Title: "Step 3 · Financial Snapshot",
+    onboardingStep4Title: "Step 4 · Agent Setup",
+    onboardingCountry: "Country / Region You Live In",
     onboardingTimezone: "Timezone",
     onboardingIncomeBand: "Monthly Income Range",
-    onboardingGeoHint: "Default country is China. You can edit both country and timezone.",
+    onboardingGeoHint: "Tell us where you currently live. We'll auto-map your base currency by country.",
     onboardingContinue: "Continue",
-    onboardingStep2Intro:
+    onboardingStep2Intro: "Used to generate your suggested monthly budget.",
+    onboardingStep3Intro:
       "Add at least one account. We'll suggest a monthly allocation ratio that you can adjust later in Budget.",
     onboardingCategoryHint: "Default categories are enabled. You can fine-tune them later.",
     onboardingAccountsTitle: "Accounts",
@@ -290,7 +304,7 @@ const I18N = {
     onboardingNeedAccount: "Add at least one account before continuing.",
     onboardingSavedStep2: "Snapshot saved. You can move to the final step.",
     onboardingDefaultAccountName: "default",
-    onboardingStep3Intro:
+    onboardingStep4Intro:
       "Nomad Finance OS supports smooth, fast bookkeeping with your own agent. Choose whether to connect now:",
     onboardingHasAgentYes: "Yes, connect now",
     onboardingHasAgentNo: "No, connect later",
@@ -685,16 +699,18 @@ const I18N = {
     authSessionExpired: "登录已过期，请重新登录。",
     onboardingTitle: "完善你的财务画像",
     onboardingSubtitle: "通过这份问卷，我们会为后续规划建议建立基线。",
-    onboardingProgress: "第 {current} / 3 步",
-    onboardingStep1Title: "第 1 步 · 基础画像",
-    onboardingStep2Title: "第 2 步 · 财务现状",
-    onboardingStep3Title: "第 3 步 · Agent 引导",
-    onboardingCountry: "国家/地区",
+    onboardingProgress: "第 {current} / 4 步",
+    onboardingStep1Title: "第 1 步 · 居住信息",
+    onboardingStep2Title: "第 2 步 · 收入区间",
+    onboardingStep3Title: "第 3 步 · 财务现状",
+    onboardingStep4Title: "第 4 步 · Agent 引导",
+    onboardingCountry: "你生活的国家/地区",
     onboardingTimezone: "时区",
     onboardingIncomeBand: "月收入区间",
-    onboardingGeoHint: "国家默认中国（China），国家和时区都可以随时修改。",
+    onboardingGeoHint: "请填写你当前生活的国家/地区。系统会按国家自动映射基础币种。",
     onboardingContinue: "继续",
-    onboardingStep2Intro: "请至少创建一个账户。系统会先给出建议预算配比，后续可在预算页再调整。",
+    onboardingStep2Intro: "用于生成你的建议月预算。",
+    onboardingStep3Intro: "请至少创建一个账户。系统会先给出建议预算配比，后续可在预算页再调整。",
     onboardingCategoryHint: "分类已默认启用，后续可在分类页面再细调。",
     onboardingAccountsTitle: "账户",
     onboardingCategoriesTitle: "分类",
@@ -705,7 +721,7 @@ const I18N = {
     onboardingNeedAccount: "请至少创建一个账户后再继续。",
     onboardingSavedStep2: "财务快照已保存，可以进入下一步。",
     onboardingDefaultAccountName: "默认账户",
-    onboardingStep3Intro: "我们支持你的 agent 丝滑快速记账。请选择是否现在接入：",
+    onboardingStep4Intro: "我们支持你的 agent 丝滑快速记账。请选择是否现在接入：",
     onboardingHasAgentYes: "有，我现在接入",
     onboardingHasAgentNo: "没有，稍后接入",
     onboardingEnterProduct: "进入产品",
@@ -1095,6 +1111,10 @@ function bindUI() {
   if (onboardingStep1Form) {
     onboardingStep1Form.addEventListener("submit", submitOnboardingStep1Form);
   }
+  const onboardingStep2Form = $("#onboardingStep2Form");
+  if (onboardingStep2Form) {
+    onboardingStep2Form.addEventListener("submit", submitOnboardingStep2Form);
+  }
   const onboardingAccountForm = $("#onboardingAccountForm");
   if (onboardingAccountForm) {
     onboardingAccountForm.addEventListener("submit", submitOnboardingAccountForm);
@@ -1111,10 +1131,10 @@ function bindUI() {
       void addOnboardingL2Category();
     });
   }
-  const onboardingStep2ContinueBtn = $("#onboardingStep2ContinueBtn");
-  if (onboardingStep2ContinueBtn) {
-    onboardingStep2ContinueBtn.addEventListener("click", () => {
-      void submitOnboardingStep2();
+  const onboardingStep3ContinueBtn = $("#onboardingStep3ContinueBtn");
+  if (onboardingStep3ContinueBtn) {
+    onboardingStep3ContinueBtn.addEventListener("click", () => {
+      void submitOnboardingStep3();
     });
   }
   for (const input of document.querySelectorAll("input[name=onboarding_agent_choice]")) {
@@ -2519,30 +2539,17 @@ async function initializeOnboardingDraftState() {
   state.onboarding.countryCode = ensureOnboardingCountryCode(
     String(state.settings?.living_country_code || DEFAULT_ONBOARDING_COUNTRY_CODE)
   );
-  state.onboarding.timezone = String(state.settings?.timezone || "Asia/Shanghai");
-  state.onboarding.baseCurrency = ensureUICurrency(state.settings?.base_currency || "USD");
+  state.onboarding.timezone = String(state.settings?.timezone || "UTC");
+  state.onboarding.baseCurrency = ensureUICurrency(
+    state.settings?.base_currency || getOnboardingBaseCurrencyForCountry(state.onboarding.countryCode)
+  );
   state.onboarding.incomeBand = ensureOnboardingIncomeBand(state.settings?.monthly_income_band || "8000_20000");
   state.onboarding.currentStep = normalizeOnboardingStep(state.onboarding.currentStep || "step1");
   state.onboarding.step = state.onboarding.currentStep === "completed" ? "step1" : state.onboarding.currentStep;
   state.onboarding.agentChoice = "";
   state.onboarding.finishing = false;
 
-  if (!state.onboarding.timezone || state.onboarding.timezone === "UTC") {
-    try {
-      const geo = await api("/api/v1/onboarding/geo-suggest");
-      if (
-        (!state.onboarding.timezone || state.onboarding.timezone === "UTC") &&
-        typeof geo?.timezone === "string" &&
-        geo.timezone.trim()
-      ) {
-        state.onboarding.timezone = geo.timezone.trim();
-      }
-    } catch {
-      // best-effort prefill; keep manual values when unavailable
-    }
-  }
-
-  if (state.onboarding.step === "step2" || state.onboarding.step === "step3") {
+  if (state.onboarding.step === "step3" || state.onboarding.step === "step4") {
     await refreshOnboardingBudgetSuggestion({ preserveExisting: true });
     await ensureOnboardingDefaultAccount();
   }
@@ -2551,15 +2558,17 @@ async function initializeOnboardingDraftState() {
 
 function renderOnboardingGate() {
   const currentStep = normalizeOnboardingStep(state.onboarding.step || "step1");
-  const displayStep = currentStep === "step2" ? 2 : currentStep === "step3" ? 3 : 1;
+  const displayStep = currentStep === "step2" ? 2 : currentStep === "step3" ? 3 : currentStep === "step4" ? 4 : 1;
   setText("onboardingProgressText", t("onboardingProgress", { current: String(displayStep) }));
 
   const step1 = $("#onboardingStep1");
   const step2 = $("#onboardingStep2");
   const step3 = $("#onboardingStep3");
+  const step4 = $("#onboardingStep4");
   if (step1) step1.classList.toggle("hidden", currentStep !== "step1");
   if (step2) step2.classList.toggle("hidden", currentStep !== "step2");
   if (step3) step3.classList.toggle("hidden", currentStep !== "step3");
+  if (step4) step4.classList.toggle("hidden", currentStep !== "step4");
 
   const countryInput = $("#onboardingCountryInput");
   if (countryInput instanceof HTMLSelectElement) {
@@ -2570,10 +2579,6 @@ function renderOnboardingGate() {
     }
     countryInput.value = nextCountry;
   }
-  const timezoneInput = $("#onboardingTimezoneInput");
-  if (timezoneInput instanceof HTMLInputElement) timezoneInput.value = state.onboarding.timezone || "UTC";
-  const baseInput = $("#onboardingBaseCurrencyInput");
-  if (baseInput instanceof HTMLSelectElement) baseInput.value = ensureUICurrency(state.onboarding.baseCurrency || "USD");
   const bandInput = $("#onboardingIncomeBandInput");
   if (bandInput instanceof HTMLSelectElement) bandInput.value = ensureOnboardingIncomeBand(state.onboarding.incomeBand);
   const accountCurrency = $("#onboardingAccountCurrencyInput");
@@ -2604,7 +2609,7 @@ function renderOnboardingGate() {
 
 async function ensureOnboardingDefaultAccount() {
   const step = normalizeOnboardingStep(state.onboarding.step || "step1");
-  if (step !== "step2" && step !== "step3") return;
+  if (step !== "step3" && step !== "step4") return;
   if (Array.isArray(state.accounts) && state.accounts.length > 0) return;
   try {
     await api("/api/v1/accounts", {
@@ -2794,32 +2799,54 @@ async function submitOnboardingStep1Form(event) {
   if (!(form instanceof HTMLFormElement)) return;
   const fd = new FormData(form);
   const livingCountryCode = ensureOnboardingCountryCode(fd.get("living_country_code"));
-  const timezone = String(fd.get("timezone") || "").trim() || "UTC";
-  const baseCurrency = ensureUICurrency(fd.get("base_currency") || "USD");
-  const incomeBand = ensureOnboardingIncomeBand(fd.get("monthly_income_band") || "8000_20000");
+  const baseCurrency = getOnboardingBaseCurrencyForCountry(livingCountryCode);
 
   try {
     const updated = await api("/api/v1/settings", {
       method: "PUT",
       body: JSON.stringify({
         living_country_code: livingCountryCode,
-        timezone,
-        base_currency: baseCurrency,
-        monthly_income_band: incomeBand
+        base_currency: baseCurrency
       })
     });
     state.settings = { ...(state.settings || {}), ...(updated || {}) };
     state.onboarding.countryCode = livingCountryCode;
-    state.onboarding.timezone = timezone;
     state.onboarding.baseCurrency = baseCurrency;
-    state.onboarding.incomeBand = incomeBand;
-    await refreshOnboardingBudgetSuggestion({ preserveExisting: false });
     await api("/api/v1/onboarding/state", {
       method: "PUT",
       body: JSON.stringify({ current_step: "step2" })
     });
     state.onboarding.currentStep = "step2";
     state.onboarding.step = "step2";
+    renderOnboardingGate();
+  } catch (error) {
+    showErrorToast(error);
+  }
+}
+
+async function submitOnboardingStep2Form(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  if (!(form instanceof HTMLFormElement)) return;
+  const fd = new FormData(form);
+  const incomeBand = ensureOnboardingIncomeBand(fd.get("monthly_income_band") || "8000_20000");
+
+  try {
+    const updated = await api("/api/v1/settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        monthly_income_band: incomeBand
+      })
+    });
+    state.settings = { ...(state.settings || {}), ...(updated || {}) };
+    state.onboarding.incomeBand = incomeBand;
+    await refreshOnboardingBudgetSuggestion({ preserveExisting: false });
+    await api("/api/v1/onboarding/state", {
+      method: "PUT",
+      body: JSON.stringify({ current_step: "step3" })
+    });
+    state.onboarding.currentStep = "step3";
+    state.onboarding.step = "step3";
     await ensureOnboardingDefaultAccount();
     renderOnboardingGate();
   } catch (error) {
@@ -2889,10 +2916,10 @@ async function addOnboardingL2Category() {
   renderOnboardingGate();
 }
 
-async function submitOnboardingStep2() {
+async function submitOnboardingStep3() {
   if (!Array.isArray(state.accounts) || state.accounts.length < 1) {
     const message = t("onboardingNeedAccount");
-    const node = $("#onboardingStep2Message");
+    const node = $("#onboardingStep3Message");
     if (node) node.textContent = message;
     showToast(message, true);
     return;
@@ -2914,11 +2941,11 @@ async function submitOnboardingStep2() {
     }
     await api("/api/v1/onboarding/state", {
       method: "PUT",
-      body: JSON.stringify({ current_step: "step3" })
+      body: JSON.stringify({ current_step: "step4" })
     });
-    state.onboarding.currentStep = "step3";
-    state.onboarding.step = "step3";
-    const node = $("#onboardingStep2Message");
+    state.onboarding.currentStep = "step4";
+    state.onboarding.step = "step4";
+    const node = $("#onboardingStep3Message");
     if (node) node.textContent = t("onboardingSavedStep2");
     renderOnboardingGate();
   } catch (error) {
@@ -6673,6 +6700,11 @@ function ensureOnboardingCountryCode(value) {
   return /^[A-Z]{2}$/.test(code) ? code : DEFAULT_ONBOARDING_COUNTRY_CODE;
 }
 
+function getOnboardingBaseCurrencyForCountry(value) {
+  const countryCode = ensureOnboardingCountryCode(value);
+  return ensureUICurrency(ONBOARDING_COUNTRY_BASE_CURRENCY[countryCode] || "USD");
+}
+
 function normalizeOnboardingStep(value) {
   const step = String(value || "step1").trim();
   return ONBOARDING_STEPS.has(step) ? step : "step1";
@@ -6733,13 +6765,14 @@ function applyI18n() {
   setText("onboardingStep1Title", t("onboardingStep1Title"));
   setText("onboardingStep2Title", t("onboardingStep2Title"));
   setText("onboardingStep3Title", t("onboardingStep3Title"));
+  setText("onboardingStep4Title", t("onboardingStep4Title"));
   setText("onboardingCountryLabel", t("onboardingCountry"));
-  setText("onboardingTimezoneLabel", t("onboardingTimezone"));
-  setText("onboardingBaseCurrencyLabel", t("baseCurrency"));
   setText("onboardingIncomeBandLabel", t("onboardingIncomeBand"));
   setText("onboardingGeoHint", t("onboardingGeoHint"));
   setText("onboardingStep1ContinueBtn", t("onboardingContinue"));
   setText("onboardingStep2Intro", t("onboardingStep2Intro"));
+  setText("onboardingStep2ContinueBtn", t("onboardingContinue"));
+  setText("onboardingStep3Intro", t("onboardingStep3Intro"));
   setText("onboardingCategoryHint", t("onboardingCategoryHint"));
   setText("onboardingAccountsTitle", t("onboardingAccountsTitle"));
   setText("onboardingCategoriesTitle", t("onboardingCategoriesTitle"));
@@ -6748,8 +6781,8 @@ function applyI18n() {
   setText("onboardingAddAccountBtn", t("onboardingAdd"));
   setText("onboardingAddL1Btn", t("onboardingAddL1"));
   setText("onboardingAddL2Btn", t("onboardingAddL2"));
-  setText("onboardingStep2ContinueBtn", t("onboardingContinue"));
-  setText("onboardingStep3Intro", t("onboardingStep3Intro"));
+  setText("onboardingStep3ContinueBtn", t("onboardingContinue"));
+  setText("onboardingStep4Intro", t("onboardingStep4Intro"));
   setText("onboardingHasAgentYesLabel", t("onboardingHasAgentYes"));
   setText("onboardingHasAgentNoLabel", t("onboardingHasAgentNo"));
   setText("onboardingCountryOptionCN", t("onboardingCountryOptionCN"));
@@ -6770,8 +6803,6 @@ function applyI18n() {
   setText("onboardingCountryOptionCH", t("onboardingCountryOptionCH"));
   setText("onboardingCountryOptionIN", t("onboardingCountryOptionIN"));
   setText("onboardingCountryOptionAE", t("onboardingCountryOptionAE"));
-  const onboardingTimezoneInput = $("#onboardingTimezoneInput");
-  if (onboardingTimezoneInput) onboardingTimezoneInput.placeholder = t("onboardingTimezonePlaceholder");
   const onboardingAccountNameInput = $("#onboardingAccountNameInput");
   if (onboardingAccountNameInput) onboardingAccountNameInput.placeholder = t("onboardingAccountNamePlaceholder");
   const onboardingNewL1Input = $("#onboardingNewL1Input");

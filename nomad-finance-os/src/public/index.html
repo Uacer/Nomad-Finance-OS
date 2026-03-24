@@ -63,13 +63,13 @@
     <section id="onboardingGate" class="onboarding-gate hidden" aria-hidden="true">
       <article class="onboarding-card">
         <header class="onboarding-head">
-          <p id="onboardingProgressText" class="onboarding-progress">Step 1 / 3</p>
+          <p id="onboardingProgressText" class="onboarding-progress">Step 1 / 4</p>
           <h2 id="onboardingTitle">Build Your Financial Profile</h2>
           <p id="onboardingSubtitle" class="muted">Tell us about your baseline so we can personalize planning advice.</p>
         </header>
 
         <section id="onboardingStep1" class="onboarding-step">
-          <h3 id="onboardingStep1Title">Step 1 · Basic Profile</h3>
+          <h3 id="onboardingStep1Title">Step 1 · Where You Live</h3>
           <form id="onboardingStep1Form" class="onboarding-form">
             <label class="form-field">
               <span id="onboardingCountryLabel">Country / Region</span>
@@ -94,21 +94,14 @@
                 <option id="onboardingCountryOptionAE" value="AE">United Arab Emirates (AE)</option>
               </select>
             </label>
-            <label class="form-field">
-              <span id="onboardingTimezoneLabel">Timezone</span>
-              <input id="onboardingTimezoneInput" name="timezone" type="text" placeholder="Asia/Shanghai" required />
-            </label>
-            <label class="form-field">
-              <span id="onboardingBaseCurrencyLabel">Base Currency</span>
-              <select id="onboardingBaseCurrencyInput" name="base_currency" required>
-                <option value="CNY">CNY</option>
-                <option value="EUR">EUR</option>
-                <option value="THB">THB</option>
-                <option value="USD" selected>USD</option>
-                <option value="JPY">JPY</option>
-                <option value="KRW">KRW</option>
-              </select>
-            </label>
+            <p id="onboardingGeoHint" class="muted small">We use this for your living country and auto-map your base currency.</p>
+            <button id="onboardingStep1ContinueBtn" class="btn btn-solid" type="submit">Continue</button>
+          </form>
+        </section>
+
+        <section id="onboardingStep2" class="onboarding-step hidden">
+          <h3 id="onboardingStep2Title">Step 2 · Income Range</h3>
+          <form id="onboardingStep2Form" class="onboarding-form">
             <label class="form-field">
               <span id="onboardingIncomeBandLabel">Monthly Income Range</span>
               <select id="onboardingIncomeBandInput" name="monthly_income_band" required>
@@ -119,14 +112,14 @@
                 <option id="onboardingIncomeBand50000Plus" value="50000_plus">50,000+</option>
               </select>
             </label>
-            <p id="onboardingGeoHint" class="muted small">We'll auto-suggest region/timezone and you can edit them.</p>
-            <button id="onboardingStep1ContinueBtn" class="btn btn-solid" type="submit">Continue</button>
+            <p id="onboardingStep2Intro" class="muted">Used to generate your suggested monthly budget.</p>
+            <button id="onboardingStep2ContinueBtn" class="btn btn-solid" type="submit">Continue</button>
           </form>
         </section>
 
-        <section id="onboardingStep2" class="onboarding-step hidden">
-          <h3 id="onboardingStep2Title">Step 2 · Financial Snapshot</h3>
-          <p id="onboardingStep2Intro" class="muted">Add at least one account and edit your suggested monthly budget.</p>
+        <section id="onboardingStep3" class="onboarding-step hidden">
+          <h3 id="onboardingStep3Title">Step 3 · Financial Snapshot</h3>
+          <p id="onboardingStep3Intro" class="muted">Add at least one account and review your suggested monthly budget.</p>
 
           <article class="onboarding-block">
             <h4 id="onboardingAccountsTitle">Accounts</h4>
@@ -163,13 +156,13 @@
             <div id="onboardingBudgetList" class="onboarding-budget-list"></div>
           </article>
 
-          <button id="onboardingStep2ContinueBtn" class="btn btn-solid" type="button">Continue</button>
-          <p id="onboardingStep2Message" class="muted small" aria-live="polite"></p>
+          <button id="onboardingStep3ContinueBtn" class="btn btn-solid" type="button">Continue</button>
+          <p id="onboardingStep3Message" class="muted small" aria-live="polite"></p>
         </section>
 
-        <section id="onboardingStep3" class="onboarding-step hidden">
-          <h3 id="onboardingStep3Title">Step 3 · Agent Setup</h3>
-          <p id="onboardingStep3Intro" class="muted">Nomad Finance OS supports smooth, fast bookkeeping with your own agent. Choose whether to connect now:</p>
+        <section id="onboardingStep4" class="onboarding-step hidden">
+          <h3 id="onboardingStep4Title">Step 4 · Agent Setup</h3>
+          <p id="onboardingStep4Intro" class="muted">Nomad Finance OS supports smooth, fast bookkeeping with your own agent. Choose whether to connect now:</p>
           <div class="onboarding-agent-choices" role="radiogroup" aria-label="Agent availability">
             <label><input id="onboardingHasAgentYes" type="radio" name="onboarding_agent_choice" value="yes" /> <span id="onboardingHasAgentYesLabel">Yes, connect now</span></label>
             <label><input id="onboardingHasAgentNo" type="radio" name="onboarding_agent_choice" value="no" /> <span id="onboardingHasAgentNoLabel">No, connect later</span></label>

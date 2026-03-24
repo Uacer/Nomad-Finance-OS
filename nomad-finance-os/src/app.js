@@ -100,7 +100,7 @@ const CRYPTO_ACCOUNT_TYPES = new Set(["crypto_wallet", "exchange"]);
 const UNASSIGNED_ACCOUNT_NAME_ZH = "未分配账户";
 const UNASSIGNED_ACCOUNT_NAME_EN = "Unassigned Account";
 const CURRENCY_DISPLAY_MODES = new Set(["code", "symbol"]);
-const ONBOARDING_STEPS = new Set(["step1", "step2", "step3", "completed"]);
+const ONBOARDING_STEPS = new Set(["step1", "step2", "step3", "step4", "completed"]);
 const INCOME_BAND_MIDPOINTS = Object.freeze({
   lt_3000: 2000,
   "3000_8000": 5500,
@@ -618,7 +618,7 @@ function createApp(db) {
       nextCompletedAt = null;
     }
     if (!nextCompleted && nextStep === "completed") {
-      nextStep = "step3";
+      nextStep = "step4";
     }
 
     db.prepare(
