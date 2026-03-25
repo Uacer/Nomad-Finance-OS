@@ -715,6 +715,20 @@ test("settings always forces light theme", async () => {
   assert.equal(after.body.theme, "light");
 });
 
+test("magic link routes are explicitly disabled", async () => {
+  const { api } = createHarness();
+
+  const requestRes = await api.post("/api/v1/auth/magic-link/request").send({
+    email: "sain@mask.io"
+  });
+  assert.equal(requestRes.status, 410);
+  assert.equal(requestRes.body.error_code, "MAGIC_LINK_DISABLED");
+
+  const verifyRes = await api.get("/auth/magic-link/verify?token=test-token").send();
+  assert.equal(verifyRes.status, 410);
+  assert.match(String(verifyRes.text || ""), /Magic link sign-in has been disabled/i);
+});
+
 test("yearly budgets + monthly snapshot generation", async () => {
   const { api } = createHarness();
   const year = 2026;

@@ -1639,6 +1639,7 @@ function bindUI() {
       const period = btn.dataset.period;
       if (period && period !== state.accountPeriod) loadAccountPeriodTxs(period);
     });
+    window.addEventListener("resize", () => syncAccountPeriodTabs());
   }
   const dashAccountsTitle = document.getElementById("dashboardAccountsTitle");
   if (dashAccountsTitle) {
@@ -3379,10 +3380,26 @@ async function loadAccountPeriodTxs(period) {
   const rows = await api(`/api/v1/transactions?start=${start}&end=${end}`);
   state.accountPeriodTxs = Array.isArray(rows) ? rows : [];
   renderDashboardAccountsCard();
-  // sync tab active state
-  document.querySelectorAll(".acct-period-btn").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.period === period);
-  });
+  syncAccountPeriodTabs(period);
+}
+
+function syncAccountPeriodTabs(period = state.accountPeriod) {
+  const tabs = document.getElementById("acctPeriodTabs");
+  if (!(tabs instanceof HTMLElement)) return;
+  const buttons = Array.from(tabs.querySelectorAll(".acct-period-btn"));
+  const activeButton =
+    buttons.find((btn) => String(btn.dataset.period || "") === String(period || "")) || buttons[0];
+  for (const btn of buttons) {
+    const isActive = btn.dataset.period === period;
+    btn.classList.toggle("active", isActive);
+    btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+  }
+  if (!(activeButton instanceof HTMLElement)) return;
+  const syncThumb = () => {
+    tabs.style.setProperty("--acct-period-thumb-x", `${activeButton.offsetLeft}px`);
+    tabs.style.setProperty("--acct-period-thumb-w", `${activeButton.offsetWidth}px`);
+  };
+  window.requestAnimationFrame(syncThumb);
 }
 
 async function loadAgentTokens() {
@@ -5194,6 +5211,7 @@ function renderAccounts() {
 function renderDashboardAccountsCard() {
   const target = $("#dashboardAccountsList");
   if (!target) return;
+  syncAccountPeriodTabs();
   const accounts = state.accounts || [];
   if (!accounts.length) {
     target.innerHTML = '<div class="muted" style="padding:8px 0;text-align:center;font-size:0.875rem">No accounts</div>';

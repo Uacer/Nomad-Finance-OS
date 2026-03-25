@@ -203,8 +203,7 @@ function createApp(db) {
 
   app.use((req, res, next) => {
     const isApi = req.path.startsWith("/api/v1/");
-    const isVerifyPath = req.path === "/auth/magic-link/verify";
-    if (!isApi && !isVerifyPath) return next();
+    if (!isApi) return next();
 
     const bearerToken = extractBearerToken(req);
     if (bearerToken) {
@@ -322,7 +321,13 @@ function createApp(db) {
     });
   };
   app.post("/api/v1/auth/code/request", requestAuthCode);
-  app.post("/api/v1/auth/magic-link/request", requestAuthCode);
+  app.post("/api/v1/auth/magic-link/request", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(410).json({
+      error: "Magic link sign-in is disabled.",
+      error_code: "MAGIC_LINK_DISABLED"
+    });
+  });
 
   app.post("/api/v1/auth/code/verify", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -364,17 +369,10 @@ function createApp(db) {
   });
 
   app.get("/auth/magic-link/verify", (req, res) => {
-    const token = String(req.query.token || "").trim();
-    if (!token) {
-      return res.status(400).send(renderAuthResultHtml(false, "Missing token."));
-    }
-    const magic = consumeMagicLink(db, token);
-    if (!magic) {
-      return res.status(400).send(renderAuthResultHtml(false, "Magic link is invalid or expired."));
-    }
-    ensureUserAndSeedDefaults(db, magic.user_id);
-    issueSessionCookie(db, req, res, magic.user_id);
-    return res.redirect(302, resolveAppBaseUrl(req));
+    res.setHeader("Cache-Control", "no-store");
+    return res
+      .status(410)
+      .send(renderAuthResultHtml(false, "Magic link sign-in has been disabled. Please use the email verification code flow."));
   });
 
   app.get("/api/v1/auth/session", (req, res) => {
@@ -3145,7 +3143,6 @@ function resolveRequiredScope(req) {
   if (
     path === "/api/v1/auth/code/request" ||
     path === "/api/v1/auth/code/verify" ||
-    path === "/api/v1/auth/magic-link/request" ||
     path === "/api/v1/auth/session" ||
     path === "/api/v1/auth/logout" ||
     path.startsWith("/api/v1/auth/agent-tokens")
