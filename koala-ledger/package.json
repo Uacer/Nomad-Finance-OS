@@ -6,6 +6,7 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
+    "agentation:server": "agentation-mcp server --port 4747",
     "test": "node --test",
     "generate:monthly-review": "node src/review-job.js",
     "backup:db": "node src/backup-db.js",
@@ -20,6 +21,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "agentation-mcp": "^1.2.0",
     "supertest": "^7.0.0"
   }
 }

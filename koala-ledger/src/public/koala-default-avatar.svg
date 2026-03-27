@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Koala Ledger default avatar</title>
+  <desc id="desc">A soft grey koala face used as the default avatar.</desc>
+  <defs>
+    <radialGradient id="faceGlow" cx="50%" cy="38%" r="66%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="62%" stop-color="#f1eded"/>
+      <stop offset="100%" stop-color="#d8d2d2"/>
+    </radialGradient>
+    <linearGradient id="outline" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#a3a0a6"/>
+      <stop offset="100%" stop-color="#6f6c75"/>
+    </linearGradient>
+    <linearGradient id="innerEar" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#d0ccd2"/>
+      <stop offset="100%" stop-color="#b5b0b8"/>
+    </linearGradient>
+    <linearGradient id="nose" x1="0%" x2="100%" y1="0%" y2="0%">
+      <stop offset="0%" stop-color="#7b7781"/>
+      <stop offset="100%" stop-color="#5c5860"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" fill-rule="evenodd">
+    <path fill="url(#outline)" d="M28 16c10.7 0 20 6.2 24.3 15.2A48.1 48.1 0 0 1 64 29c4 0 7.9.5 11.7 1.4C80 21.8 89.3 16 100 16c14.4 0 26 11.6 26 26 0 10.1-5.8 19-14.2 23.3 1.5 4.6 2.2 9.5 2.2 14.6 0 26.5-22.4 48.1-50 48.1S14 106.4 14 80c0-5 .8-9.8 2.2-14.4A26 26 0 0 1 2 42c0-14.4 11.6-26 26-26Z"/>
+    <path fill="url(#faceGlow)" d="M28 20c9.7 0 18 5.9 21.7 14.3l1.4 3.2 3.4-.9A42.8 42.8 0 0 1 64 35c3.2 0 6.4.4 9.5 1.1l3.4.8 1.4-3.2C82 25.3 90.3 20 100 20c12.1 0 22 9.9 22 22 0 8.8-5.2 16.6-13.2 20.1l-2.8 1.2 1 2.9c1.7 4.5 2.5 9 2.5 13.8 0 24.2-20.3 44-45.5 44S18.5 104.2 18.5 80c0-4.7.8-9.3 2.4-13.7l1-2.9-2.8-1.2A21.9 21.9 0 0 1 6 42c0-12.1 9.9-22 22-22Z"/>
+    <path fill="url(#innerEar)" d="M27 33c5.5 0 10.8 2.4 14.5 6.6-5.5 3.1-9.8 7.9-12.1 13.8-7.7-.8-13.4-5.6-13.4-11.3C16 37 20.9 33 27 33Zm74 0c6.1 0 11 4 11 9.1 0 5.6-5.7 10.4-13.3 11.3-2.3-6-6.6-10.8-12.1-13.9A19.2 19.2 0 0 1 101 33Z"/>
+    <path fill="#fff" d="M43 59c9.4 0 17 7.8 17 17.5S52.4 94 43 94 26 86.2 26 76.5 33.6 59 43 59Zm42 0c9.4 0 17 7.8 17 17.5S94.4 94 85 94 68 86.2 68 76.5 75.6 59 85 59Z"/>
+    <path fill="#000" d="M41.5 63c7.2 0 13 6 13 13.5S48.7 90 41.5 90s-13-6-13-13.5S34.3 63 41.5 63Zm45 0c7.2 0 13 6 13 13.5S93.7 90 86.5 90s-13-6-13-13.5S79.3 63 86.5 63Z"/>
+    <path fill="#8a8790" d="M45 68.5c5.2 0 9.5 4.3 9.5 9.5s-4.3 9.5-9.5 9.5-9.5-4.3-9.5-9.5 4.3-9.5 9.5-9.5Zm37 0c5.2 0 9.5 4.3 9.5 9.5s-4.3 9.5-9.5 9.5-9.5-4.3-9.5-9.5 4.3-9.5 9.5-9.5Z"/>
+    <circle cx="38.5" cy="72.5" r="4" fill="#fff"/>
+    <circle cx="75.5" cy="72.5" r="4" fill="#fff"/>
+    <path fill="url(#nose)" d="M64 55c8.8 0 16 10.1 16 22.5S72.8 100 64 100 48 89.9 48 77.5 55.2 55 64 55Z"/>
+    <path fill="#a8a4ac" d="M61 63.5c2.8 0 5 2.1 5 4.7s-2.2 4.8-5 4.8-5-2.1-5-4.8 2.2-4.7 5-4.7Z"/>
+    <path fill="#45424a" d="M56.3 84c2.4 0 4.2 2.6 4.2 5.7 0 3.2-1.8 5.8-4.2 5.8s-4.3-2.6-4.3-5.8c0-3.1 1.9-5.7 4.3-5.7Zm15.4 0c2.4 0 4.3 2.6 4.3 5.7 0 3.2-1.9 5.8-4.3 5.8s-4.2-2.6-4.2-5.8c0-3.1 1.8-5.7 4.2-5.7Z"/>
+    <path stroke="#55515a" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M57.5 101c1.8 2 4 3 6.5 3s4.7-1 6.5-3m-13 0c-2.8 2.3-5.8 3.3-9 3.2-2.6-.1-4.8-1.1-6.5-3"/>
+  </g>
+</svg>

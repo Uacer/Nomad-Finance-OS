@@ -232,18 +232,24 @@
         <article class="card hero-card">
           <div class="hero-top">
             <div class="hero-networth-head">
-              <div class="hero-label" id="heroNetWorthLabel">Net Worth</div>
-              <button
-                class="hero-privacy-btn hero-privacy-btn-floating"
-                id="heroPrivacyToggleBtn"
-                type="button"
-                aria-label="Hide amounts"
-                title="Hide amounts"
-              >
-                <span class="sr-only" id="heroPrivacyToggleText">Hide amounts</span>
-              </button>
+              <div class="hero-networth-meta">
+                <div class="hero-label" id="heroNetWorthLabel">Net Worth</div>
+                <button
+                  class="hero-privacy-btn"
+                  id="heroPrivacyToggleBtn"
+                  type="button"
+                  aria-label="Hide amounts"
+                  title="Hide amounts"
+                >
+                  <span class="sr-only" id="heroPrivacyToggleText">Hide amounts</span>
+                </button>
+              </div>
               <div class="hero-value" id="heroNetWorthValue">0.00</div>
             </div>
+            <button class="hero-avatar" id="heroAvatar" type="button" aria-label="Upload avatar" title="Upload avatar">
+              <img id="heroAvatarImage" src="/koala-default-avatar.svg" alt="" />
+            </button>
+            <input id="heroAvatarInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
           </div>
           <div class="hero-label muted" id="heroCompositionLabel">Net Worth Composition</div>
           <div class="hero-bar" id="heroCompositionBar"></div>
@@ -417,24 +423,35 @@
           <form id="transactionFilterForm" class="tx-filter-inner">
             <div class="tx-filter-main">
               <svg class="tx-filter-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input id="transactionTagFilter" type="text" placeholder="Filter by tag…" />
+              <input id="transactionTagFilter" type="text" placeholder="Search transactions…" />
+              <button id="toggleTxAdvancedFilterBtn" class="tx-filter-toggle-btn" type="button" aria-label="Show filters" title="Show filters">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M4 6h16"></path>
+                  <path d="M7 12h10"></path>
+                  <path d="M10 18h4"></path>
+                </svg>
+              </button>
             </div>
-            <div class="tx-filter-fields">
-              <select id="transactionTypeFilter">
-                <option id="transactionTypeFilterAllOption" value="">All types</option>
-                <option id="transactionTypeFilterExpenseOption" value="expense">Expense</option>
-                <option id="transactionTypeFilterIncomeOption" value="income">Income</option>
-                <option id="transactionTypeFilterTransferOption" value="transfer">Transfer</option>
-              </select>
-              <select id="transactionCategoryFilter">
-                <option id="transactionCategoryFilterAllOption" value="">All categories</option>
-              </select>
-              <input id="transactionStartFilter" type="date" />
-              <input id="transactionEndFilter" type="date" />
-            </div>
-            <div class="tx-filter-actions">
-              <button id="applyTxFilterBtn" class="btn" type="submit">Apply</button>
-              <button id="resetTxFilterBtn" class="btn btn-ghost" type="button">Reset</button>
+            <div id="transactionAdvancedFilters" class="tx-filter-advanced hidden">
+              <div class="tx-filter-fields">
+                <select id="transactionTypeFilter">
+                  <option id="transactionTypeFilterAllOption" value="">All types</option>
+                  <option id="transactionTypeFilterExpenseOption" value="expense">Expense</option>
+                  <option id="transactionTypeFilterIncomeOption" value="income">Income</option>
+                  <option id="transactionTypeFilterTransferOption" value="transfer">Transfer</option>
+                </select>
+                <select id="transactionCategoryFilter">
+                  <option id="transactionCategoryFilterAllOption" value="">All categories</option>
+                </select>
+                <input id="transactionStartFilter" type="date" />
+                <input id="transactionEndFilter" type="date" />
+                <input id="transactionAmountMinFilter" type="number" step="0.01" inputmode="decimal" placeholder="Min amount" />
+                <input id="transactionAmountMaxFilter" type="number" step="0.01" inputmode="decimal" placeholder="Max amount" />
+              </div>
+              <div class="tx-filter-actions">
+                <button id="applyTxFilterBtn" class="btn" type="submit">Apply</button>
+                <button id="resetTxFilterBtn" class="btn btn-ghost" type="button">Reset</button>
+              </div>
             </div>
           </form>
         </div>
@@ -1279,6 +1296,7 @@
     <button id="closeUtilityBtn" class="utility-close hidden" type="button" aria-label="Back">←</button>
 
     <div id="toast" class="toast hidden"></div>
+    <script src="/agentation-dev-loader.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>

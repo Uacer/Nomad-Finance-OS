@@ -15,11 +15,14 @@ const state = {
   quickEntryMax: 0,
   quickEntryType: "expense",
   txFilters: {
+    query: "",
     tag: "",
     type: "",
     categoryL1: "",
     start: "",
-    end: ""
+    end: "",
+    minAmount: "",
+    maxAmount: ""
   },
   auth: {
     ready: false,
@@ -225,7 +228,9 @@ const ACCOUNT_TYPE_PICKER_PRESETS = Object.freeze({
   en: ["bank", "cash", "wise", "exchange", "crypto_wallet"],
   zh: ["bank", "cash", "alipay", "wechat", "wise"]
 });
-
+const HERO_AVATAR_STORAGE_KEY = "koala-ledger:hero-avatar-data-url";
+const HERO_AVATAR_DEFAULT_SRC = "/koala-default-avatar.svg";
+const HERO_AVATAR_MAX_BYTES = 2 * 1024 * 1024;
 const I18N = {
   en: {
     subtitle: "A simpler daily money cockpit.",
@@ -400,6 +405,11 @@ const I18N = {
     heroCurrencyToggleHint: "Click currency unit to toggle Code/Symbol",
     hideAmounts: "Hide amounts",
     showAmounts: "Show amounts",
+    avatarUploadHint: "Upload your avatar",
+    avatarUploadSuccess: "Avatar updated",
+    avatarUploadTypeError: "Please choose a PNG, JPG, WEBP, or GIF image.",
+    avatarUploadTooLarge: "Avatar file must be {size} or smaller.",
+    avatarUploadStorageError: "Avatar could not be saved locally on this device.",
     theme: "Theme",
     themeSystem: "System",
     themeLight: "Light",
@@ -543,11 +553,15 @@ const I18N = {
     emptyNoExpenseMonth: "No expense records for this month.",
     emptyNoExpenseToday: "No expenses today.",
     emptyNoRecentExpense: "No transactions yet.",
-    txFilterTagPlaceholder: "Filter by tag...",
+    txFilterTagPlaceholder: "Search transactions...",
     txFilterAllTypes: "All types",
     txFilterAllCategories: "All categories",
     txFilterStartDate: "Start date",
     txFilterEndDate: "End date",
+    txFilterAmountMin: "Min amount",
+    txFilterAmountMax: "Max amount",
+    txFilterShowAdvanced: "Show filters",
+    txFilterHideAdvanced: "Hide filters",
     txFilterApply: "Apply",
     txFilterReset: "Reset",
     recentSpendToday: "Today",
@@ -831,6 +845,11 @@ const I18N = {
     heroCurrencyToggleHint: "点击净资产币种可切换代码/符号显示",
     hideAmounts: "隐藏金额",
     showAmounts: "显示金额",
+    avatarUploadHint: "上传你的头像",
+    avatarUploadSuccess: "头像已更新",
+    avatarUploadTypeError: "请选择 PNG、JPG、WEBP 或 GIF 图片。",
+    avatarUploadTooLarge: "头像文件需小于等于 {size}。",
+    avatarUploadStorageError: "当前设备本地保存头像失败。",
     theme: "主题",
     themeSystem: "跟随系统",
     themeLight: "浅色",
@@ -973,11 +992,15 @@ const I18N = {
     emptyNoExpenseMonth: "本月暂无消费记录。",
     emptyNoExpenseToday: "今天暂无支出。",
     emptyNoRecentExpense: "暂无交易记录。",
-    txFilterTagPlaceholder: "按标签筛选...",
+    txFilterTagPlaceholder: "搜索交易、备注、标签...",
     txFilterAllTypes: "全部类型",
     txFilterAllCategories: "全部分类",
     txFilterStartDate: "开始日期",
     txFilterEndDate: "结束日期",
+    txFilterAmountMin: "最小金额",
+    txFilterAmountMax: "最大金额",
+    txFilterShowAdvanced: "显示筛选",
+    txFilterHideAdvanced: "收起筛选",
     txFilterApply: "筛选",
     txFilterReset: "重置",
     recentSpendToday: "今天",
@@ -1206,6 +1229,17 @@ function bindUI() {
       toggleAmountPrivacyVisibility();
     });
   }
+  const heroAvatar = $("#heroAvatar");
+  const heroAvatarInput = $("#heroAvatarInput");
+  if (heroAvatar && heroAvatarInput instanceof HTMLInputElement) {
+    heroAvatar.addEventListener("click", () => {
+      heroAvatarInput.value = "";
+      heroAvatarInput.click();
+    });
+    heroAvatarInput.addEventListener("change", () => {
+      void handleHeroAvatarSelection(heroAvatarInput);
+    });
+  }
   const topBaseCurrencySelect = $("#topBaseCurrencySelect");
   if (topBaseCurrencySelect instanceof HTMLSelectElement) {
     topBaseCurrencySelect.addEventListener("change", async (event) => {
@@ -1234,13 +1268,21 @@ function bindUI() {
     transactionFilterForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       syncTransactionFiltersFromInputs();
+      syncTransactionAdvancedFilters();
       await loadTransactions();
+    });
+  }
+  const toggleTxAdvancedFilterBtn = $("#toggleTxAdvancedFilterBtn");
+  if (toggleTxAdvancedFilterBtn) {
+    toggleTxAdvancedFilterBtn.addEventListener("click", () => {
+      toggleTransactionAdvancedFilters();
     });
   }
   const resetTxFilterBtn = $("#resetTxFilterBtn");
   if (resetTxFilterBtn) {
     resetTxFilterBtn.addEventListener("click", async () => {
       resetTransactionFilters();
+      syncTransactionAdvancedFilters(false);
       await loadTransactions();
     });
   }
@@ -2211,6 +2253,87 @@ function renderHeroPrivacyToggleControl() {
       </svg>
     `;
   btn.innerHTML = `${icon}<span class="sr-only">${escapeHtml(hint)}</span>`;
+}
+
+function renderHeroAvatar() {
+  const avatar = $("#heroAvatar");
+  const image = $("#heroAvatarImage");
+  if (!avatar || !(image instanceof HTMLImageElement)) return;
+  const user = state.auth?.user || null;
+  const rawLabel = [user?.name, user?.display_name, user?.email, "Koala Ledger"].find(
+    (value) => String(value || "").trim()
+  );
+  const label = String(rawLabel || "Koala Ledger").trim();
+  const uploadHint = t("avatarUploadHint");
+  image.src = readHeroAvatarSrc();
+  image.onerror = () => {
+    image.onerror = null;
+    image.src = HERO_AVATAR_DEFAULT_SRC;
+  };
+  avatar.setAttribute("aria-label", `${uploadHint} · ${label}`);
+  avatar.setAttribute("title", uploadHint);
+}
+
+function readHeroAvatarSrc() {
+  try {
+    const raw = localStorage.getItem(HERO_AVATAR_STORAGE_KEY);
+    return raw ? String(raw) : HERO_AVATAR_DEFAULT_SRC;
+  } catch {
+    return HERO_AVATAR_DEFAULT_SRC;
+  }
+}
+
+function writeHeroAvatarSrc(value) {
+  try {
+    localStorage.setItem(HERO_AVATAR_STORAGE_KEY, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function formatAvatarMaxSize(bytes) {
+  if (bytes >= 1024 * 1024) return `${trimTrailingZeros(bytes / (1024 * 1024), 1)}MB`;
+  if (bytes >= 1024) return `${trimTrailingZeros(bytes / 1024, 0)}KB`;
+  return `${bytes}B`;
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Avatar file read failed."));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleHeroAvatarSelection(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  const isValidType = /^(image\/png|image\/jpeg|image\/webp|image\/gif)$/i.test(String(file.type || ""));
+  if (!isValidType) {
+    showToast(t("avatarUploadTypeError"), true);
+    input.value = "";
+    return;
+  }
+  if (file.size > HERO_AVATAR_MAX_BYTES) {
+    showToast(t("avatarUploadTooLarge", { size: formatAvatarMaxSize(HERO_AVATAR_MAX_BYTES) }), true);
+    input.value = "";
+    return;
+  }
+  try {
+    const dataUrl = await readFileAsDataUrl(file);
+    if (!writeHeroAvatarSrc(dataUrl)) {
+      showToast(t("avatarUploadStorageError"), true);
+      return;
+    }
+    renderHeroAvatar();
+    showToast(t("avatarUploadSuccess"));
+  } catch (error) {
+    showErrorToast(error);
+  } finally {
+    input.value = "";
+  }
 }
 
 function resolveCurrencyForDisplay(value, fallback = "USD") {
@@ -3386,13 +3509,23 @@ async function loadAccountPeriodTxs(period) {
 function syncAccountPeriodTabs(period = state.accountPeriod) {
   const tabs = document.getElementById("acctPeriodTabs");
   if (!(tabs instanceof HTMLElement)) return;
+  syncSegmentedTabs(tabs, (btn) => btn.dataset.period === period);
+}
+
+function syncBudgetViewTabs(showPie = Boolean(state.ui.budgetPieView)) {
+  const tabs = document.getElementById("budgetViewTabs");
+  if (!(tabs instanceof HTMLElement)) return;
+  syncSegmentedTabs(tabs, (btn) => btn.dataset.view === (showPie ? "pie" : "list"));
+}
+
+function syncSegmentedTabs(tabs, isActive) {
   const buttons = Array.from(tabs.querySelectorAll(".acct-period-btn"));
-  const activeButton =
-    buttons.find((btn) => String(btn.dataset.period || "") === String(period || "")) || buttons[0];
+  tabs.style.setProperty("--acct-period-count", String(Math.max(buttons.length, 1)));
+  const activeButton = buttons.find((btn) => isActive(btn)) || buttons[0];
   for (const btn of buttons) {
-    const isActive = btn.dataset.period === period;
-    btn.classList.toggle("active", isActive);
-    btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+    const active = isActive(btn);
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-pressed", active ? "true" : "false");
   }
   if (!(activeButton instanceof HTMLElement)) return;
   const syncThumb = () => {
@@ -4909,6 +5042,7 @@ function renderHeroSummary(dashboard) {
       currencyHint
     )}" aria-label="${escapeHtml(currencyHint)}">${escapeHtml(formatCurrencyUnit(base))}</span>`;
   }
+  renderHeroAvatar();
   renderHeroPrivacyToggleControl();
   renderAccountComposition(dashboard);
 
@@ -5033,9 +5167,7 @@ function renderPlannedBudgetCard(dashboard) {
   }
 
   const showPie = Boolean(state.ui.budgetPieView);
-  document.querySelectorAll("#budgetViewTabs .acct-period-btn").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.view === (showPie ? "pie" : "list"));
-  });
+  syncBudgetViewTabs(showPie);
 
   if (!monthlyRows.length && !yearlyRows.length) {
     summary.classList.remove("hidden");
@@ -5726,19 +5858,27 @@ function syncTransactionFiltersFromInputs() {
   const categorySelect = $("#transactionCategoryFilter");
   const startInput = $("#transactionStartFilter");
   const endInput = $("#transactionEndFilter");
-  state.txFilters.tag = tagInput instanceof HTMLInputElement ? tagInput.value.trim() : "";
+  const minAmountInput = $("#transactionAmountMinFilter");
+  const maxAmountInput = $("#transactionAmountMaxFilter");
+  const query = tagInput instanceof HTMLInputElement ? tagInput.value.trim() : "";
+  state.txFilters.query = query;
+  state.txFilters.tag = query;
   state.txFilters.type =
     typeSelect instanceof HTMLSelectElement ? String(typeSelect.value || "").trim().toLowerCase() : "";
   state.txFilters.categoryL1 =
     categorySelect instanceof HTMLSelectElement ? String(categorySelect.value || "").trim() : "";
   state.txFilters.start = startInput instanceof HTMLInputElement ? normalizeTransactionFilterDate(startInput.value) : "";
   state.txFilters.end = endInput instanceof HTMLInputElement ? normalizeTransactionFilterDate(endInput.value) : "";
+  state.txFilters.minAmount =
+    minAmountInput instanceof HTMLInputElement ? String(minAmountInput.value || "").trim() : "";
+  state.txFilters.maxAmount =
+    maxAmountInput instanceof HTMLInputElement ? String(maxAmountInput.value || "").trim() : "";
 }
 
 function applyTransactionFiltersToInputs() {
   const tagInput = $("#transactionTagFilter");
   if (tagInput instanceof HTMLInputElement) {
-    tagInput.value = String(state.txFilters.tag || "");
+    tagInput.value = String(state.txFilters.query || state.txFilters.tag || "");
   }
   const typeSelect = $("#transactionTypeFilter");
   if (typeSelect instanceof HTMLSelectElement) {
@@ -5759,17 +5899,59 @@ function applyTransactionFiltersToInputs() {
   if (endInput instanceof HTMLInputElement) {
     endInput.value = normalizeTransactionFilterDate(state.txFilters.end);
   }
+  const minAmountInput = $("#transactionAmountMinFilter");
+  if (minAmountInput instanceof HTMLInputElement) {
+    minAmountInput.value = String(state.txFilters.minAmount || "");
+  }
+  const maxAmountInput = $("#transactionAmountMaxFilter");
+  if (maxAmountInput instanceof HTMLInputElement) {
+    maxAmountInput.value = String(state.txFilters.maxAmount || "");
+  }
 }
 
 function resetTransactionFilters() {
   state.txFilters = {
+    query: "",
     tag: "",
     type: "",
     categoryL1: "",
     start: "",
-    end: ""
+    end: "",
+    minAmount: "",
+    maxAmount: ""
   };
   applyTransactionFiltersToInputs();
+}
+
+function hasAdvancedTransactionFilters() {
+  const filters = state.txFilters || {};
+  return Boolean(
+    String(filters.type || "").trim() ||
+      String(filters.categoryL1 || "").trim() ||
+      String(filters.start || "").trim() ||
+      String(filters.end || "").trim() ||
+      String(filters.minAmount || "").trim() ||
+      String(filters.maxAmount || "").trim()
+  );
+}
+
+function syncTransactionAdvancedFilters(forceOpen) {
+  const wrap = $("#transactionAdvancedFilters");
+  const btn = $("#toggleTxAdvancedFilterBtn");
+  if (!wrap || !btn) return;
+  const open = typeof forceOpen === "boolean" ? forceOpen : hasAdvancedTransactionFilters();
+  wrap.classList.toggle("hidden", !open);
+  btn.classList.toggle("active", open);
+  const label = t(open ? "txFilterHideAdvanced" : "txFilterShowAdvanced");
+  btn.setAttribute("aria-label", label);
+  btn.setAttribute("title", label);
+  btn.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+function toggleTransactionAdvancedFilters() {
+  const wrap = $("#transactionAdvancedFilters");
+  if (!wrap) return;
+  syncTransactionAdvancedFilters(wrap.classList.contains("hidden"));
 }
 
 function populateTransactionFilterCategorySelect() {
@@ -5801,8 +5983,6 @@ async function loadTransactionsWithOptions(options = {}) {
   } else {
     params.set("month", state.month);
   }
-  const tag = String(state.txFilters?.tag || "").trim();
-  if (tag) params.set("tag", tag);
   const type = String(state.txFilters?.type || "").trim().toLowerCase();
   if (["expense", "income", "transfer"].includes(type)) params.set("type", type);
   const categoryL1 = String(state.txFilters?.categoryL1 || "").trim();
@@ -6114,7 +6294,7 @@ function getRecentCompareWeekdayKey(date) {
 
 function renderTransactionList(rows, options = {}) {
   const expenseOnly = Boolean(options.expenseOnly);
-  const visibleRows = expenseOnly ? rows.filter((row) => row.type === "expense") : rows;
+  const visibleRows = applyLocalTransactionFilters(rows, { expenseOnly });
   const target = $("#transactionList");
   const baseCurrency = state.settings?.base_currency || "USD";
   if (!visibleRows.length) {
@@ -6182,6 +6362,56 @@ function renderTransactionList(rows, options = {}) {
         </article>`;
     })
     .join("");
+}
+
+function applyLocalTransactionFilters(rows, options = {}) {
+  const expenseOnly = Boolean(options.expenseOnly);
+  const query = String(state.txFilters?.query || state.txFilters?.tag || "").trim().toLowerCase();
+  const minAmountRaw = String(state.txFilters?.minAmount || "").trim();
+  const maxAmountRaw = String(state.txFilters?.maxAmount || "").trim();
+  const minAmount = Number(minAmountRaw);
+  const maxAmount = Number(maxAmountRaw);
+  const hasMinAmount = minAmountRaw !== "" && Number.isFinite(minAmount);
+  const hasMaxAmount = maxAmountRaw !== "" && Number.isFinite(maxAmount);
+  return (Array.isArray(rows) ? rows : []).filter((row) => {
+    if (expenseOnly && row.type !== "expense") return false;
+    const amount = Math.abs(Number(row.amount_base || 0));
+    if (hasMinAmount && amount < minAmount) return false;
+    if (hasMaxAmount && amount > maxAmount) return false;
+    if (!query) return true;
+    return buildTransactionSearchText(row).includes(query);
+  });
+}
+
+function buildTransactionSearchText(row) {
+  const fromAccount = resolveAccountName(row.account_from_id);
+  const toAccount = resolveAccountName(row.account_to_id);
+  return [
+    row.type,
+    row.tx_date,
+    row.category_l1,
+    row.category_l2,
+    row.note,
+    Array.isArray(row.tags) ? row.tags.join(" ") : "",
+    row.transfer_reason ? getTransferReasonLabel(row.transfer_reason) : "",
+    fromAccount,
+    toAccount,
+    String(row.account_from_id || ""),
+    String(row.account_to_id || ""),
+    formatMoney(Number(row.amount_base || 0)),
+    formatMoney(Number(row.amount_original || 0)),
+    row.currency_original,
+    txTypeLabel(row.type)
+  ]
+    .map((value) => String(value || "").toLowerCase())
+    .join(" ");
+}
+
+function resolveAccountName(accountId) {
+  const id = Number(accountId);
+  if (!Number.isInteger(id) || id <= 0) return "";
+  const row = (state.accounts || []).find((item) => Number(item.id) === id);
+  return row ? String(row.name || "") : "";
 }
 
 function renderTodayExpensesCard(rows) {
@@ -6837,6 +7067,17 @@ function applyI18n() {
   if (transactionTagFilterInput) transactionTagFilterInput.placeholder = t("txFilterTagPlaceholder");
   setAttr("transactionStartFilter", "aria-label", t("txFilterStartDate"));
   setAttr("transactionEndFilter", "aria-label", t("txFilterEndDate"));
+  const transactionAmountMinFilter = $("#transactionAmountMinFilter");
+  if (transactionAmountMinFilter) {
+    transactionAmountMinFilter.placeholder = t("txFilterAmountMin");
+    transactionAmountMinFilter.setAttribute("aria-label", t("txFilterAmountMin"));
+  }
+  const transactionAmountMaxFilter = $("#transactionAmountMaxFilter");
+  if (transactionAmountMaxFilter) {
+    transactionAmountMaxFilter.placeholder = t("txFilterAmountMax");
+    transactionAmountMaxFilter.setAttribute("aria-label", t("txFilterAmountMax"));
+  }
+  syncTransactionAdvancedFilters();
   setText("tabBudgetsBtn", `📋 ${t("tabBudgets")}`);
   setText("tabAccountsBtn", `🏦 ${t("tabAccounts")}`);
   setText("tabReviewBtn", `🗓️ ${t("tabReview")}`);
@@ -6897,6 +7138,7 @@ function applyI18n() {
   updateQuickDateDisplay();
   setText("quickEntryAmountLabel", t("amount"));
   setText("quickEntryNoteLabel", t("note"));
+  renderHeroAvatar();
   setText(
     "quickEntrySaveBtn",
     state.quickEntryType === "income"
