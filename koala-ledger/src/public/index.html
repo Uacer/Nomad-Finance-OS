@@ -239,7 +239,7 @@
               <div id="heroNetCashFlowLine" class="hero-netcashline"></div>
             </div>
             <button class="hero-avatar" id="heroAvatar" type="button" aria-label="Upload avatar" title="Upload avatar">
-              <img id="heroAvatarImage" src="/koala-default-avatar.svg" alt="" />
+              <img id="heroAvatarImage" src="data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2064%2064%27%3E%3Ctext%20x%3D%2750%25%27%20y%3D%2754%25%27%20text-anchor%3D%27middle%27%20dominant-baseline%3D%27middle%27%20font-size%3D%2742%27%3E%F0%9F%90%A8%3C/text%3E%3C/svg%3E" alt="" />
             </button>
             <input id="heroAvatarInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
           </div>
@@ -744,16 +744,13 @@
                   <button id="quickDateToggleBtn" class="quick-date-toggle-btn" type="button">
                     <span id="quickDateToggleText">Today</span>
                   </button>
+                  <input id="quickDateNativeInput" name="date" type="date" required />
                 </div>
                 <label class="quick-note-inline-field">
                   <span id="quickEntryNoteLabel" class="sr-only">Note</span>
                   <input name="note" type="text" maxlength="500" placeholder="备注" />
                 </label>
               </div>
-              <label id="quickDateWrap" class="quick-date-wrap hidden">
-                <span id="quickEntryDateInputLabel" class="sr-only">Date</span>
-                <input name="date" type="date" required />
-              </label>
             </section>
             <div id="quickKeypad" class="quick-keypad" aria-label="Amount keypad">
               <button class="quick-keypad-btn" type="button" data-keypad="1">1</button>

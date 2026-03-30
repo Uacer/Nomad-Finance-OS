@@ -231,7 +231,8 @@ const ACCOUNT_TYPE_PICKER_PRESETS = Object.freeze({
 });
 const HERO_AVATAR_STORAGE_KEY = "koala-ledger:hero-avatar-data-url";
 const HERO_AVATAR_PALETTE_STORAGE_KEY = "koala-ledger:hero-avatar-palette";
-const HERO_AVATAR_DEFAULT_SRC = "/koala-default-avatar.svg";
+const HERO_AVATAR_DEFAULT_SRC =
+  "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2064%2064%27%3E%3Ctext%20x%3D%2750%25%27%20y%3D%2754%25%27%20text-anchor%3D%27middle%27%20dominant-baseline%3D%27middle%27%20font-size%3D%2742%27%3E%F0%9F%90%A8%3C/text%3E%3C/svg%3E";
 const HERO_AVATAR_MAX_BYTES = 2 * 1024 * 1024;
 const I18N = {
   en: {
@@ -389,9 +390,9 @@ const I18N = {
     quickUnassignedHint: "No account selected. It will be saved to Default Account.",
     note: "Note",
     tagsLabel: "Tags",
-    saveExpense: "Save Expense",
-    saveIncome: "Save Income",
-    saveTransfer: "Save Transfer",
+    saveExpense: "Confirm",
+    saveIncome: "Confirm",
+    saveTransfer: "Confirm",
     budgetEditor: "Budget Editor",
     totalAmount: "Total Amount",
     saveBudget: "Save Budget",
@@ -830,9 +831,9 @@ const I18N = {
     quickUnassignedHint: "未选择账户，将记入默认账户。",
     note: "备注",
     tagsLabel: "标签",
-    saveExpense: "保存支出",
-    saveIncome: "保存收入",
-    saveTransfer: "保存转账",
+    saveExpense: "确认",
+    saveIncome: "确认",
+    saveTransfer: "确认",
     budgetEditor: "预算编辑",
     totalAmount: "预算总额",
     saveBudget: "保存预算",
@@ -1561,15 +1562,7 @@ function bindUI() {
   if (quickDateToggleBtn) {
     quickDateToggleBtn.addEventListener("click", () => {
       const dateInput = $("#quickEntryForm [name=date]");
-      if (dateInput && typeof dateInput.showPicker === "function") {
-        dateInput.showPicker();
-        return;
-      }
-      const wrap = $("#quickDateWrap");
-      if (!wrap) return;
-      const nextHidden = !wrap.classList.contains("hidden");
-      wrap.classList.toggle("hidden", nextHidden);
-      if (!nextHidden && dateInput) dateInput.focus();
+      openQuickDatePicker(dateInput);
     });
   }
   $("#quickBudgetForm").addEventListener("submit", submitQuickBudgetForm);
@@ -1987,8 +1980,6 @@ function openSheet(id, options = {}) {
     const dateInput = $("#quickEntryForm [name=date]");
     if (dateInput) dateInput.value = new Date().toISOString().slice(0, 10);
     updateQuickDateDisplay();
-    const dateWrap = $("#quickDateWrap");
-    if (dateWrap) dateWrap.classList.add("hidden");
     const amountInput = $("#quickEntryForm [name=amount_original]");
     if (amountInput) amountInput.value = "0";
     syncQuickAmountDisplay(0);
@@ -2325,6 +2316,31 @@ function writeHeroAvatarPalette(palette) {
   } catch {
     return false;
   }
+}
+
+function openQuickDatePicker(input) {
+  if (!(input instanceof HTMLInputElement)) return;
+  const invokeNativePicker = () => {
+    try {
+      if (typeof input.showPicker === "function") {
+        input.showPicker();
+        return;
+      }
+    } catch {
+      // Some mobile browsers expose showPicker but reject it here.
+    }
+    try {
+      input.click();
+    } catch {
+      // ignore click fallback failure
+    }
+    input.focus({ preventScroll: true });
+  };
+  if (typeof requestAnimationFrame === "function") {
+    requestAnimationFrame(invokeNativePicker);
+    return;
+  }
+  setTimeout(invokeNativePicker, 0);
 }
 
 function normalizeRgbTriplet(value) {
