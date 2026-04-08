@@ -747,7 +747,13 @@
                   <button id="quickDateToggleBtn" class="quick-date-toggle-btn" type="button">
                     <span id="quickDateToggleText">Today</span>
                   </button>
-                  <input id="quickDateNativeInput" name="date" type="date" required />
+                  <input
+                    id="quickDateNativeInput"
+                    name="date"
+                    type="date"
+                    aria-labelledby="quickEntryDateLabel quickDateToggleText"
+                    required
+                  />
                 </div>
                 <label class="quick-note-inline-field">
                   <span id="quickEntryNoteLabel" class="sr-only">Note</span>

@@ -2387,6 +2387,11 @@ async function syncUserPreferenceSettings(patch, options = {}) {
 function openQuickDatePicker(input) {
   if (!(input instanceof HTMLInputElement)) return;
   try {
+    input.focus({ preventScroll: true });
+  } catch {
+    input.focus();
+  }
+  try {
     if (typeof input.showPicker === "function") {
       input.showPicker();
       return;
@@ -2399,11 +2404,6 @@ function openQuickDatePicker(input) {
     return;
   } catch {
     // ignore click fallback failure
-  }
-  try {
-    input.focus({ preventScroll: true });
-  } catch {
-    input.focus();
   }
 }
 
@@ -4052,12 +4052,7 @@ function setupQuickAmountWheel() {
 
   const setQuickAmountValue = (rawText) => {
     let nextText = sanitizeQuickAmountText(rawText);
-    let numeric = clampQuickAmount(nextText);
-    const max = Number(state.quickEntryMax || 0);
-    if (numeric > max && max > 0) {
-      numeric = max;
-      nextText = sanitizeQuickAmountText(String(max));
-    }
+    const numeric = clampQuickAmount(nextText);
     amountInput.value = nextText || "";
     scheduleAmountUiSync(nextText || numeric || 0);
   };
@@ -4452,7 +4447,7 @@ function applyQuickEntryMax(maxAmount, currency, options = {}) {
   if (!amountInput || !hint) return;
 
   state.quickEntryMax = Number.isFinite(Number(maxAmount)) ? Math.max(0, Number(maxAmount)) : 0;
-  amountInput.max = String(state.quickEntryMax);
+  amountInput.removeAttribute("max");
 
   const current = clampQuickAmount(amountInput.value);
   amountInput.value = String(current);
@@ -4474,9 +4469,8 @@ function applyQuickEntryMax(maxAmount, currency, options = {}) {
 
 function clampQuickAmount(value) {
   const raw = Number(value || 0);
-  const max = Math.max(0, Number(state.quickEntryMax || 0));
   if (!Number.isFinite(raw)) return 0;
-  return Number(Math.min(Math.max(0, raw), max).toFixed(2));
+  return Number(Math.max(0, raw).toFixed(2));
 }
 
 function sanitizeQuickAmountText(value) {
@@ -4534,7 +4528,7 @@ function validateQuickEntryAmount() {
   const saveBtn = $("#quickEntrySaveBtn");
   if (!amountInput || !saveBtn) return;
   const amount = Number(amountInput.value || 0);
-  const valid = Number.isFinite(amount) && amount > 0 && amount <= Number(state.quickEntryMax || 0);
+  const valid = Number.isFinite(amount) && amount > 0;
   saveBtn.disabled = !valid;
 }
 
@@ -4660,19 +4654,6 @@ async function submitQuickEntryForm(event) {
   const transferConfig = getTransferReasonConfig(transferReason);
   if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) {
     showToast(t("invalidAmount"), true);
-    return;
-  }
-  if (
-    (state.quickEntryType === "expense" || (state.quickEntryType === "transfer" && transferConfig.needsFrom)) &&
-    requestedAmount > Number(state.quickEntryMax || 0)
-  ) {
-    showToast(
-      t("amountExceeded", {
-        amount: formatMoney(state.quickEntryMax),
-        currency: formatCurrencyUnit(currencyCode)
-      }),
-      true
-    );
     return;
   }
   const payload = {
