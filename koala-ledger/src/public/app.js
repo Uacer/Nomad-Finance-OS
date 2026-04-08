@@ -243,6 +243,7 @@ const ACCOUNT_TYPE_PICKER_PRESETS = Object.freeze({
 });
 const HERO_AVATAR_STORAGE_KEY = "koala-ledger:hero-avatar-data-url";
 const HERO_AVATAR_PALETTE_STORAGE_KEY = "koala-ledger:hero-avatar-palette";
+const UI_LANGUAGE_STORAGE_KEY = "nfos_preferred_ui_language";
 const HERO_AVATAR_DEFAULT_SRC =
   "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2064%2064%27%3E%3Ctext%20x%3D%2750%25%27%20y%3D%2754%25%27%20text-anchor%3D%27middle%27%20dominant-baseline%3D%27middle%27%20font-size%3D%2742%27%3E%F0%9F%90%A8%3C/text%3E%3C/svg%3E";
 const HERO_AVATAR_MAX_BYTES = 2 * 1024 * 1024;
@@ -421,10 +422,19 @@ const I18N = {
     hideAmounts: "Hide amounts",
     showAmounts: "Show amounts",
     avatarUploadHint: "Upload your avatar",
+    avatarOpenProfileHint: "Open personal account",
     avatarUploadSuccess: "Avatar updated",
     avatarUploadTypeError: "Please choose a PNG, JPG, WEBP, or GIF image.",
     avatarUploadTooLarge: "Avatar file must be {size} or smaller.",
     avatarUploadStorageError: "Avatar could not be saved locally on this device.",
+    personalAccount: "Personal Account",
+    displayName: "Display Name",
+    displayNamePlaceholder: "How you want to be shown",
+    email: "Email",
+    saveProfile: "Save Profile",
+    changeAvatar: "Change Avatar",
+    changeAvatarHint: "Choose a photo to update your avatar. Changes are saved right away.",
+    choosePhoto: "Choose Photo",
     theme: "Theme",
     themeSystem: "System",
     themeLight: "Light",
@@ -867,10 +877,19 @@ const I18N = {
     hideAmounts: "隐藏金额",
     showAmounts: "显示金额",
     avatarUploadHint: "上传你的头像",
+    avatarOpenProfileHint: "打开个人账号",
     avatarUploadSuccess: "头像已更新",
     avatarUploadTypeError: "请选择 PNG、JPG、WEBP 或 GIF 图片。",
     avatarUploadTooLarge: "头像文件需小于等于 {size}。",
     avatarUploadStorageError: "当前设备本地保存头像失败。",
+    personalAccount: "个人账号",
+    displayName: "昵称",
+    displayNamePlaceholder: "你希望显示的名字",
+    email: "邮箱",
+    saveProfile: "保存资料",
+    changeAvatar: "修改头像",
+    changeAvatarHint: "选择一张图片即可更新头像，选中后会立即保存。",
+    choosePhoto: "选择图片",
     theme: "主题",
     themeSystem: "跟随系统",
     themeLight: "浅色",
@@ -1257,8 +1276,8 @@ function bindUI() {
   const heroAvatarInput = $("#heroAvatarInput");
   if (heroAvatar && heroAvatarInput instanceof HTMLInputElement) {
     heroAvatar.addEventListener("click", () => {
-      heroAvatarInput.value = "";
-      heroAvatarInput.click();
+      openSheet("settingsSheet");
+      showSettingsPage("settingsPageProfile", "forward");
     });
     heroAvatarInput.addEventListener("change", () => {
       void handleHeroAvatarSelection(heroAvatarInput);
@@ -1368,6 +1387,26 @@ function bindUI() {
       if (!(event.target instanceof Element)) return;
       const button = event.target.closest("button");
       if (!(button instanceof HTMLButtonElement)) return;
+      if (button.id === "settingsOpenProfile") {
+        showSettingsPage("settingsPageProfile", "forward");
+        return;
+      }
+      if (button.id === "settingsBackFromProfile") {
+        showSettingsPage("settingsPageMain", "back");
+        return;
+      }
+      if (button.id === "settingsOpenAvatar") {
+        showSettingsPage("settingsPageAvatar", "forward");
+        return;
+      }
+      if (button.id === "settingsBackFromAvatar") {
+        showSettingsPage("settingsPageProfile", "back");
+        return;
+      }
+      if (button.id === "settingsAvatarChooseBtn") {
+        requestHeroAvatarSelection();
+        return;
+      }
       if (button.id === "settingsOpenGeneral") {
         showSettingsPage("settingsPageGeneral", "forward");
         return;
@@ -1591,6 +1630,7 @@ function bindUI() {
   }
   $("#quickBudgetForm").addEventListener("submit", submitQuickBudgetForm);
   $("#quickSettingsForm").addEventListener("submit", submitQuickSettingsForm);
+  $("#profileSettingsForm").addEventListener("submit", submitProfileSettingsForm);
   $("#accountEditForm").addEventListener("submit", submitAccountEditForm);
   $("#budgetEditForm").addEventListener("submit", submitBudgetEditForm);
   // Budget list click delegation (monthly + yearly)
@@ -2042,6 +2082,7 @@ function openSheet(id, options = {}) {
     const userInput = $("#quickSettingsForm [name=user_id]");
     if (userInput) userInput.value = String(state.userId);
     $("#quickSettingsForm [name=ui_language]").value = ensureUILanguage(state.settings?.ui_language || "en");
+    renderSettingsProfilePage();
     syncDevBypassVisibility();
     showSettingsPage("settingsPageMain", "back");
   }
@@ -2307,11 +2348,11 @@ function renderHeroAvatar() {
   const image = $("#heroAvatarImage");
   if (!avatar || !(image instanceof HTMLImageElement)) return;
   const user = state.auth?.user || null;
-  const rawLabel = [user?.name, user?.display_name, user?.email, "Koala Ledger"].find(
+  const rawLabel = [state.settings?.display_name, user?.name, user?.display_name, user?.email, "Koala Ledger"].find(
     (value) => String(value || "").trim()
   );
   const label = String(rawLabel || "Koala Ledger").trim();
-  const uploadHint = t("avatarUploadHint");
+  const openHint = t("avatarOpenProfileHint");
   const src = readHeroAvatarSrc();
   applyHeroCardPalette(readHeroAvatarPalette());
   image.src = src;
@@ -2321,8 +2362,8 @@ function renderHeroAvatar() {
     void refreshHeroCardPaletteFromAvatar(HERO_AVATAR_DEFAULT_SRC, { force: true });
   };
   void refreshHeroCardPaletteFromAvatar(src);
-  avatar.setAttribute("aria-label", `${uploadHint} · ${label}`);
-  avatar.setAttribute("title", uploadHint);
+  avatar.setAttribute("aria-label", `${openHint} · ${label}`);
+  avatar.setAttribute("title", openHint);
 }
 
 function readHeroAvatarSrc() {
@@ -2377,11 +2418,52 @@ async function syncUserPreferenceSettings(patch, options = {}) {
       body: JSON.stringify(patch)
     });
     state.settings = { ...(state.settings || {}), ...(updated || {}) };
+    persistUILanguagePreference(updated?.ui_language || state.settings?.ui_language || "en");
+    syncAuthUserProfileFromSettings(updated);
     return updated;
   } catch (error) {
     if (!options.silent) showErrorToast(error);
     return null;
   }
+}
+
+function syncAuthUserProfileFromSettings(settings = state.settings) {
+  if (!state.auth?.user || !settings) return;
+  if (typeof settings.display_name === "string") {
+    state.auth.user.display_name = settings.display_name;
+  }
+}
+
+function renderSettingsProfilePage() {
+  const src = readHeroAvatarSrc();
+  const displayName = String(state.settings?.display_name || state.auth?.user?.display_name || "").trim();
+  const email = String(state.auth?.user?.email || "").trim();
+  const primary = displayName || email || "Koala Ledger";
+  const secondary = email || t("personalAccount");
+  const displayNameInput = $("#settingsProfileDisplayNameInput");
+  if (displayNameInput instanceof HTMLInputElement) displayNameInput.value = displayName;
+  const profileEmailValue = $("#settingsProfileEmailValue");
+  if (profileEmailValue) profileEmailValue.textContent = email || "-";
+  const profilePrimary = $("#settingsProfilePrimaryText");
+  if (profilePrimary) profilePrimary.textContent = primary;
+  const profileSecondary = $("#settingsProfileSecondaryText");
+  if (profileSecondary) profileSecondary.textContent = secondary;
+  for (const id of ["settingsProfileAvatarPreview", "settingsAvatarPreview"]) {
+    const image = document.getElementById(id);
+    if (!(image instanceof HTMLImageElement)) continue;
+    image.src = src;
+    image.onerror = () => {
+      image.onerror = null;
+      image.src = HERO_AVATAR_DEFAULT_SRC;
+    };
+  }
+}
+
+function requestHeroAvatarSelection() {
+  const heroAvatarInput = $("#heroAvatarInput");
+  if (!(heroAvatarInput instanceof HTMLInputElement)) return;
+  heroAvatarInput.value = "";
+  heroAvatarInput.click();
 }
 
 function openQuickDatePicker(input) {
@@ -2561,6 +2643,7 @@ async function handleHeroAvatarSelection(input) {
     const palette = await refreshHeroCardPaletteFromAvatar(dataUrl, { force: true });
     if (palette) writeHeroAvatarPalette(palette);
     renderHeroAvatar();
+    renderSettingsProfilePage();
     void syncUserPreferenceSettings(
       {
         hero_avatar_data_url: dataUrl,
@@ -2838,6 +2921,7 @@ async function copyLatestAgentToken() {
 async function initializeAuthFlow() {
   syncControlState();
   loadUiState();
+  hydrateInitialUILanguageState();
   applyI18n();
   try {
     await loadAuthSession();
@@ -3511,6 +3595,7 @@ async function loadAll() {
 
 async function loadSettings() {
   state.settings = (await api("/api/v1/settings")) || {
+    display_name: "",
     base_currency: "USD",
     timezone: "UTC",
     ui_language: "en",
@@ -3550,8 +3635,10 @@ async function loadSettings() {
     }
   }
 
+  state.settings.display_name = String(state.settings.display_name || "").trim();
   const uiLanguage = ensureUILanguage(state.settings.ui_language || "en");
   state.settings.ui_language = uiLanguage;
+  persistUILanguagePreference(uiLanguage);
   const uiBase = ensureUICurrency(state.settings.base_currency || "USD");
   const uiTheme = ensureUITheme(state.settings.theme || "system");
   state.settings.theme = uiTheme;
@@ -3629,6 +3716,8 @@ async function loadSettings() {
   }
   const quickUserIdInput = $("#quickSettingsForm [name=user_id]");
   if (quickUserIdInput) quickUserIdInput.value = String(state.userId);
+  syncAuthUserProfileFromSettings();
+  renderSettingsProfilePage();
   const topBaseCurrencySelect = $("#topBaseCurrencySelect");
   if (topBaseCurrencySelect instanceof HTMLSelectElement) {
     topBaseCurrencySelect.value = uiBase;
@@ -5103,6 +5192,20 @@ async function submitQuickSettingsForm(event) {
   } catch (error) {
     showErrorToast(error);
   }
+}
+
+async function submitProfileSettingsForm(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  if (!(form instanceof HTMLFormElement)) return;
+  const fd = new FormData(form);
+  const updated = await syncUserPreferenceSettings({
+    display_name: String(fd.get("display_name") || "").trim()
+  });
+  if (!updated) return;
+  renderHeroAvatar();
+  renderSettingsProfilePage();
+  showToast(t("settingsUpdated"));
 }
 
 async function submitAgentTokenForm(event) {
@@ -7349,6 +7452,57 @@ function ensureUILanguage(value) {
   return UI_LANGUAGES.has(code) ? code : "en";
 }
 
+function detectBrowserUILanguage() {
+  const candidates =
+    Array.isArray(navigator.languages) && navigator.languages.length
+      ? navigator.languages
+      : [navigator.language || "en"];
+  for (const candidate of candidates) {
+    const code = String(candidate || "").trim().toLowerCase();
+    if (!code) continue;
+    if (code.startsWith("zh")) return "zh";
+    if (code.startsWith("en")) return "en";
+  }
+  return "en";
+}
+
+function readStoredUILanguagePreference() {
+  try {
+    return ensureUILanguage(localStorage.getItem(UI_LANGUAGE_STORAGE_KEY) || "");
+  } catch {
+    return "en";
+  }
+}
+
+function persistUILanguagePreference(value) {
+  try {
+    localStorage.setItem(UI_LANGUAGE_STORAGE_KEY, ensureUILanguage(value));
+  } catch {
+    // ignore localStorage errors
+  }
+}
+
+function resolvePreferredUILanguage() {
+  const current = ensureUILanguage(state.settings?.ui_language || "");
+  if (current && current !== "en") return current;
+  let storedRaw = "";
+  try {
+    storedRaw = String(localStorage.getItem(UI_LANGUAGE_STORAGE_KEY) || "").trim();
+  } catch {
+    storedRaw = "";
+  }
+  if (storedRaw) return readStoredUILanguagePreference();
+  return detectBrowserUILanguage();
+}
+
+function hydrateInitialUILanguageState() {
+  const language = resolvePreferredUILanguage();
+  state.settings = {
+    ...(state.settings || {}),
+    ui_language: language
+  };
+}
+
 function ensureCurrencyDisplayMode(value) {
   const mode = String(value || "code").toLowerCase();
   return UI_CURRENCY_DISPLAY_MODES.has(mode) ? mode : "code";
@@ -7589,6 +7743,7 @@ function applyI18n() {
   setText("quickEntryAmountLabel", t("amount"));
   setText("quickEntryNoteLabel", t("note"));
   renderHeroAvatar();
+  renderSettingsProfilePage();
   setText(
     "quickEntrySaveBtn",
     state.quickEntryType === "income"
@@ -7609,6 +7764,14 @@ function applyI18n() {
   setText("reviewL1Title", t("reviewExpenseBreakdown"));
   setText("reviewTopTitle", t("reviewTopExpenses"));
   setText("settingsSheetTitle", t("settings"));
+  setText("settingsProfileNavLabel", t("personalAccount"));
+  setText("settingsProfilePageTitle", t("personalAccount"));
+  setText("settingsProfileDisplayNameLabel", t("displayName"));
+  setText("settingsProfileEmailLabel", t("email"));
+  setText("settingsAvatarPageTitle", t("changeAvatar"));
+  setText("settingsAvatarHint", t("changeAvatarHint"));
+  setText("settingsAvatarChooseBtn", t("choosePhoto"));
+  setText("settingsProfileSaveBtn", t("saveProfile"));
   setText("settingsGeneralNavLabel", t("general"));
   setText("settingsGeneralPageTitle", t("general"));
   setText("quickSettingsUserLabel", t("userId"));
@@ -7641,6 +7804,8 @@ function applyI18n() {
   setText("debugRuntimeTitle", t("debugRuntime"));
   setText("quickSettingsSaveBtn", t("saveSettings"));
   setText("quickLogoutBtn", t("logout"));
+  const displayNameInput = $("#settingsProfileDisplayNameInput");
+  if (displayNameInput instanceof HTMLInputElement) displayNameInput.placeholder = t("displayNamePlaceholder");
   setText("accountsPanelTitle", t("navAccounts"));
   setText("categoriesPanelTitle", t("navCategories"));
   setText("toggleAccountFormBtn", t("add"));

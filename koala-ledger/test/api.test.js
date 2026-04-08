@@ -738,6 +738,7 @@ test("settings persists ui_language", async () => {
 test("settings persist avatar and dashboard order preferences", async () => {
   const { api } = createHarness();
   const payload = {
+    display_name: "Koala Tester",
     hero_avatar_data_url: "data:image/svg+xml;base64,ZmFrZQ==",
     hero_avatar_palette: {
       primary: [120, 80, 40],
@@ -748,12 +749,14 @@ test("settings persist avatar and dashboard order preferences", async () => {
 
   const update = await api.put("/api/v1/settings").send(payload);
   assert.equal(update.status, 200);
+  assert.equal(update.body.display_name, payload.display_name);
   assert.equal(update.body.hero_avatar_data_url, payload.hero_avatar_data_url);
   assert.deepEqual(update.body.hero_avatar_palette, payload.hero_avatar_palette);
   assert.deepEqual(update.body.dashboard_order, payload.dashboard_order);
 
   const after = await api.get("/api/v1/settings").send();
   assert.equal(after.status, 200);
+  assert.equal(after.body.display_name, payload.display_name);
   assert.equal(after.body.hero_avatar_data_url, payload.hero_avatar_data_url);
   assert.deepEqual(after.body.hero_avatar_palette, payload.hero_avatar_palette);
   assert.deepEqual(after.body.dashboard_order, payload.dashboard_order);
@@ -765,6 +768,7 @@ test("settings preferences are isolated per user", async () => {
   const apiUser2 = createBypassApiClient(rawApi, 2);
 
   const user1Res = await apiUser1.put("/api/v1/settings").send({
+    display_name: "User One",
     hero_avatar_data_url: "data:image/svg+xml;base64,dXNlcjE=",
     hero_avatar_palette: {
       primary: [140, 90, 60],
@@ -776,11 +780,13 @@ test("settings preferences are isolated per user", async () => {
 
   const user2Initial = await apiUser2.get("/api/v1/settings").send();
   assert.equal(user2Initial.status, 200);
+  assert.equal(user2Initial.body.display_name, "");
   assert.equal(user2Initial.body.hero_avatar_data_url, "");
   assert.equal(user2Initial.body.hero_avatar_palette, null);
   assert.deepEqual(user2Initial.body.dashboard_order, []);
 
   const user2Res = await apiUser2.put("/api/v1/settings").send({
+    display_name: "User Two",
     hero_avatar_data_url: "data:image/svg+xml;base64,dXNlcjI=",
     dashboard_order: ["recentCompareCard", "budgetPlanCard"]
   });
@@ -788,11 +794,13 @@ test("settings preferences are isolated per user", async () => {
 
   const user1After = await apiUser1.get("/api/v1/settings").send();
   assert.equal(user1After.status, 200);
+  assert.equal(user1After.body.display_name, "User One");
   assert.equal(user1After.body.hero_avatar_data_url, "data:image/svg+xml;base64,dXNlcjE=");
   assert.deepEqual(user1After.body.dashboard_order, ["todayExpensesCard", "riskCard"]);
 
   const user2After = await apiUser2.get("/api/v1/settings").send();
   assert.equal(user2After.status, 200);
+  assert.equal(user2After.body.display_name, "User Two");
   assert.equal(user2After.body.hero_avatar_data_url, "data:image/svg+xml;base64,dXNlcjI=");
   assert.deepEqual(user2After.body.dashboard_order, ["recentCompareCard", "budgetPlanCard"]);
 });
@@ -1423,6 +1431,15 @@ test("email code request -> verify -> session login -> logout flow", async () =>
     assert.equal(sessionRes.status, 200);
     assert.equal(sessionRes.body.authenticated, true);
     assert.equal(sessionRes.body.user.email, "test+login@example.com");
+    assert.equal(sessionRes.body.user.display_name, "");
+
+    const settingsRes = await rawApi.put("/api/v1/settings").send({ display_name: "Login User" });
+    assert.equal(settingsRes.status, 200);
+    assert.equal(settingsRes.body.display_name, "Login User");
+
+    const sessionWithName = await rawApi.get("/api/v1/auth/session").send();
+    assert.equal(sessionWithName.status, 200);
+    assert.equal(sessionWithName.body.user.display_name, "Login User");
 
     const protectedRes = await rawApi.get("/api/v1/settings").send();
     assert.equal(protectedRes.status, 200);

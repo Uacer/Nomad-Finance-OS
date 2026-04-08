@@ -152,6 +152,30 @@ CREATE TABLE IF NOT EXISTS user_settings (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS user_profiles (
+    user_id INTEGER PRIMARY KEY,
+    display_name TEXT NOT NULL DEFAULT '',
+    hero_avatar_data_url TEXT NOT NULL DEFAULT '',
+    hero_avatar_palette_json TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS user_preferences (
+    user_id INTEGER PRIMARY KEY,
+    base_currency TEXT NOT NULL DEFAULT 'USD',
+    timezone TEXT NOT NULL DEFAULT 'UTC',
+    ui_language TEXT NOT NULL DEFAULT 'en',
+    theme TEXT NOT NULL DEFAULT 'system',
+    currency_display_mode TEXT NOT NULL DEFAULT 'code',
+    living_country_code TEXT NOT NULL DEFAULT '',
+    monthly_income_band TEXT NOT NULL DEFAULT '8000_20000',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS yearly_budgets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,

@@ -390,7 +390,8 @@ function createApp(db) {
       dev_bypass: Boolean(req.isDevBypass),
       user: {
         id: req.userId,
-        email: user?.email || req.userEmail || ""
+        email: user?.email || req.userEmail || "",
+        display_name: String(user?.display_name || "")
       }
     });
   });
@@ -521,6 +522,7 @@ function createApp(db) {
 
   app.put("/api/v1/settings", async (req, res) => {
     const schema = z.object({
+      display_name: z.string().trim().max(120).optional(),
       base_currency: z.string().min(3).max(8).optional(),
       timezone: z.string().min(2).max(100).optional(),
       ui_language: z.enum(["en", "zh"]).optional(),
@@ -572,32 +574,51 @@ function createApp(db) {
       }
     }
     const monthlyIncomeBand = payload.monthly_income_band || current.monthly_income_band;
+    const displayName = payload.display_name !== undefined ? String(payload.display_name || "").trim() : current.display_name;
     const heroAvatarDataUrl =
       payload.hero_avatar_data_url !== undefined ? String(payload.hero_avatar_data_url || "") : current.hero_avatar_data_url;
     const heroAvatarPalette =
       payload.hero_avatar_palette !== undefined ? payload.hero_avatar_palette : current.hero_avatar_palette;
     const dashboardOrder = payload.dashboard_order !== undefined ? payload.dashboard_order : current.dashboard_order;
-    db.prepare(
-      `
-        UPDATE user_settings
-        SET base_currency = ?, timezone = ?, ui_language = ?, theme = ?, currency_display_mode = ?,
-            living_country_code = ?, monthly_income_band = ?, hero_avatar_data_url = ?, hero_avatar_palette_json = ?,
-            dashboard_order_json = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE user_id = ?
-      `
-    ).run(
-      baseCurrency,
-      timezone,
-      uiLanguage,
-      theme,
-      currencyDisplayMode,
-      livingCountryCode,
-      monthlyIncomeBand,
-      heroAvatarDataUrl,
-      serializeSettingsJson(heroAvatarPalette),
-      serializeSettingsJson(dashboardOrder),
-      req.userId
-    );
+    const updateSettingsTx = db.transaction(() => {
+      db.prepare(
+        `
+          UPDATE user_preferences
+          SET base_currency = ?, timezone = ?, ui_language = ?, theme = ?, currency_display_mode = ?,
+              living_country_code = ?, monthly_income_band = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE user_id = ?
+        `
+      ).run(
+        baseCurrency,
+        timezone,
+        uiLanguage,
+        theme,
+        currencyDisplayMode,
+        livingCountryCode,
+        monthlyIncomeBand,
+        req.userId
+      );
+      db.prepare(
+        `
+          UPDATE user_profiles
+          SET display_name = ?, hero_avatar_data_url = ?, hero_avatar_palette_json = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE user_id = ?
+        `
+      ).run(
+        displayName,
+        heroAvatarDataUrl,
+        serializeSettingsJson(heroAvatarPalette),
+        req.userId
+      );
+      db.prepare(
+        `
+          UPDATE user_settings
+          SET dashboard_order_json = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE user_id = ?
+        `
+      ).run(serializeSettingsJson(dashboardOrder), req.userId);
+    });
+    updateSettingsTx();
     res.json(getUserSettings(db, req.userId));
   });
 
@@ -2011,22 +2032,25 @@ function getUserSettings(db, userId) {
     .prepare(
       `
         SELECT
-          user_id,
-          base_currency,
-          timezone,
-          ui_language,
-          theme,
-          currency_display_mode,
-          living_country_code,
-          monthly_income_band,
-          hero_avatar_data_url,
-          hero_avatar_palette_json,
-          dashboard_order_json,
-          onboarding_completed,
-          onboarding_current_step,
-          onboarding_completed_at
-        FROM user_settings
-        WHERE user_id = ?
+          s.user_id,
+          p.display_name,
+          pref.base_currency,
+          pref.timezone,
+          pref.ui_language,
+          pref.theme,
+          pref.currency_display_mode,
+          pref.living_country_code,
+          pref.monthly_income_band,
+          p.hero_avatar_data_url,
+          p.hero_avatar_palette_json,
+          s.dashboard_order_json,
+          s.onboarding_completed,
+          s.onboarding_current_step,
+          s.onboarding_completed_at
+        FROM user_settings s
+        LEFT JOIN user_profiles p ON p.user_id = s.user_id
+        LEFT JOIN user_preferences pref ON pref.user_id = s.user_id
+        WHERE s.user_id = ?
       `
     )
     .get(userId);
@@ -2037,6 +2061,7 @@ function getUserSettings(db, userId) {
   const normalizedBase = normalizeCurrency(row.base_currency || "USD");
   return {
     user_id: row.user_id,
+    display_name: typeof row.display_name === "string" ? row.display_name : "",
     base_currency: SUPPORTED_CURRENCIES.includes(normalizedBase) ? normalizedBase : "USD",
     timezone: row.timezone || "UTC",
     ui_language: row.ui_language === "zh" ? "zh" : "en",

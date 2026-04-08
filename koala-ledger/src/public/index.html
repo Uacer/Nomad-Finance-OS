@@ -861,6 +861,11 @@
           </div>
 
           <div class="settings-nav-group">
+            <button class="settings-nav-row" id="settingsOpenProfile" type="button">
+              <span class="settings-nav-icon">👤</span>
+              <span class="settings-nav-label" id="settingsProfileNavLabel">Personal Account</span>
+              <span class="settings-nav-chevron">›</span>
+            </button>
             <button class="settings-nav-row" id="settingsOpenGeneral" type="button">
               <span class="settings-nav-icon">🌐</span>
               <span class="settings-nav-label" id="settingsGeneralNavLabel">General</span>
@@ -926,6 +931,47 @@
           <div class="settings-danger-zone">
             <button class="btn settings-logout-btn" id="quickLogoutBtn" type="button">Log Out</button>
           </div>
+        </div>
+
+        <div class="settings-page hidden" id="settingsPageProfile">
+          <div class="sheet-head settings-subpage-head">
+            <button class="settings-back-btn" id="settingsBackFromProfile" type="button" aria-label="Back">←</button>
+            <h3 id="settingsProfilePageTitle">Personal Account</h3>
+            <div></div>
+          </div>
+
+          <form id="profileSettingsForm" class="settings-form">
+            <button class="settings-profile-card" id="settingsOpenAvatar" type="button">
+              <span class="settings-profile-avatar-wrap">
+                <img id="settingsProfileAvatarPreview" class="settings-profile-avatar" src="" alt="" />
+              </span>
+              <span class="settings-profile-copy">
+                <strong id="settingsProfilePrimaryText">Koala Ledger</strong>
+                <span id="settingsProfileSecondaryText" class="muted">email@example.com</span>
+              </span>
+              <span class="settings-nav-chevron">›</span>
+            </button>
+
+            <div class="settings-group">
+              <label class="settings-row">
+                <span class="settings-row-label" id="settingsProfileDisplayNameLabel">Display Name</span>
+                <input
+                  id="settingsProfileDisplayNameInput"
+                  name="display_name"
+                  class="settings-inline-input"
+                  type="text"
+                  maxlength="120"
+                  placeholder="How you want to be shown"
+                />
+              </label>
+              <div class="settings-row">
+                <span class="settings-row-label" id="settingsProfileEmailLabel">Email</span>
+                <span id="settingsProfileEmailValue" class="settings-static-value">-</span>
+              </div>
+            </div>
+
+            <button class="btn btn-solid settings-save-btn" id="settingsProfileSaveBtn" type="submit">Save Profile</button>
+          </form>
         </div>
 
         <!-- ── PAGE: General ── -->
@@ -1027,6 +1073,24 @@
 
             <button class="btn btn-solid settings-save-btn" id="quickSettingsSaveBtn" type="submit">Save Settings</button>
           </form>
+        </div>
+
+        <div class="settings-page hidden" id="settingsPageAvatar">
+          <div class="sheet-head settings-subpage-head">
+            <button class="settings-back-btn" id="settingsBackFromAvatar" type="button" aria-label="Back">←</button>
+            <h3 id="settingsAvatarPageTitle">Change Avatar</h3>
+            <div></div>
+          </div>
+
+          <div class="settings-avatar-panel">
+            <div class="settings-avatar-preview-shell">
+              <img id="settingsAvatarPreview" class="settings-avatar-preview" src="" alt="" />
+            </div>
+            <p id="settingsAvatarHint" class="muted settings-avatar-hint">
+              Choose a photo to update your avatar. Changes are saved right away.
+            </p>
+            <button class="btn btn-solid" id="settingsAvatarChooseBtn" type="button">Choose Photo</button>
+          </div>
         </div>
 
         <!-- ── PAGE: Dashboard Widgets ── -->

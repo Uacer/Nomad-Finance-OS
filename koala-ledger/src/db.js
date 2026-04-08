@@ -26,6 +26,44 @@ function runMigrations(db) {
   ensureColumn(db, "user_settings", "onboarding_completed", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "user_settings", "onboarding_current_step", "TEXT NOT NULL DEFAULT 'step1'");
   ensureColumn(db, "user_settings", "onboarding_completed_at", "TEXT");
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_profiles (
+      user_id INTEGER PRIMARY KEY,
+      display_name TEXT NOT NULL DEFAULT '',
+      hero_avatar_data_url TEXT NOT NULL DEFAULT '',
+      hero_avatar_palette_json TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_preferences (
+      user_id INTEGER PRIMARY KEY,
+      base_currency TEXT NOT NULL DEFAULT 'USD',
+      timezone TEXT NOT NULL DEFAULT 'UTC',
+      ui_language TEXT NOT NULL DEFAULT 'en',
+      theme TEXT NOT NULL DEFAULT 'system',
+      currency_display_mode TEXT NOT NULL DEFAULT 'code',
+      living_country_code TEXT NOT NULL DEFAULT '',
+      monthly_income_band TEXT NOT NULL DEFAULT '8000_20000',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+  ensureColumn(db, "user_profiles", "display_name", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "user_profiles", "hero_avatar_data_url", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "user_profiles", "hero_avatar_palette_json", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "user_profiles", "updated_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP");
+  ensureColumn(db, "user_preferences", "base_currency", "TEXT NOT NULL DEFAULT 'USD'");
+  ensureColumn(db, "user_preferences", "timezone", "TEXT NOT NULL DEFAULT 'UTC'");
+  ensureColumn(db, "user_preferences", "ui_language", "TEXT NOT NULL DEFAULT 'en'");
+  ensureColumn(db, "user_preferences", "theme", "TEXT NOT NULL DEFAULT 'system'");
+  ensureColumn(db, "user_preferences", "currency_display_mode", "TEXT NOT NULL DEFAULT 'code'");
+  ensureColumn(db, "user_preferences", "living_country_code", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "user_preferences", "monthly_income_band", "TEXT NOT NULL DEFAULT '8000_20000'");
+  ensureColumn(db, "user_preferences", "updated_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP");
   ensureColumn(db, "budgets", "budget_currency", "TEXT");
   ensureColumn(db, "yearly_budgets", "budget_currency", "TEXT");
   db.exec(`
@@ -281,6 +319,37 @@ function runMigrations(db) {
         SELECT user_id FROM yearly_budgets
       )
   `);
+  db.exec(`
+    INSERT OR IGNORE INTO user_profiles (
+      user_id, display_name, hero_avatar_data_url, hero_avatar_palette_json, created_at, updated_at
+    )
+    SELECT
+      user_id,
+      '',
+      COALESCE(hero_avatar_data_url, ''),
+      COALESCE(hero_avatar_palette_json, ''),
+      created_at,
+      updated_at
+    FROM user_settings
+  `);
+  db.exec(`
+    INSERT OR IGNORE INTO user_preferences (
+      user_id, base_currency, timezone, ui_language, theme, currency_display_mode,
+      living_country_code, monthly_income_band, created_at, updated_at
+    )
+    SELECT
+      user_id,
+      COALESCE(base_currency, 'USD'),
+      COALESCE(timezone, 'UTC'),
+      COALESCE(ui_language, 'en'),
+      COALESCE(theme, 'system'),
+      COALESCE(currency_display_mode, 'code'),
+      COALESCE(living_country_code, ''),
+      COALESCE(NULLIF(trim(monthly_income_band), ''), '8000_20000'),
+      created_at,
+      updated_at
+    FROM user_settings
+  `);
 }
 
 function ensureColumn(db, table, column, ddl) {
@@ -306,6 +375,23 @@ function ensureUserAndSeedDefaults(db, userId) {
         dashboard_order_json, onboarding_completed, onboarding_current_step, onboarding_completed_at
       )
       VALUES (?, 'USD', 'UTC', 'en', 'system', 'code', '', '8000_20000', '', '', '', 0, 'step1', NULL)
+    `
+  ).run(userId);
+  db.prepare(
+    `
+      INSERT OR IGNORE INTO user_profiles (
+        user_id, display_name, hero_avatar_data_url, hero_avatar_palette_json
+      )
+      VALUES (?, '', '', '')
+    `
+  ).run(userId);
+  db.prepare(
+    `
+      INSERT OR IGNORE INTO user_preferences (
+        user_id, base_currency, timezone, ui_language, theme, currency_display_mode,
+        living_country_code, monthly_income_band
+      )
+      VALUES (?, 'USD', 'UTC', 'en', 'system', 'code', '', '8000_20000')
     `
   ).run(userId);
 
@@ -354,7 +440,18 @@ function findOrCreateUserByEmail(db, email) {
 }
 
 function getUserById(db, userId) {
-  return db.prepare("SELECT id, email, created_at FROM users WHERE id = ?").get(userId) || null;
+  return (
+    db
+      .prepare(
+        `
+          SELECT u.id, u.email, u.created_at, COALESCE(p.display_name, '') AS display_name
+          FROM users u
+          LEFT JOIN user_profiles p ON p.user_id = u.id
+          WHERE u.id = ?
+        `
+      )
+      .get(userId) || null
+  );
 }
 
 function normalizeMonth(month) {
