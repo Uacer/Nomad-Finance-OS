@@ -683,6 +683,22 @@ body.sheet-open {
     white-space: normal;
     text-align: left;
   }
+  .notification-card {
+    padding: 13px 13px 12px;
+  }
+  .notification-card-top {
+    gap: 8px;
+  }
+  .notification-pill {
+    padding: 5px 10px;
+    font-size: 0.68rem;
+  }
+  .notification-title {
+    font-size: 0.96rem;
+  }
+  .notification-body {
+    font-size: 0.88rem;
+  }
 }
 
 .topbar {
@@ -1338,6 +1354,212 @@ h2 {
   font-size: 1.28rem;
   line-height: 1.16;
   font-weight: 700;
+}
+
+.notifications-section {
+  display: grid;
+  gap: 10px;
+}
+
+.notifications-section-head {
+  align-items: center;
+}
+
+.notifications-count {
+  min-width: 26px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in oklab, var(--accent), white 78%);
+  color: color-mix(in oklab, var(--ink), var(--accent) 34%);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.notification-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.notification-card {
+  border-radius: 20px;
+  padding: 14px 14px 13px;
+  border: 1px solid color-mix(in oklab, var(--line), transparent 12%);
+  background:
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.24), transparent 42%),
+    linear-gradient(180deg, color-mix(in oklab, var(--paper), white 6%) 0%, var(--paper) 100%);
+  box-shadow: 0 2px 8px rgba(49, 66, 80, 0.06), 0 10px 24px rgba(49, 66, 80, 0.05);
+  display: grid;
+  gap: 10px;
+}
+
+.notification-card--danger {
+  border-color: color-mix(in oklab, #bb5c43, var(--line) 46%);
+  background:
+    radial-gradient(circle at top right, rgba(221, 129, 84, 0.18), transparent 40%),
+    linear-gradient(180deg, color-mix(in oklab, var(--paper), #fff0ea 38%) 0%, var(--paper) 100%);
+}
+
+.notification-card--warn {
+  border-color: color-mix(in oklab, #c68a37, var(--line) 44%);
+  background:
+    radial-gradient(circle at top right, rgba(233, 196, 97, 0.2), transparent 42%),
+    linear-gradient(180deg, color-mix(in oklab, var(--paper), #fff5d8 45%) 0%, var(--paper) 100%);
+}
+
+.notification-card--info {
+  border-color: color-mix(in oklab, var(--accent), var(--line) 44%);
+  background:
+    radial-gradient(circle at top right, color-mix(in oklab, var(--accent), white 82%), transparent 42%),
+    linear-gradient(180deg, color-mix(in oklab, var(--paper), white 7%) 0%, var(--paper) 100%);
+}
+
+.notification-card--calm {
+  border-style: dashed;
+  background: color-mix(in oklab, var(--paper), var(--bg-2) 52%);
+  box-shadow: none;
+}
+
+.notification-card-top {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.notification-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  min-width: 0;
+  padding: 6px 11px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.55);
+  color: color-mix(in oklab, var(--ink), var(--accent) 26%);
+}
+
+.notification-pill::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.85;
+}
+
+.notification-dismiss-btn {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 999px;
+  flex: 0 0 40px;
+  align-self: start;
+  background: rgba(255, 255, 255, 0.62);
+  color: color-mix(in oklab, var(--ink), var(--ink-soft) 52%);
+  font: inherit;
+  font-size: 1.45rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transition: transform 120ms ease, background 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.notification-dismiss-btn:hover {
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 4px 12px rgba(49, 66, 80, 0.08);
+}
+
+.notification-dismiss-btn:active {
+  transform: scale(0.94);
+}
+
+.notification-card--danger .notification-dismiss-btn {
+  background: rgba(195, 129, 79, 0.18);
+}
+
+.notification-card--warn .notification-dismiss-btn {
+  background: rgba(190, 151, 54, 0.18);
+}
+
+.notification-card--info .notification-dismiss-btn {
+  background: color-mix(in oklab, var(--accent), white 76%);
+}
+
+.notification-title {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.3;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.notification-body {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.notification-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.notification-action-btn {
+  border: 0;
+  border-radius: 999px;
+  padding: 9px 14px;
+  min-height: 38px;
+  background: color-mix(in oklab, var(--ink), white 78%);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 120ms ease, filter 120ms ease;
+}
+
+.notification-action-btn:hover {
+  filter: brightness(1.02);
+}
+
+.notification-action-btn:active {
+  transform: scale(0.97);
+}
+
+.notification-action-btn--secondary {
+  background: color-mix(in oklab, var(--paper), white 52%);
+  color: var(--ink-soft);
+  border: 1px solid color-mix(in oklab, var(--line), transparent 10%);
+}
+
+.notification-card--danger .notification-action-btn {
+  background: color-mix(in oklab, #bb5c43, white 78%);
+}
+
+.notification-card--warn .notification-action-btn {
+  background: color-mix(in oklab, #c68a37, white 76%);
+}
+
+.notification-card--info .notification-action-btn {
+  background: color-mix(in oklab, var(--accent), white 80%);
+}
+
+.notification-card--info .notification-action-btn--secondary {
+  background: color-mix(in oklab, var(--paper), white 60%);
+}
+
+.notification-card--empty .notification-body {
+  max-width: 44ch;
 }
 
 .dash-section-row {
@@ -2908,6 +3130,9 @@ h3 {
 }
 
 .tx-row-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 0.78rem;
   color: var(--ink-soft);
   min-width: 0;
@@ -2929,6 +3154,29 @@ h3 {
   color: var(--ink-soft);
   font-style: italic;
   margin-top: 1px;
+}
+.tx-actor-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tx-actor-avatar {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1.5px solid var(--paper);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+  flex-shrink: 0;
+  object-fit: cover;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.tx-actor-avatar--meta {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
 }
 
 .tx-tags {
@@ -2968,6 +3216,13 @@ h3 {
   min-width: 0;
   display: grid;
   gap: 3px;
+}
+.tx-incard-amount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .incard-empty {
@@ -3771,6 +4026,74 @@ body.sheet-open .topbar {
 .sheet-form {
   display: grid;
   gap: 10px;
+}
+
+.account-advanced-section {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in oklab, var(--line), transparent 18%);
+  border-radius: 18px;
+  background: color-mix(in oklab, var(--paper), white 4%);
+}
+
+.account-advanced-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.account-advanced-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.account-advanced-chevron {
+  color: var(--ink-soft);
+  font-size: 1.25rem;
+  line-height: 1;
+  opacity: 0.55;
+  transition: transform 160ms ease;
+}
+
+.account-advanced-toggle[aria-expanded="true"] .account-advanced-chevron {
+  transform: rotate(90deg);
+}
+
+.account-advanced-panel {
+  display: grid;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.account-analytics-toggle-row {
+  padding: 12px 14px;
+  border: 1px solid color-mix(in oklab, var(--line), transparent 18%);
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--paper), white 6%);
+}
+
+.account-analytics-toggle-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.account-analytics-toggle-row .field-eyebrow {
+  margin: 0;
+}
+
+.account-analytics-toggle-row .muted.small {
+  line-height: 1.35;
 }
 
 .token-reveal-sheet-card {
@@ -4759,6 +5082,100 @@ body.sheet-open .topbar {
   text-align: right;
 }
 
+.account-share-section {
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.account-share-row {
+  position: relative;
+}
+
+.account-share-row-inner {
+  align-items: flex-start;
+  padding-right: 28px;
+}
+
+.account-share-role-row {
+  flex-wrap: nowrap;
+  align-self: center;
+}
+
+.account-share-role-pill {
+  width: auto;
+  min-width: 0;
+  max-width: 132px;
+  height: 32px;
+  padding: 0 30px 0 12px;
+  border: 1px solid color-mix(in oklab, var(--line), transparent 12%);
+  border-radius: 999px;
+  background-color: color-mix(in oklab, var(--paper-2), white 26%);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%),
+    linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) calc(50% - 1px),
+    calc(100% - 9px) calc(50% - 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1;
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.account-share-role-pill:hover:not(:disabled),
+.account-share-role-pill:focus {
+  border-color: color-mix(in oklab, var(--accent), white 55%);
+  background-color: color-mix(in oklab, var(--paper), white 42%);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent), transparent 86%);
+}
+
+.account-share-role-pill:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.account-share-remove-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, opacity 120ms ease;
+}
+
+.account-share-remove-btn:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--danger), white 86%);
+  color: var(--danger);
+}
+
+.account-share-remove-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.account-share-section select,
+.account-share-section input {
+  width: 100%;
+}
+
 /* Account edit danger zone */
 .account-edit-danger {
   margin-top: 16px;
@@ -5181,10 +5598,17 @@ body.utility-mode #dashboardPanel {
   font-size: 1.1rem;
   flex-shrink: 0;
 }
-.account-dash-row .account-name {
+.account-name-wrap {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.account-dash-row .account-name {
   color: var(--ink);
   min-width: 0;
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -5192,6 +5616,38 @@ body.utility-mode #dashboardPanel {
 .account-dash-row .account-balance {
   font-weight: 600;
   color: var(--ink);
+}
+.shared-avatar-stack {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  min-height: 20px;
+}
+.shared-avatar {
+  width: 20px;
+  height: 20px;
+  margin-left: -6px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 2px solid var(--paper);
+  background: color-mix(in srgb, var(--accent) 18%, white);
+  color: var(--ink);
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.shared-avatar:first-child {
+  margin-left: 0;
+}
+.shared-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 .acct-right {
   display: flex;

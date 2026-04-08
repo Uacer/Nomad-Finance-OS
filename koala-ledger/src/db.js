@@ -15,6 +15,7 @@ function createDb(filename = ":memory:") {
 function runMigrations(db) {
   ensureColumn(db, "users", "email", "TEXT");
   ensureColumn(db, "accounts", "opening_balance", "NUMERIC NOT NULL DEFAULT 0");
+  ensureColumn(db, "accounts", "analytics_mode", "TEXT NOT NULL DEFAULT 'wallet_only'");
   ensureColumn(db, "user_settings", "ui_language", "TEXT NOT NULL DEFAULT 'en'");
   ensureColumn(db, "user_settings", "theme", "TEXT NOT NULL DEFAULT 'system'");
   ensureColumn(db, "user_settings", "currency_display_mode", "TEXT NOT NULL DEFAULT 'code'");
@@ -26,6 +27,58 @@ function runMigrations(db) {
   ensureColumn(db, "user_settings", "onboarding_completed", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "user_settings", "onboarding_current_step", "TEXT NOT NULL DEFAULT 'step1'");
   ensureColumn(db, "user_settings", "onboarding_completed_at", "TEXT");
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS account_memberships (
+      account_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      role TEXT NOT NULL DEFAULT 'editor',
+      status TEXT NOT NULL DEFAULT 'active',
+      created_by_user_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (account_id, user_id),
+      FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_account_memberships_user_id ON account_memberships(user_id)
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_account_memberships_account_id ON account_memberships(account_id)
+  `);
+  ensureColumn(db, "account_memberships", "role", "TEXT NOT NULL DEFAULT 'editor'");
+  ensureColumn(db, "account_memberships", "status", "TEXT NOT NULL DEFAULT 'active'");
+  ensureColumn(db, "account_memberships", "created_by_user_id", "INTEGER NOT NULL DEFAULT 1");
+  db.exec(`
+    UPDATE accounts
+    SET analytics_mode = 'wallet_only'
+    WHERE analytics_mode IS NULL OR trim(analytics_mode) = ''
+  `);
+  db.exec(`
+    INSERT OR IGNORE INTO account_memberships (account_id, user_id, role, status, created_by_user_id, created_at)
+    SELECT id, user_id, 'owner', 'active', user_id, created_at
+    FROM accounts
+  `);
+  db.exec(`
+    UPDATE account_memberships
+    SET role = CASE
+      WHEN lower(role) IN ('owner', 'editor', 'viewer') THEN lower(role)
+      ELSE 'editor'
+    END
+  `);
+  db.exec(`
+    UPDATE account_memberships
+    SET status = CASE
+      WHEN lower(status) IN ('active', 'pending') THEN lower(status)
+      ELSE 'active'
+    END
+  `);
+  db.exec(`
+    UPDATE account_memberships
+    SET created_by_user_id = user_id
+    WHERE created_by_user_id IS NULL OR created_by_user_id <= 0
+  `);
   db.exec(`
     CREATE TABLE IF NOT EXISTS user_profiles (
       user_id INTEGER PRIMARY KEY,
