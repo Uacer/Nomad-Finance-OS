@@ -229,6 +229,13 @@
     <main class="layout">
       <section id="dashboardPanel" class="panel active">
         <h2 id="dashboardTitle">Summary</h2>
+        <section id="dashboardNotificationsSection" class="notifications-section hidden" aria-labelledby="dashboardNotificationsLabel">
+          <div class="dash-section-row notifications-section-head">
+            <p class="dash-section-label" id="dashboardNotificationsLabel">Notifications</p>
+            <span id="dashboardNotificationsCount" class="notifications-count hidden" aria-live="polite"></span>
+          </div>
+          <div id="dashboardNotificationsList" class="notification-stack" aria-live="polite"></div>
+        </section>
         <article class="card hero-card">
           <div class="hero-top">
             <div class="hero-networth-head">
@@ -928,9 +935,6 @@
             </article>
           </section>
 
-          <div class="settings-danger-zone">
-            <button class="btn settings-logout-btn" id="quickLogoutBtn" type="button">Log Out</button>
-          </div>
         </div>
 
         <div class="settings-page hidden" id="settingsPageProfile">
@@ -971,6 +975,10 @@
             </div>
 
             <button class="btn btn-solid settings-save-btn" id="settingsProfileSaveBtn" type="submit">Save Profile</button>
+
+            <div class="settings-danger-zone">
+              <button class="btn settings-logout-btn" id="quickLogoutBtn" type="button">Log Out</button>
+            </div>
           </form>
         </div>
 
@@ -1171,6 +1179,53 @@
             <input name="name" type="text" required autocomplete="off" />
           </label>
           <p id="accountEditBalanceHint" class="muted small">Changing current balance will update this account's starting point while keeping linked transactions intact.</p>
+          <section class="account-advanced-section">
+            <button
+              id="accountEditAdvancedToggleBtn"
+              class="account-advanced-toggle"
+              type="button"
+              aria-expanded="false"
+              aria-controls="accountEditAdvancedPanel"
+            >
+              <span class="account-advanced-copy">
+                <span id="accountEditAdvancedTitle" class="field-eyebrow">Advanced Settings</span>
+                <span id="accountEditAdvancedHint" class="muted small">Sharing permissions and analytics mode</span>
+              </span>
+              <span class="account-advanced-chevron" aria-hidden="true">›</span>
+            </button>
+            <div id="accountEditAdvancedPanel" class="account-advanced-panel hidden">
+              <label class="settings-toggle-row account-analytics-toggle-row">
+                <span class="account-analytics-toggle-copy">
+                  <span id="accountEditAnalyticsToggleLabel" class="field-eyebrow">Include in Dashboard</span>
+                  <span id="accountEditAnalyticsToggleHint" class="muted small">Turn on to include this shared account in each member's dashboard stats.</span>
+                </span>
+                <input name="analytics_dashboard_rollup" type="checkbox" role="switch" />
+              </label>
+              <section class="account-share-section">
+                <div class="budget-edit-meta-item">
+                  <span id="accountShareTitle" class="field-eyebrow">Shared Access</span>
+                  <p id="accountShareHint" class="muted small">Invite collaborators by email and choose what they can do.</p>
+                </div>
+                <div id="accountShareForm" class="sheet-form">
+                  <label>
+                    <span id="accountShareEmailLabel" class="field-eyebrow">Member Email</span>
+                    <input name="email" type="email" autocomplete="email" placeholder="teammate@example.com" />
+                  </label>
+                  <label>
+                    <span id="accountShareRoleLabel" class="field-eyebrow">Role</span>
+                    <select name="role">
+                      <option id="accountShareRoleOwnerOption" value="owner">Owner</option>
+                      <option id="accountShareRoleEditorOption" value="editor">Editor</option>
+                      <option id="accountShareRoleViewerOption" value="viewer">Viewer</option>
+                    </select>
+                  </label>
+                  <button class="btn btn-ghost" id="accountShareSubmitBtn" type="button">Add Account</button>
+                </div>
+                <div id="accountShareOwnerHint" class="muted small hidden">Only owners can change sharing, balance, and analytics settings.</div>
+                <div id="accountShareList" class="list-block"></div>
+              </section>
+            </div>
+          </section>
           <button class="btn btn-solid" id="accountEditSaveBtn" type="submit">Save Changes</button>
         </form>
       </article>

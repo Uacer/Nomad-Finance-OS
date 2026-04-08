@@ -10,6 +10,8 @@ const ACCOUNT_TYPES = [
   "wechat",
   "restricted_cash"
 ];
+const ACCOUNT_MEMBER_ROLES = ["owner", "editor", "viewer"];
+const ACCOUNT_ANALYTICS_MODES = ["wallet_only", "member_rollup"];
 
 const DEFAULT_EXPENSE_CATEGORIES = {
   Living: ["Rent", "Utilities", "Groceries", "Healthcare"],
@@ -27,6 +29,8 @@ module.exports = {
   TRANSACTION_TYPES,
   TRANSFER_REASONS,
   ACCOUNT_TYPES,
+  ACCOUNT_MEMBER_ROLES,
+  ACCOUNT_ANALYTICS_MODES,
   DEFAULT_EXPENSE_CATEGORIES,
   SUPPORTED_CURRENCIES,
   FIXED_COST_L2

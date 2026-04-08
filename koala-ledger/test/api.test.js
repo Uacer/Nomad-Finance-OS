@@ -67,10 +67,13 @@ async function signInViaEmailCode(rawApi, email = "agent-user@example.com") {
     const text = String(lastEmailPayload?.text || "");
     const codeMatch = text.match(/\b\d{6}\b/);
     assert.ok(codeMatch && codeMatch[0], "verification code should exist in resend payload");
-    const verifyRes = await rawApi.post("/api/v1/auth/code/verify").send({
-      email,
-      code: codeMatch[0]
-    });
+    const verifyRes = await rawApi
+      .post("/api/v1/auth/code/verify")
+      .set("x-forwarded-for", syntheticIp)
+      .send({
+        email,
+        code: codeMatch[0]
+      });
     assert.equal(verifyRes.status, 200);
     const sessionRes = await rawApi.get("/api/v1/auth/session").send();
     assert.equal(sessionRes.status, 200);
@@ -1594,6 +1597,195 @@ test("bearer token is isolated by user and revoked token is rejected", async () 
 
   const afterRevoke = await bearerApi.get("/api/v1/accounts").send();
   assert.equal(afterRevoke.status, 401);
+});
+
+test("shared account supports owner/editor collaboration with shared ledger visibility", async () => {
+  const { app, rawApi } = createHarness({ allowDevBypass: false });
+  const owner = await signInViaEmailCode(rawApi, "shared-owner@example.com");
+  const ownerSettings = await rawApi.put("/api/v1/settings").send({ display_name: "Owner User" });
+  assert.equal(ownerSettings.status, 200);
+
+  const sharedAccount = await createAccount(rawApi, {
+    name: "Wallet A",
+    type: "cash",
+    currency: "USD",
+    balance: 100
+  });
+
+  const ownerAccountsRes = await rawApi.get("/api/v1/accounts").send();
+  assert.equal(ownerAccountsRes.status, 200);
+  assert.equal(ownerAccountsRes.body[0].access_role, "owner");
+  assert.equal(ownerAccountsRes.body[0].analytics_mode, "wallet_only");
+  assert.equal(ownerAccountsRes.body[0].is_shared, false);
+
+  const shareRes = await rawApi.post(`/api/v1/accounts/${sharedAccount.id}/shares`).send({
+    email: "shared-editor@example.com",
+    role: "editor"
+  });
+  assert.equal(shareRes.status, 201);
+  assert.equal(shareRes.body.members.length, 2);
+  const pendingMember = shareRes.body.members.find((row) => row.email === "shared-editor@example.com");
+  assert.equal(pendingMember.status, "pending");
+
+  const rawApiB = request.agent(app);
+  const editor = await signInViaEmailCode(rawApiB, "shared-editor@example.com");
+  const editorSettings = await rawApiB.put("/api/v1/settings").send({ display_name: "Editor User" });
+  assert.equal(editorSettings.status, 200);
+  assert.notEqual(owner.id, editor.id);
+
+  const editorPendingRes = await rawApiB.get("/api/v1/account-share-invitations").send();
+  assert.equal(editorPendingRes.status, 200);
+  assert.equal(editorPendingRes.body.invitations.length, 1);
+  assert.equal(editorPendingRes.body.invitations[0].account_id, sharedAccount.id);
+  assert.equal(editorPendingRes.body.invitations[0].status, "pending");
+
+  const editorAccountsRes = await rawApiB.get("/api/v1/accounts").send();
+  assert.equal(editorAccountsRes.status, 200);
+  assert.equal(editorAccountsRes.body.length, 0);
+
+  const acceptInviteRes = await rawApiB.post(`/api/v1/account-share-invitations/${sharedAccount.id}/accept`).send();
+  assert.equal(acceptInviteRes.status, 200);
+
+  const editorAccountsAfterAcceptRes = await rawApiB.get("/api/v1/accounts").send();
+  assert.equal(editorAccountsAfterAcceptRes.status, 200);
+  assert.equal(editorAccountsAfterAcceptRes.body.length, 1);
+  assert.equal(editorAccountsAfterAcceptRes.body[0].name, "Wallet A");
+  assert.equal(editorAccountsAfterAcceptRes.body[0].access_role, "editor");
+  assert.equal(editorAccountsAfterAcceptRes.body[0].is_shared, true);
+  assert.equal(editorAccountsAfterAcceptRes.body[0].owner_user_id, owner.id);
+
+  const createTxRes = await rawApiB.post("/api/v1/transactions").send({
+    date: "2026-03-14",
+    type: "expense",
+    amount_original: 20,
+    currency_original: "USD",
+    account_from_id: sharedAccount.id,
+    category_l1: "Living",
+    category_l2: "Groceries",
+    note: "shared spend"
+  });
+  assert.equal(createTxRes.status, 201);
+  assert.equal(createTxRes.body.actor_user_id, editor.id);
+  assert.equal(createTxRes.body.actor_display_name, "Editor User");
+
+  const ownerTxRes = await rawApi.get("/api/v1/transactions?all=1").send();
+  assert.equal(ownerTxRes.status, 200);
+  assert.equal(ownerTxRes.body.length, 1);
+  assert.equal(ownerTxRes.body[0].actor_user_id, editor.id);
+  assert.equal(ownerTxRes.body[0].actor_display_name, "Editor User");
+
+  const ownerAccountsAfter = await rawApi.get("/api/v1/accounts").send();
+  const editorAccountsAfter = await rawApiB.get("/api/v1/accounts").send();
+  assert.equal(ownerAccountsAfter.body[0].balance, 80);
+  assert.equal(editorAccountsAfter.body[0].balance, 80);
+});
+
+test("shared account viewer cannot write and member_rollup feeds dashboard analytics", async () => {
+  const { app, rawApi } = createHarness({ allowDevBypass: false });
+  await signInViaEmailCode(rawApi, "analytics-owner@example.com");
+  const sharedAccount = await createAccount(rawApi, {
+    name: "Family Wallet",
+    type: "cash",
+    currency: "USD",
+    balance: 500
+  });
+
+  const shareViewerRes = await rawApi.post(`/api/v1/accounts/${sharedAccount.id}/shares`).send({
+    email: "analytics-viewer@example.com",
+    role: "viewer"
+  });
+  assert.equal(shareViewerRes.status, 201);
+
+  const rawApiViewer = request.agent(app);
+  await signInViaEmailCode(rawApiViewer, "analytics-viewer@example.com");
+  const acceptViewerInviteRes = await rawApiViewer.post(`/api/v1/account-share-invitations/${sharedAccount.id}/accept`).send();
+  assert.equal(acceptViewerInviteRes.status, 200);
+  const blockedTxRes = await rawApiViewer.post("/api/v1/transactions").send({
+    date: "2026-03-15",
+    type: "expense",
+    amount_original: 10,
+    currency_original: "USD",
+    account_from_id: sharedAccount.id,
+    category_l1: "Living",
+    category_l2: "Groceries"
+  });
+  assert.equal(blockedTxRes.status, 403);
+
+  const ownerTxRes = await rawApi.post("/api/v1/transactions").send({
+    date: "2026-03-16",
+    type: "expense",
+    amount_original: 30,
+    currency_original: "USD",
+    account_from_id: sharedAccount.id,
+    category_l1: "Living",
+    category_l2: "Groceries"
+  });
+  assert.equal(ownerTxRes.status, 201);
+
+  const viewerDashboardBefore = await rawApiViewer.get("/api/v1/dashboard?month=2026-03").send();
+  assert.equal(viewerDashboardBefore.status, 200);
+  assert.equal(viewerDashboardBefore.body.monthly_expense, 0);
+
+  const analyticsPatchRes = await rawApi.patch(`/api/v1/accounts/${sharedAccount.id}`).send({
+    name: "Family Wallet",
+    balance: 470,
+    analytics_mode: "member_rollup"
+  });
+  assert.equal(analyticsPatchRes.status, 200);
+  assert.equal(analyticsPatchRes.body.analytics_mode, "member_rollup");
+
+  const viewerDashboardAfter = await rawApiViewer.get("/api/v1/dashboard?month=2026-03").send();
+  assert.equal(viewerDashboardAfter.status, 200);
+  assert.equal(viewerDashboardAfter.body.monthly_expense, 30);
+});
+
+test("shared account owner guard prevents removing the final owner", async () => {
+  const { rawApi } = createHarness({ allowDevBypass: false });
+  const owner = await signInViaEmailCode(rawApi, "share-guard-owner@example.com");
+  const sharedAccount = await createAccount(rawApi, {
+    name: "Guard Wallet",
+    type: "cash",
+    currency: "USD",
+    balance: 50
+  });
+
+  const removeOwnerRes = await rawApi.delete(`/api/v1/accounts/${sharedAccount.id}/shares/${owner.id}`).send();
+  assert.equal(removeOwnerRes.status, 409);
+});
+
+test("shared account invitation can be declined before joining", async () => {
+  const { app, rawApi } = createHarness({ allowDevBypass: false });
+  await signInViaEmailCode(rawApi, "share-decline-owner@example.com");
+  const sharedAccount = await createAccount(rawApi, {
+    name: "Pending Wallet",
+    type: "cash",
+    currency: "USD",
+    balance: 50
+  });
+
+  const inviteRes = await rawApi.post(`/api/v1/accounts/${sharedAccount.id}/shares`).send({
+    email: "share-decline-member@example.com",
+    role: "editor"
+  });
+  assert.equal(inviteRes.status, 201);
+
+  const rawApiInvitee = request.agent(app);
+  await signInViaEmailCode(rawApiInvitee, "share-decline-member@example.com");
+
+  const pendingRes = await rawApiInvitee.get("/api/v1/account-share-invitations").send();
+  assert.equal(pendingRes.status, 200);
+  assert.equal(pendingRes.body.invitations.length, 1);
+
+  const declineRes = await rawApiInvitee.post(`/api/v1/account-share-invitations/${sharedAccount.id}/decline`).send();
+  assert.equal(declineRes.status, 200);
+
+  const accountsRes = await rawApiInvitee.get("/api/v1/accounts").send();
+  assert.equal(accountsRes.status, 200);
+  assert.equal(accountsRes.body.length, 0);
+
+  const pendingAfterRes = await rawApiInvitee.get("/api/v1/account-share-invitations").send();
+  assert.equal(pendingAfterRes.status, 200);
+  assert.equal(pendingAfterRes.body.invitations.length, 0);
 });
 
 test("onboarding state tracks progress and completion", async () => {

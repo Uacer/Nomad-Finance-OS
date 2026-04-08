@@ -4,6 +4,8 @@ const express = require("express");
 const { z } = require("zod");
 const {
   ACCOUNT_TYPES,
+  ACCOUNT_ANALYTICS_MODES,
+  ACCOUNT_MEMBER_ROLES,
   DEFAULT_EXPENSE_CATEGORIES,
   FIXED_COST_L2,
   SUPPORTED_CURRENCIES,
@@ -98,6 +100,15 @@ const ALLOWED_AGENT_SCOPES = new Set([
 ]);
 const CRYPTO_ACCOUNT_TYPES = new Set(["crypto_wallet", "exchange"]);
 const CNY_ONLY_ACCOUNT_TYPES = new Set(["alipay", "wechat"]);
+const ACCOUNT_WRITE_ROLES = new Set(["owner", "editor"]);
+const ACCOUNT_OWNER_ROLE = "owner";
+const ACCOUNT_MEMBERSHIP_ACTIVE = "active";
+const ACCOUNT_MEMBERSHIP_PENDING = "pending";
+const ACCOUNT_MEMBERSHIP_STATUSES = new Set([
+  ACCOUNT_MEMBERSHIP_ACTIVE,
+  ACCOUNT_MEMBERSHIP_PENDING
+]);
+const ACCOUNT_ANALYTICS_MODE_SET = new Set(ACCOUNT_ANALYTICS_MODES);
 const UNASSIGNED_ACCOUNT_NAME_ZH = "默认账户";
 const UNASSIGNED_ACCOUNT_NAME_EN = "Default Account";
 const LEGACY_UNASSIGNED_ACCOUNT_NAME_ZH = "未分配账户";
@@ -969,7 +980,8 @@ function createApp(db) {
       name: z.string().min(1).max(128),
       type: z.enum(ACCOUNT_TYPES),
       currency: z.string().min(3).max(8),
-      balance: z.number().finite().default(0)
+      balance: z.number().finite().default(0),
+      analytics_mode: z.enum(ACCOUNT_ANALYTICS_MODES).optional()
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
@@ -988,21 +1000,33 @@ function createApp(db) {
     }
     let result;
     try {
-      result = db
-        .prepare(
+      const createAccount = db.transaction(() => {
+        const inserted = db
+          .prepare(
+            `
+              INSERT INTO accounts (user_id, name, type, currency, analytics_mode, opening_balance, balance)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+            `
+          )
+          .run(
+            req.userId,
+            payload.name.trim(),
+            payload.type,
+            accountCurrency,
+            normalizeAccountAnalyticsMode(payload.analytics_mode),
+            payload.balance,
+            payload.balance
+          );
+        const accountId = Number(inserted.lastInsertRowid);
+        db.prepare(
           `
-            INSERT INTO accounts (user_id, name, type, currency, opening_balance, balance)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT OR IGNORE INTO account_memberships (account_id, user_id, role, status, created_by_user_id)
+            VALUES (?, ?, 'owner', '${ACCOUNT_MEMBERSHIP_ACTIVE}', ?)
           `
-        )
-        .run(
-          req.userId,
-          payload.name.trim(),
-          payload.type,
-          accountCurrency,
-          payload.balance,
-          payload.balance
-        );
+        ).run(accountId, req.userId, req.userId);
+        return accountId;
+      });
+      result = { lastInsertRowid: createAccount() };
     } catch (error) {
       if (String(error?.code || "") === "SQLITE_CONSTRAINT_UNIQUE") {
         return res.status(409).json({
@@ -1012,16 +1036,12 @@ function createApp(db) {
       }
       throw error;
     }
-    const account = db
-      .prepare("SELECT * FROM accounts WHERE user_id = ? AND id = ?")
-      .get(req.userId, Number(result.lastInsertRowid));
+    const account = getAccessibleAccount(db, req.userId, Number(result.lastInsertRowid));
     res.status(201).json(account);
   });
 
   app.get("/api/v1/accounts", (req, res) => {
-    const rows = db
-      .prepare("SELECT * FROM accounts WHERE user_id = ? ORDER BY id")
-      .all(req.userId);
+    const rows = listAccessibleAccounts(db, req.userId);
     res.json(rows);
   });
 
@@ -1030,13 +1050,11 @@ function createApp(db) {
     if (!Number.isInteger(accountId) || accountId <= 0) {
       return res.status(400).json({ error: "Invalid account id." });
     }
-    const account = db
-      .prepare("SELECT id FROM accounts WHERE user_id = ? AND id = ?")
-      .get(req.userId, accountId);
+    const account = getAccessibleAccount(db, req.userId, accountId);
     if (!account) {
       return res.status(404).json({ error: "Account not found." });
     }
-    const linkedTransactions = countLinkedTransactions(db, req.userId, accountId);
+    const linkedTransactions = countLinkedTransactions(db, accountId);
     res.json({ account_id: accountId, linked_transactions: linkedTransactions });
   });
 
@@ -1047,36 +1065,40 @@ function createApp(db) {
     }
     const schema = z.object({
       name: z.string().min(1).max(128).optional(),
-      balance: z.number().finite()
+      balance: z.number().finite().optional(),
+      analytics_mode: z.enum(ACCOUNT_ANALYTICS_MODES).optional()
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.flatten() });
     }
-    const account = db
-      .prepare("SELECT id, name, currency, type FROM accounts WHERE user_id = ? AND id = ?")
-      .get(req.userId, accountId);
+    const account = getAccessibleAccount(db, req.userId, accountId);
     if (!account) {
       return res.status(404).json({ error: "Account not found." });
     }
+    if (account.access_role !== ACCOUNT_OWNER_ROLE) {
+      return res.status(403).json({ error: "Only account owners can update account settings." });
+    }
 
     const accountCurrency = normalizeCurrency(account.currency || "USD");
-    const txDelta = computeAccountTxDelta(db, req.userId, accountId, accountCurrency);
-    const nextBalance = Number(parsed.data.balance);
+    const txDelta = computeAccountTxDelta(db, accountId, accountCurrency);
+    const nextBalance =
+      parsed.data.balance !== undefined ? Number(parsed.data.balance) : Number(account.balance || 0);
     const nextOpening = Number((nextBalance - txDelta).toFixed(8));
     const nextName = parsed.data.name ? parsed.data.name.trim() : account.name;
-
+    const nextAnalyticsMode = normalizeAccountAnalyticsMode(
+      parsed.data.analytics_mode,
+      account.analytics_mode
+    );
     db.prepare(
       `
         UPDATE accounts
-        SET name = ?, opening_balance = ?, balance = ?
-        WHERE user_id = ? AND id = ?
+        SET name = ?, analytics_mode = ?, opening_balance = ?, balance = ?
+        WHERE id = ?
       `
-    ).run(nextName, nextOpening, nextBalance, req.userId, accountId);
+    ).run(nextName, nextAnalyticsMode, nextOpening, nextBalance, accountId);
 
-    const updated = db
-      .prepare("SELECT * FROM accounts WHERE user_id = ? AND id = ?")
-      .get(req.userId, accountId);
+    const updated = getAccessibleAccount(db, req.userId, accountId);
     res.json(updated);
   });
 
@@ -1086,13 +1108,14 @@ function createApp(db) {
       return res.status(400).json({ error: "Invalid account id." });
     }
     const forceDelete = String(req.query.force || "").toLowerCase() === "true";
-    const account = db
-      .prepare("SELECT id FROM accounts WHERE user_id = ? AND id = ?")
-      .get(req.userId, accountId);
+    const account = getAccessibleAccount(db, req.userId, accountId);
     if (!account) {
       return res.status(404).json({ error: "Account not found." });
     }
-    const linkedTransactions = countLinkedTransactions(db, req.userId, accountId);
+    if (account.access_role !== ACCOUNT_OWNER_ROLE) {
+      return res.status(403).json({ error: "Only account owners can delete this account." });
+    }
+    const linkedTransactions = countLinkedTransactions(db, accountId);
     if (linkedTransactions > 0 && !forceDelete) {
       return res.status(409).json({
         error: "Account has linked transactions and cannot be deleted.",
@@ -1105,13 +1128,15 @@ function createApp(db) {
       const deleteTransactions = db.prepare(
         `
           DELETE FROM transactions
-          WHERE user_id = ? AND (account_from_id = ? OR account_to_id = ?)
+          WHERE account_from_id = ? OR account_to_id = ?
         `
       );
-      const deleteAccount = db.prepare("DELETE FROM accounts WHERE user_id = ? AND id = ?");
+      const deleteAccountMemberships = db.prepare("DELETE FROM account_memberships WHERE account_id = ?");
+      const deleteAccount = db.prepare("DELETE FROM accounts WHERE id = ?");
       const runForcedDelete = db.transaction(() => {
-        const txResult = deleteTransactions.run(req.userId, accountId, accountId);
-        const accountResult = deleteAccount.run(req.userId, accountId);
+        const txResult = deleteTransactions.run(accountId, accountId);
+        deleteAccountMemberships.run(accountId);
+        const accountResult = deleteAccount.run(accountId);
         if (accountResult.changes === 0) {
           throw new Error("Account not found.");
         }
@@ -1127,8 +1152,204 @@ function createApp(db) {
       return res.json({ ok: true, forced: true, deleted_transactions: deletedTransactions });
     }
 
-    db.prepare("DELETE FROM accounts WHERE user_id = ? AND id = ?").run(req.userId, accountId);
+    db.prepare("DELETE FROM account_memberships WHERE account_id = ?").run(accountId);
+    db.prepare("DELETE FROM accounts WHERE id = ?").run(accountId);
     res.json({ ok: true, forced: false, deleted_transactions: 0 });
+  });
+
+  app.get("/api/v1/accounts/:id/shares", (req, res) => {
+    const accountId = Number.parseInt(String(req.params.id), 10);
+    if (!Number.isInteger(accountId) || accountId <= 0) {
+      return res.status(400).json({ error: "Invalid account id." });
+    }
+    const account = getAccessibleAccount(db, req.userId, accountId);
+    if (!account) {
+      return res.status(404).json({ error: "Account not found." });
+    }
+    res.json({
+      account_id: accountId,
+      analytics_mode: account.analytics_mode,
+      members: listAccountMemberships(db, accountId)
+    });
+  });
+
+  app.post("/api/v1/accounts/:id/shares", (req, res) => {
+    const accountId = Number.parseInt(String(req.params.id), 10);
+    if (!Number.isInteger(accountId) || accountId <= 0) {
+      return res.status(400).json({ error: "Invalid account id." });
+    }
+    const account = getAccessibleAccount(db, req.userId, accountId);
+    if (!account) {
+      return res.status(404).json({ error: "Account not found." });
+    }
+    if (account.access_role !== ACCOUNT_OWNER_ROLE) {
+      return res.status(403).json({ error: "Only account owners can manage shares." });
+    }
+    const schema = z.object({
+      email: z.string().email(),
+      role: z.enum(ACCOUNT_MEMBER_ROLES).optional()
+    });
+    const parsed = schema.safeParse(req.body || {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.flatten() });
+    }
+    const memberUser = findOrCreateUserByEmail(db, parsed.data.email);
+    const nextStatus =
+      Number(memberUser.id || 0) === Number(req.userId) ? ACCOUNT_MEMBERSHIP_ACTIVE : ACCOUNT_MEMBERSHIP_PENDING;
+    db.prepare(
+      `
+        INSERT INTO account_memberships (account_id, user_id, role, status, created_by_user_id)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(account_id, user_id)
+        DO UPDATE SET
+          role = excluded.role,
+          status = CASE
+            WHEN account_memberships.status = '${ACCOUNT_MEMBERSHIP_ACTIVE}'
+              THEN '${ACCOUNT_MEMBERSHIP_ACTIVE}'
+            ELSE excluded.status
+          END,
+          created_by_user_id = excluded.created_by_user_id
+      `
+    ).run(accountId, memberUser.id, normalizeAccountRole(parsed.data.role), nextStatus, req.userId);
+    res.status(201).json({
+      account_id: accountId,
+      members: listAccountMemberships(db, accountId)
+    });
+  });
+
+  app.patch("/api/v1/accounts/:id/shares/:userId", (req, res) => {
+    const accountId = Number.parseInt(String(req.params.id), 10);
+    const memberUserId = Number.parseInt(String(req.params.userId), 10);
+    if (!Number.isInteger(accountId) || accountId <= 0 || !Number.isInteger(memberUserId) || memberUserId <= 0) {
+      return res.status(400).json({ error: "Invalid share target." });
+    }
+    const account = getAccessibleAccount(db, req.userId, accountId);
+    if (!account) {
+      return res.status(404).json({ error: "Account not found." });
+    }
+    if (account.access_role !== ACCOUNT_OWNER_ROLE) {
+      return res.status(403).json({ error: "Only account owners can manage shares." });
+    }
+    const schema = z.object({
+      role: z.enum(ACCOUNT_MEMBER_ROLES)
+    });
+    const parsed = schema.safeParse(req.body || {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.flatten() });
+    }
+    const existing = db
+      .prepare("SELECT role, status FROM account_memberships WHERE account_id = ? AND user_id = ?")
+      .get(accountId, memberUserId);
+    if (!existing) {
+      return res.status(404).json({ error: "Share target not found." });
+    }
+    if (
+      normalizeAccountRole(existing.role) === ACCOUNT_OWNER_ROLE &&
+      normalizeAccountMembershipStatus(existing.status) === ACCOUNT_MEMBERSHIP_ACTIVE &&
+      parsed.data.role !== ACCOUNT_OWNER_ROLE &&
+      countAccountOwners(db, accountId) <= 1
+    ) {
+      return res.status(409).json({ error: "At least one owner must remain on the account." });
+    }
+    db.prepare(
+      `
+        UPDATE account_memberships
+        SET role = ?, created_by_user_id = ?
+        WHERE account_id = ? AND user_id = ?
+      `
+    ).run(normalizeAccountRole(parsed.data.role), req.userId, accountId, memberUserId);
+    res.json({
+      account_id: accountId,
+      members: listAccountMemberships(db, accountId)
+    });
+  });
+
+  app.delete("/api/v1/accounts/:id/shares/:userId", (req, res) => {
+    const accountId = Number.parseInt(String(req.params.id), 10);
+    const memberUserId = Number.parseInt(String(req.params.userId), 10);
+    if (!Number.isInteger(accountId) || accountId <= 0 || !Number.isInteger(memberUserId) || memberUserId <= 0) {
+      return res.status(400).json({ error: "Invalid share target." });
+    }
+    const account = getAccessibleAccount(db, req.userId, accountId);
+    if (!account) {
+      return res.status(404).json({ error: "Account not found." });
+    }
+    if (account.access_role !== ACCOUNT_OWNER_ROLE) {
+      return res.status(403).json({ error: "Only account owners can manage shares." });
+    }
+    const existing = db
+      .prepare("SELECT role, status FROM account_memberships WHERE account_id = ? AND user_id = ?")
+      .get(accountId, memberUserId);
+    if (!existing) {
+      return res.status(404).json({ error: "Share target not found." });
+    }
+    if (
+      normalizeAccountRole(existing.role) === ACCOUNT_OWNER_ROLE &&
+      normalizeAccountMembershipStatus(existing.status) === ACCOUNT_MEMBERSHIP_ACTIVE &&
+      countAccountOwners(db, accountId) <= 1
+    ) {
+      return res.status(409).json({ error: "At least one owner must remain on the account." });
+    }
+    db.prepare("DELETE FROM account_memberships WHERE account_id = ? AND user_id = ?").run(accountId, memberUserId);
+    res.json({
+      account_id: accountId,
+      members: listAccountMemberships(db, accountId)
+    });
+  });
+
+  app.get("/api/v1/account-share-invitations", (req, res) => {
+    res.json({ invitations: listPendingAccountInvitations(db, req.userId) });
+  });
+
+  app.post("/api/v1/account-share-invitations/:accountId/accept", (req, res) => {
+    const accountId = Number.parseInt(String(req.params.accountId), 10);
+    if (!Number.isInteger(accountId) || accountId <= 0) {
+      return res.status(400).json({ error: "Invalid account id." });
+    }
+    const invitation = db
+      .prepare(
+        `
+          SELECT role, status
+          FROM account_memberships
+          WHERE account_id = ? AND user_id = ?
+        `
+      )
+      .get(accountId, req.userId);
+    if (!invitation || normalizeAccountMembershipStatus(invitation.status) !== ACCOUNT_MEMBERSHIP_PENDING) {
+      return res.status(404).json({ error: "Invitation not found." });
+    }
+    db.prepare(
+      `
+        UPDATE account_memberships
+        SET status = '${ACCOUNT_MEMBERSHIP_ACTIVE}'
+        WHERE account_id = ? AND user_id = ?
+      `
+    ).run(accountId, req.userId);
+    const account = getAccessibleAccount(db, req.userId, accountId);
+    res.json({
+      ok: true,
+      account_id: accountId,
+      account
+    });
+  });
+
+  app.post("/api/v1/account-share-invitations/:accountId/decline", (req, res) => {
+    const accountId = Number.parseInt(String(req.params.accountId), 10);
+    if (!Number.isInteger(accountId) || accountId <= 0) {
+      return res.status(400).json({ error: "Invalid account id." });
+    }
+    const result = db
+      .prepare(
+        `
+          DELETE FROM account_memberships
+          WHERE account_id = ? AND user_id = ? AND status = '${ACCOUNT_MEMBERSHIP_PENDING}'
+        `
+      )
+      .run(accountId, req.userId);
+    if (!Number(result.changes || 0)) {
+      return res.status(404).json({ error: "Invitation not found." });
+    }
+    res.json({ ok: true, account_id: accountId });
   });
 
   app.post("/api/v1/admin/rebuild-balances", async (req, res) => {
@@ -1460,21 +1681,36 @@ function createApp(db) {
     } catch (error) {
       return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
     }
+    let prepared;
+    try {
+      prepared = prepareTransactionForWrite(db, req.userId, enriched);
+    } catch (error) {
+      return res
+        .status(error?.code === "ACCOUNT_FORBIDDEN" ? 403 : 400)
+        .json({ error: String(error.message || "Invalid transaction.") });
+    }
     try {
       await ensurePayloadFxCoverage(db, req.userId, enriched);
-      await ensureRebuildFxCoverage(db, req.userId);
+      await ensureAccountsRebuildFxCoverage(
+        db,
+        collectTransactionAccountIds({
+          account_from_id: prepared.from?.id,
+          account_to_id: prepared.to?.id
+        })
+      );
     } catch (error) {
       return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
     }
     let tx;
     try {
-      tx = createTransactionRecord(db, req.userId, enriched);
+      tx = createTransactionRecord(db, req.userId, enriched, prepared);
     } catch (error) {
       return res.status(400).json({ error: String(error.message || "Invalid transaction.") });
     }
     logEvent(db, req.userId, "transaction_created", {
       transaction_id: tx.id,
-      type: tx.type
+      type: tx.type,
+      month: String(tx.tx_date || "").slice(0, 7)
     });
     if (req.authMethod === "api_token") {
       logEvent(db, req.userId, "agent_token_used", {
@@ -1492,14 +1728,21 @@ function createApp(db) {
     const end = normalizeDate(req.query.end);
     const hasRange = Boolean(start || end);
     const fetchAll = !hasRange && ["1", "true", "yes"].includes(String(req.query.all || "").toLowerCase());
+    const scope = String(req.query.scope || "accessible").trim().toLowerCase();
     const rawLimit = Number.parseInt(String(req.query.limit || ""), 10);
     const rawOffset = Number.parseInt(String(req.query.offset || ""), 10);
     const hasLimit = Number.isInteger(rawLimit) && rawLimit > 0;
     const offset = Number.isInteger(rawOffset) && rawOffset > 0 ? rawOffset : 0;
+    const accountId = Number.parseInt(String(req.query.account_id || ""), 10);
     const month = hasRange || fetchAll ? null : normalizeMonth(req.query.month);
-    const params = hasRange || fetchAll ? [req.userId] : [req.userId, month];
-    const filters =
-      hasRange || fetchAll ? ["t.user_id = ?"] : ["t.user_id = ?", "substr(t.tx_date, 1, 7) = ?"];
+    const params = [];
+    const filters = [scope === "analytics" ? analyticsTransactionCondition("t") : accessibleTransactionCondition("t")];
+    if (scope === "analytics") pushAnalyticsTransactionParams(params, req.userId);
+    else pushAccessibleTransactionParams(params, req.userId);
+    if (!hasRange && !fetchAll) {
+      filters.push("substr(t.tx_date, 1, 7) = ?");
+      params.push(month);
+    }
     if (start) {
       filters.push("t.tx_date >= ?");
       params.push(start);
@@ -1529,11 +1772,24 @@ function createApp(db) {
       );
       params.push(req.query.tag);
     }
+    if (Number.isInteger(accountId) && accountId > 0) {
+      const account = getAccessibleAccount(db, req.userId, accountId);
+      if (!account) {
+        return res.status(404).json({ error: "Account not found." });
+      }
+      filters.push("(t.account_from_id = ? OR t.account_to_id = ?)");
+      params.push(accountId, accountId);
+    }
     const sql = `
-      SELECT t.*, GROUP_CONCAT(tg.name, '|') AS tag_names
+      SELECT
+        t.*,
+        t.user_id AS actor_user_id,
+        COALESCE(actor.display_name, '') AS actor_display_name,
+        GROUP_CONCAT(tg.name, '|') AS tag_names
       FROM transactions t
       LEFT JOIN transaction_tags tt ON tt.transaction_id = t.id
       LEFT JOIN tags tg ON tg.id = tt.tag_id
+      LEFT JOIN user_profiles actor ON actor.user_id = t.user_id
       WHERE ${filters.join(" AND ")}
       GROUP BY t.id
       ORDER BY t.tx_date DESC, t.id DESC
@@ -1549,6 +1805,7 @@ function createApp(db) {
       amount_base: Number(row.amount_base || 0),
       base_currency: baseCurrency,
       effective_fx_rate: Number(row.fx_rate || 1),
+      actor_user_id: Number(row.actor_user_id || row.user_id || 0),
       tags: row.tag_names ? row.tag_names.split("|") : []
     }));
     try {
@@ -1582,9 +1839,7 @@ function createApp(db) {
     if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.flatten() });
     }
-    const existing = db
-      .prepare("SELECT id FROM transactions WHERE user_id = ? AND id = ?")
-      .get(req.userId, txId);
+    const existing = getAccessibleTransactionWithTags(db, req.userId, txId);
     if (!existing) {
       return res.status(404).json({ error: "Transaction not found." });
     }
@@ -1603,21 +1858,39 @@ function createApp(db) {
     } catch (error) {
       return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
     }
+    let prepared;
+    try {
+      prepared = prepareTransactionForWrite(db, req.userId, enriched);
+    } catch (error) {
+      return res
+        .status(error?.code === "ACCOUNT_FORBIDDEN" ? 403 : 400)
+        .json({ error: String(error.message || "Invalid transaction.") });
+    }
     try {
       await ensurePayloadFxCoverage(db, req.userId, enriched);
-      await ensureRebuildFxCoverage(db, req.userId);
+      await ensureAccountsRebuildFxCoverage(
+        db,
+        uniquePositiveIds([
+          ...collectTransactionAccountIds(existing),
+          ...collectTransactionAccountIds({
+            account_from_id: prepared.from?.id,
+            account_to_id: prepared.to?.id
+          })
+        ])
+      );
     } catch (error) {
       return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
     }
     let tx;
     try {
-      tx = updateTransactionRecord(db, req.userId, txId, enriched);
+      tx = updateTransactionRecord(db, req.userId, txId, enriched, prepared);
     } catch (error) {
       return res.status(400).json({ error: String(error.message || "Invalid transaction.") });
     }
     logEvent(db, req.userId, "transaction_updated", {
       transaction_id: txId,
-      type: tx.type
+      type: tx.type,
+      month: String(tx.tx_date || "").slice(0, 7)
     });
     res.json(tx);
   });
@@ -1627,21 +1900,23 @@ function createApp(db) {
     if (!Number.isInteger(txId) || txId <= 0) {
       return res.status(400).json({ error: "Invalid transaction id." });
     }
-    const existing = db
-      .prepare("SELECT id, type FROM transactions WHERE user_id = ? AND id = ?")
-      .get(req.userId, txId);
+    const existing = getAccessibleTransactionWithTags(db, req.userId, txId);
     if (!existing) {
       return res.status(404).json({ error: "Transaction not found." });
     }
+    if (!canWriteTransactionRow(db, req.userId, existing)) {
+      return res.status(403).json({ error: "You do not have permission to delete this transaction." });
+    }
     try {
-      await ensureRebuildFxCoverage(db, req.userId);
+      await ensureAccountsRebuildFxCoverage(db, collectTransactionAccountIds(existing));
     } catch (error) {
       return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
     }
     deleteTransactionRecord(db, req.userId, txId);
     logEvent(db, req.userId, "transaction_deleted", {
       transaction_id: txId,
-      type: existing.type
+      type: existing.type,
+      month: String(existing.tx_date || "").slice(0, 7)
     });
     res.json({ ok: true, deleted_transaction_id: txId });
   });
@@ -1684,15 +1959,20 @@ function createApp(db) {
     } catch (error) {
       return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
     }
+    const expenseParams = [];
+    pushAnalyticsTransactionParams(expenseParams, req.userId);
+    expenseParams.push(month);
     const expenses = db
       .prepare(
         `
-          SELECT category_l1, amount_base
-          FROM transactions
-          WHERE user_id = ? AND type = 'expense' AND substr(tx_date, 1, 7) = ?
+          SELECT t.category_l1, t.amount_base
+          FROM transactions t
+          WHERE ${analyticsTransactionCondition("t")}
+            AND t.type = 'expense'
+            AND substr(t.tx_date, 1, 7) = ?
         `
       )
-      .all(req.userId, month);
+      .all(...expenseParams);
     const spentByCategory = new Map();
     for (const tx of expenses) {
       const spent = Number(tx.amount_base || 0);
@@ -1768,15 +2048,20 @@ function createApp(db) {
     } catch (error) {
       return res.status(resolveFxErrorStatus(error)).json({ error: formatFxError(error) });
     }
+    const expenseParams = [];
+    pushAnalyticsTransactionParams(expenseParams, req.userId);
+    expenseParams.push(String(year));
     const expenses = db
       .prepare(
         `
-          SELECT category_l1, amount_base
-          FROM transactions
-          WHERE user_id = ? AND type = 'expense' AND substr(tx_date, 1, 4) = ?
+          SELECT t.category_l1, t.amount_base
+          FROM transactions t
+          WHERE ${analyticsTransactionCondition("t")}
+            AND t.type = 'expense'
+            AND substr(t.tx_date, 1, 4) = ?
         `
       )
-      .all(req.userId, String(year));
+      .all(...expenseParams);
     const spentByCategory = new Map();
     for (const tx of expenses) {
       const spent = Number(tx.amount_base || 0);
@@ -2195,9 +2480,7 @@ function buildOnboardingBudgetAllocations(activeL1, estimatedIncome, budgetPool)
 
 function getAccounts(db, userId) {
   normalizeLegacyDefaultAccountNames(db, userId);
-  return db
-    .prepare("SELECT * FROM accounts WHERE user_id = ? ORDER BY id")
-    .all(userId);
+  return listAccessibleAccounts(db, userId);
 }
 
 function normalizeLegacyDefaultAccountNames(db, userId) {
@@ -2249,14 +2532,19 @@ function getOrCreateUnassignedAccount(db, userId) {
   const result = db
     .prepare(
       `
-        INSERT INTO accounts (user_id, name, type, currency, opening_balance, balance)
-        VALUES (?, ?, 'cash', ?, 0, 0)
+        INSERT INTO accounts (user_id, name, type, currency, analytics_mode, opening_balance, balance)
+        VALUES (?, ?, 'cash', ?, 'wallet_only', 0, 0)
       `
     )
     .run(userId, preferredName, accountCurrency);
-  return db
-    .prepare("SELECT * FROM accounts WHERE user_id = ? AND id = ?")
-    .get(userId, Number(result.lastInsertRowid));
+  const accountId = Number(result.lastInsertRowid);
+  db.prepare(
+    `
+      INSERT OR IGNORE INTO account_memberships (account_id, user_id, role, status, created_by_user_id)
+      VALUES (?, ?, 'owner', '${ACCOUNT_MEMBERSHIP_ACTIVE}', ?)
+    `
+  ).run(accountId, userId, userId);
+  return getAccessibleAccount(db, userId, accountId);
 }
 
 function getCategoriesMap(db, userId) {
@@ -2315,9 +2603,7 @@ function normalizeTokenSymbol(value, fieldName = "symbol") {
 }
 
 function ensureCryptoAccount(db, userId, accountId) {
-  const account = db
-    .prepare("SELECT id, name, type, currency FROM accounts WHERE user_id = ? AND id = ?")
-    .get(userId, accountId);
+  const account = getAccessibleAccount(db, userId, accountId, { writeOnly: true });
   if (!account) {
     const error = new Error("Account not found.");
     error.code = "ACCOUNT_NOT_FOUND";
@@ -2503,8 +2789,8 @@ async function enrichDraftWithFx(db, userId, payload) {
   };
 }
 
-function createTransactionRecord(db, userId, payload) {
-  const prepared = prepareTransactionForWrite(db, userId, payload);
+function createTransactionRecord(db, userId, payload, preparedInput = null) {
+  const prepared = preparedInput || prepareTransactionForWrite(db, userId, payload);
   const insertTx = db.prepare(
     `
       INSERT INTO transactions (
@@ -2512,9 +2798,6 @@ function createTransactionRecord(db, userId, payload) {
         category_l1, category_l2, account_from_id, account_to_id, transfer_reason, note
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
-  );
-  const updateBalance = db.prepare(
-    "UPDATE accounts SET balance = balance + ? WHERE id = ? AND user_id = ?"
   );
   const insertTag = db.prepare(
     "INSERT INTO tags (user_id, name) VALUES (?, ?) ON CONFLICT(user_id, name) DO NOTHING"
@@ -2541,38 +2824,6 @@ function createTransactionRecord(db, userId, payload) {
       prepared.note
     );
     const txId = Number(result.lastInsertRowid);
-    if (prepared.type === "expense") {
-      const deltaFrom = convertCurrency(
-        prepared.amountOriginal,
-        prepared.sourceCurrency,
-        normalizeCurrency(prepared.from.currency)
-      );
-      updateBalance.run(-deltaFrom, prepared.from.id, userId);
-    } else if (prepared.type === "income") {
-      const deltaTo = convertCurrency(
-        prepared.amountOriginal,
-        prepared.sourceCurrency,
-        normalizeCurrency(prepared.to.currency)
-      );
-      updateBalance.run(deltaTo, prepared.to.id, userId);
-    } else if (prepared.type === "transfer") {
-      if (prepared.from) {
-        const deltaFrom = convertCurrency(
-          prepared.amountOriginal,
-          prepared.sourceCurrency,
-          normalizeCurrency(prepared.from.currency)
-        );
-        updateBalance.run(-deltaFrom, prepared.from.id, userId);
-      }
-      if (prepared.to) {
-        const deltaTo = convertCurrency(
-          prepared.amountOriginal,
-          prepared.sourceCurrency,
-          normalizeCurrency(prepared.to.currency)
-        );
-        updateBalance.run(deltaTo, prepared.to.id, userId);
-      }
-    }
     for (const tag of prepared.tags) {
       insertTag.run(userId, tag);
       const tagRow = getTag.get(userId, tag);
@@ -2582,7 +2833,11 @@ function createTransactionRecord(db, userId, payload) {
   });
 
   const txId = txn();
-  return getTransactionWithTags(db, userId, txId);
+  rebuildAccountsByIds(db, collectTransactionAccountIds({
+    account_from_id: prepared.from?.id,
+    account_to_id: prepared.to?.id
+  }));
+  return getAccessibleTransactionWithTags(db, userId, txId);
 }
 
 function prepareTransactionForWrite(db, userId, payload) {
@@ -2606,22 +2861,28 @@ function prepareTransactionForWrite(db, userId, payload) {
 
   let from =
     payload.account_from_id !== undefined
-      ? db
-          .prepare("SELECT * FROM accounts WHERE id = ? AND user_id = ?")
-          .get(payload.account_from_id, userId)
+      ? getAccessibleAccount(db, userId, payload.account_from_id, { writeOnly: true })
       : null;
   let to =
     payload.account_to_id !== undefined
-      ? db
-          .prepare("SELECT * FROM accounts WHERE id = ? AND user_id = ?")
-          .get(payload.account_to_id, userId)
+      ? getAccessibleAccount(db, userId, payload.account_to_id, { writeOnly: true })
       : null;
 
   if (payload.account_from_id !== undefined && !from) {
-    throw new Error("account_from_id not found for user.");
+    const readableFrom = getAccessibleAccount(db, userId, payload.account_from_id);
+    const error = new Error(
+      readableFrom ? "account_from_id is not writable for user." : "account_from_id not found for user."
+    );
+    error.code = readableFrom ? "ACCOUNT_FORBIDDEN" : "ACCOUNT_NOT_FOUND";
+    throw error;
   }
   if (payload.account_to_id !== undefined && !to) {
-    throw new Error("account_to_id not found for user.");
+    const readableTo = getAccessibleAccount(db, userId, payload.account_to_id);
+    const error = new Error(
+      readableTo ? "account_to_id is not writable for user." : "account_to_id not found for user."
+    );
+    error.code = readableTo ? "ACCOUNT_FORBIDDEN" : "ACCOUNT_NOT_FOUND";
+    throw error;
   }
 
   if (type === "expense" && !from && payload.account_from_id === undefined) {
@@ -2709,8 +2970,11 @@ function prepareTransactionForWrite(db, userId, payload) {
   };
 }
 
-function updateTransactionRecord(db, userId, txId, payload) {
-  const prepared = prepareTransactionForWrite(db, userId, payload);
+function updateTransactionRecord(db, userId, txId, payload, preparedInput = null) {
+  const prepared = preparedInput || prepareTransactionForWrite(db, userId, payload);
+  const existing = db
+    .prepare("SELECT account_from_id, account_to_id FROM transactions WHERE id = ?")
+    .get(txId);
   const updateTx = db.prepare(
     `
       UPDATE transactions
@@ -2727,7 +2991,7 @@ function updateTransactionRecord(db, userId, txId, payload) {
         account_to_id = ?,
         transfer_reason = ?,
         note = ?
-      WHERE id = ? AND user_id = ?
+      WHERE id = ?
     `
   );
   const clearTags = db.prepare("DELETE FROM transaction_tags WHERE transaction_id = ?");
@@ -2753,8 +3017,7 @@ function updateTransactionRecord(db, userId, txId, payload) {
       prepared.to ? prepared.to.id : null,
       prepared.type === "transfer" ? prepared.transferReason : null,
       prepared.note,
-      txId,
-      userId
+      txId
     );
     if (Number(result.changes || 0) !== 1) {
       throw new Error("Transaction not found.");
@@ -2767,37 +3030,455 @@ function updateTransactionRecord(db, userId, txId, payload) {
     }
   });
   txn();
-  rebuildUserBalances(db, userId);
-  return getTransactionWithTags(db, userId, txId);
+  rebuildAccountsByIds(
+    db,
+    uniquePositiveIds([
+      ...collectTransactionAccountIds(existing),
+      ...collectTransactionAccountIds({
+        account_from_id: prepared.from?.id,
+        account_to_id: prepared.to?.id
+      })
+    ])
+  );
+  return getAccessibleTransactionWithTags(db, userId, txId);
 }
 
 function deleteTransactionRecord(db, userId, txId) {
-  const removeTx = db.prepare("DELETE FROM transactions WHERE id = ? AND user_id = ?");
+  const existing = db
+    .prepare("SELECT account_from_id, account_to_id FROM transactions WHERE id = ?")
+    .get(txId);
+  const removeTx = db.prepare("DELETE FROM transactions WHERE id = ?");
   const txn = db.transaction(() => {
-    const result = removeTx.run(txId, userId);
+    const result = removeTx.run(txId);
     if (Number(result.changes || 0) !== 1) {
       throw new Error("Transaction not found.");
     }
   });
   txn();
-  rebuildUserBalances(db, userId);
+  rebuildAccountsByIds(db, collectTransactionAccountIds(existing));
 }
 
 function logEvent(db, userId, eventName, payload = {}) {
-  const month = new Date().toISOString().slice(0, 7);
+  const explicitMonth =
+    typeof payload?.event_month === "string" && /^\d{4}-\d{2}$/.test(payload.event_month)
+      ? payload.event_month
+      : typeof payload?.month === "string" && /^\d{4}-\d{2}$/.test(payload.month)
+        ? payload.month
+        : new Date().toISOString().slice(0, 7);
+  const safePayload = { ...payload };
+  delete safePayload.event_month;
   db.prepare(
     `
       INSERT INTO product_events (user_id, event_name, event_month, payload_json)
       VALUES (?, ?, ?, ?)
     `
-  ).run(userId, eventName, month, JSON.stringify(payload));
+  ).run(userId, eventName, explicitMonth, JSON.stringify(safePayload));
+}
+
+function normalizeAccountRole(role, fallback = "editor") {
+  const normalized = String(role || "").trim().toLowerCase();
+  return ACCOUNT_MEMBER_ROLES.includes(normalized) ? normalized : fallback;
+}
+
+function normalizeAccountAnalyticsMode(mode, fallback = "wallet_only") {
+  const normalized = String(mode || "").trim().toLowerCase();
+  return ACCOUNT_ANALYTICS_MODE_SET.has(normalized) ? normalized : fallback;
+}
+
+function normalizeAccountMembershipStatus(status, fallback = ACCOUNT_MEMBERSHIP_ACTIVE) {
+  const normalized = String(status || "").trim().toLowerCase();
+  return ACCOUNT_MEMBERSHIP_STATUSES.has(normalized) ? normalized : fallback;
+}
+
+function accessibleTransactionCondition(alias = "t") {
+  return `
+    (
+      EXISTS (
+        SELECT 1
+        FROM account_memberships am_from
+        WHERE am_from.account_id = ${alias}.account_from_id
+          AND am_from.user_id = ?
+          AND am_from.status = '${ACCOUNT_MEMBERSHIP_ACTIVE}'
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM account_memberships am_to
+        WHERE am_to.account_id = ${alias}.account_to_id
+          AND am_to.user_id = ?
+          AND am_to.status = '${ACCOUNT_MEMBERSHIP_ACTIVE}'
+      )
+      OR (${alias}.user_id = ? AND ${alias}.account_from_id IS NULL AND ${alias}.account_to_id IS NULL)
+    )
+  `;
+}
+
+function analyticsTransactionCondition(alias = "t") {
+  return `
+    (
+      (
+        ${alias}.user_id = ?
+        AND NOT EXISTS (
+          SELECT 1
+          FROM accounts a_skip
+          JOIN account_memberships am_skip ON am_skip.account_id = a_skip.id
+          WHERE am_skip.user_id = ?
+            AND am_skip.status = '${ACCOUNT_MEMBERSHIP_ACTIVE}'
+            AND a_skip.analytics_mode = 'wallet_only'
+            AND (
+              SELECT COUNT(*)
+              FROM account_memberships am_skip_count
+              WHERE am_skip_count.account_id = a_skip.id
+                AND am_skip_count.status = '${ACCOUNT_MEMBERSHIP_ACTIVE}'
+            ) > 1
+            AND (a_skip.id = ${alias}.account_from_id OR a_skip.id = ${alias}.account_to_id)
+        )
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM accounts a_roll
+        JOIN account_memberships am_roll ON am_roll.account_id = a_roll.id
+        WHERE am_roll.user_id = ?
+          AND am_roll.status = '${ACCOUNT_MEMBERSHIP_ACTIVE}'
+          AND a_roll.analytics_mode = 'member_rollup'
+          AND (
+            SELECT COUNT(*)
+            FROM account_memberships am_roll_count
+            WHERE am_roll_count.account_id = a_roll.id
+              AND am_roll_count.status = '${ACCOUNT_MEMBERSHIP_ACTIVE}'
+          ) > 1
+          AND (a_roll.id = ${alias}.account_from_id OR a_roll.id = ${alias}.account_to_id)
+      )
+    )
+  `;
+}
+
+function pushAccessibleTransactionParams(params, userId) {
+  params.push(userId, userId, userId);
+  return params;
+}
+
+function pushAnalyticsTransactionParams(params, userId) {
+  params.push(userId, userId, userId);
+  return params;
+}
+
+function uniquePositiveIds(values) {
+  return [...new Set((values || []).map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0))];
+}
+
+function listAccessibleAccounts(db, userId, options = {}) {
+  const params = [userId];
+  const filters = ["am.user_id = ?", `am.status = '${ACCOUNT_MEMBERSHIP_ACTIVE}'`];
+  if (options.accountId) {
+    filters.push("a.id = ?");
+    params.push(Number(options.accountId));
+  }
+  if (options.writeOnly) {
+    filters.push("am.role IN ('owner', 'editor')");
+  }
+  if (options.analyticsOnly) {
+    filters.push(`
+      (
+        (
+          SELECT COUNT(*)
+          FROM account_memberships am_count
+          WHERE am_count.account_id = a.id
+            AND am_count.status = '${ACCOUNT_MEMBERSHIP_ACTIVE}'
+        ) <= 1
+        OR a.analytics_mode = 'member_rollup'
+      )
+    `);
+  }
+  const sql = `
+    SELECT
+      a.*,
+      am.role AS access_role,
+      CASE
+        WHEN (
+          SELECT COUNT(*)
+          FROM account_memberships am_count
+          WHERE am_count.account_id = a.id
+            AND am_count.status = '${ACCOUNT_MEMBERSHIP_ACTIVE}'
+        ) > 1
+          THEN 1
+        ELSE 0
+      END AS is_shared,
+      COALESCE(
+        (
+          SELECT am_owner_self.user_id
+          FROM account_memberships am_owner_self
+          WHERE am_owner_self.account_id = a.id
+            AND am_owner_self.role = 'owner'
+            AND am_owner_self.status = '${ACCOUNT_MEMBERSHIP_ACTIVE}'
+            AND am_owner_self.user_id = a.user_id
+          LIMIT 1
+        ),
+        (
+          SELECT am_owner.user_id
+          FROM account_memberships am_owner
+          WHERE am_owner.account_id = a.id
+            AND am_owner.role = 'owner'
+            AND am_owner.status = '${ACCOUNT_MEMBERSHIP_ACTIVE}'
+          ORDER BY am_owner.created_at, am_owner.user_id
+          LIMIT 1
+        ),
+        a.user_id
+      ) AS owner_user_id
+    FROM accounts a
+    JOIN account_memberships am ON am.account_id = a.id
+    WHERE ${filters.join(" AND ")}
+    ORDER BY a.id
+  `;
+  const rows = db.prepare(sql).all(...params).map((row) => ({
+    ...row,
+    analytics_mode: normalizeAccountAnalyticsMode(row.analytics_mode),
+    access_role: normalizeAccountRole(row.access_role),
+    is_shared: Boolean(row.is_shared),
+    owner_user_id: Number(row.owner_user_id || row.user_id || 0)
+  }));
+  const accountIds = uniquePositiveIds(rows.map((row) => row.id));
+  const membersByAccountId = new Map();
+  if (accountIds.length) {
+    const placeholders = accountIds.map(() => "?").join(", ");
+    const memberRows = db
+      .prepare(
+        `
+          SELECT
+            am.account_id,
+            am.user_id,
+            lower(am.role) AS role,
+            COALESCE(u.email, '') AS email,
+            COALESCE(p.display_name, '') AS display_name,
+            COALESCE(p.hero_avatar_data_url, '') AS hero_avatar_data_url
+          FROM account_memberships am
+          JOIN users u ON u.id = am.user_id
+          LEFT JOIN user_profiles p ON p.user_id = am.user_id
+          WHERE am.account_id IN (${placeholders})
+            AND am.status = '${ACCOUNT_MEMBERSHIP_ACTIVE}'
+          ORDER BY
+            CASE lower(am.role)
+              WHEN 'owner' THEN 0
+              WHEN 'editor' THEN 1
+              ELSE 2
+            END,
+            am.created_at,
+            am.user_id
+        `
+      )
+      .all(...accountIds);
+    for (const row of memberRows) {
+      const accountId = Number(row.account_id || 0);
+      if (!membersByAccountId.has(accountId)) {
+        membersByAccountId.set(accountId, []);
+      }
+      membersByAccountId.get(accountId).push({
+        user_id: Number(row.user_id || 0),
+        role: normalizeAccountRole(row.role),
+        email: String(row.email || ""),
+        display_name: String(row.display_name || ""),
+        hero_avatar_data_url: String(row.hero_avatar_data_url || "")
+      });
+    }
+  }
+  return rows.map((row) => ({
+    ...row,
+    account_members: membersByAccountId.get(Number(row.id)) || []
+  }));
+}
+
+function getAccessibleAccount(db, userId, accountId, options = {}) {
+  return listAccessibleAccounts(db, userId, { ...options, accountId })[0] || null;
+}
+
+function listAccountMemberships(db, accountId) {
+  return db
+    .prepare(
+      `
+        SELECT
+          am.account_id,
+          am.user_id,
+          lower(am.role) AS role,
+          lower(am.status) AS status,
+          am.created_by_user_id,
+          am.created_at,
+          COALESCE(u.email, '') AS email,
+          COALESCE(p.display_name, '') AS display_name,
+          COALESCE(inviter.email, '') AS inviter_email,
+          COALESCE(inviter_profile.display_name, '') AS inviter_display_name
+        FROM account_memberships am
+        JOIN users u ON u.id = am.user_id
+        LEFT JOIN user_profiles p ON p.user_id = am.user_id
+        LEFT JOIN users inviter ON inviter.id = am.created_by_user_id
+        LEFT JOIN user_profiles inviter_profile ON inviter_profile.user_id = am.created_by_user_id
+        WHERE am.account_id = ?
+        ORDER BY
+          CASE lower(am.status)
+            WHEN 'active' THEN 0
+            ELSE 1
+          END,
+          CASE lower(am.role)
+            WHEN 'owner' THEN 0
+            WHEN 'editor' THEN 1
+            ELSE 2
+          END,
+          am.created_at,
+          am.user_id
+      `
+    )
+    .all(accountId)
+    .map((row) => ({
+      ...row,
+      role: normalizeAccountRole(row.role),
+      status: normalizeAccountMembershipStatus(row.status),
+      inviter_email: String(row.inviter_email || ""),
+      inviter_display_name: String(row.inviter_display_name || "")
+    }));
+}
+
+function countAccountOwners(db, accountId) {
+  const row = db
+    .prepare(
+      `
+        SELECT COUNT(*) AS count
+        FROM account_memberships
+        WHERE account_id = ?
+          AND lower(role) = 'owner'
+          AND status = '${ACCOUNT_MEMBERSHIP_ACTIVE}'
+      `
+    )
+    .get(accountId);
+  return Number(row?.count || 0);
+}
+
+function listPendingAccountInvitations(db, userId) {
+  return db
+    .prepare(
+      `
+        SELECT
+          am.account_id,
+          am.user_id,
+          lower(am.role) AS role,
+          lower(am.status) AS status,
+          am.created_by_user_id,
+          am.created_at,
+          a.name AS account_name,
+          a.type AS account_type,
+          a.currency AS account_currency,
+          a.analytics_mode,
+          COALESCE(inviter.email, '') AS inviter_email,
+          COALESCE(inviter_profile.display_name, '') AS inviter_display_name
+        FROM account_memberships am
+        JOIN accounts a ON a.id = am.account_id
+        LEFT JOIN users inviter ON inviter.id = am.created_by_user_id
+        LEFT JOIN user_profiles inviter_profile ON inviter_profile.user_id = am.created_by_user_id
+        WHERE am.user_id = ?
+          AND am.status = '${ACCOUNT_MEMBERSHIP_PENDING}'
+        ORDER BY am.created_at DESC, am.account_id DESC
+      `
+    )
+    .all(userId)
+    .map((row) => ({
+      account_id: Number(row.account_id || 0),
+      user_id: Number(row.user_id || 0),
+      role: normalizeAccountRole(row.role),
+      status: normalizeAccountMembershipStatus(row.status, ACCOUNT_MEMBERSHIP_PENDING),
+      created_by_user_id: Number(row.created_by_user_id || 0),
+      created_at: String(row.created_at || ""),
+      account_name: String(row.account_name || ""),
+      account_type: String(row.account_type || ""),
+      account_currency: String(row.account_currency || ""),
+      analytics_mode: normalizeAccountAnalyticsMode(row.analytics_mode),
+      inviter_email: String(row.inviter_email || ""),
+      inviter_display_name: String(row.inviter_display_name || "")
+    }));
+}
+
+function collectTransactionAccountIds(row) {
+  return uniquePositiveIds([row?.account_from_id, row?.account_to_id]);
+}
+
+function canWriteTransactionRow(db, userId, row) {
+  const accountIds = collectTransactionAccountIds(row);
+  if (!accountIds.length) {
+    return Number(row?.actor_user_id || row?.user_id || 0) === Number(userId);
+  }
+  return accountIds.every((accountId) => Boolean(getAccessibleAccount(db, userId, accountId, { writeOnly: true })));
+}
+
+function getAccessibleTransactionWithTags(db, userId, txId) {
+  const params = [];
+  pushAccessibleTransactionParams(params, userId);
+  params.push(txId);
+  const row = db
+    .prepare(
+      `
+        SELECT
+          t.*,
+          t.user_id AS actor_user_id,
+          COALESCE(actor.display_name, '') AS actor_display_name,
+          GROUP_CONCAT(tg.name, '|') AS tag_names
+        FROM transactions t
+        LEFT JOIN transaction_tags tt ON tt.transaction_id = t.id
+        LEFT JOIN tags tg ON tg.id = tt.tag_id
+        LEFT JOIN user_profiles actor ON actor.user_id = t.user_id
+        WHERE ${accessibleTransactionCondition("t")}
+          AND t.id = ?
+        GROUP BY t.id
+      `
+    )
+    .get(...params);
+  if (!row) return null;
+  return {
+    ...row,
+    amount_base: Number(row.amount_base || 0),
+    actor_user_id: Number(row.actor_user_id || row.user_id || 0),
+    tags: row.tag_names ? row.tag_names.split("|") : []
+  };
+}
+
+function rebuildAccountsByIds(db, accountIds) {
+  const ids = uniquePositiveIds(accountIds);
+  if (!ids.length) {
+    return { ok: true, accounts: [] };
+  }
+  const placeholders = ids.map(() => "?").join(", ");
+  const accounts = db
+    .prepare(
+      `
+        SELECT id, currency, opening_balance, balance
+        FROM accounts
+        WHERE id IN (${placeholders})
+        ORDER BY id
+      `
+    )
+    .all(...ids);
+  const recalculatedRows = accounts.map((account) => {
+    const currency = normalizeCurrency(account.currency);
+    const openingBalance = Number(account.opening_balance || 0);
+    const delta = computeAccountTxDelta(db, account.id, currency);
+    return {
+      id: account.id,
+      currency,
+      previous_balance: Number(account.balance || 0),
+      recalculated_balance: Number((openingBalance + delta).toFixed(8))
+    };
+  });
+  const save = db.transaction(() => {
+    const update = db.prepare("UPDATE accounts SET balance = ? WHERE id = ?");
+    for (const row of recalculatedRows) {
+      update.run(row.recalculated_balance, row.id);
+    }
+  });
+  save();
+  return {
+    ok: true,
+    accounts: recalculatedRows
+  };
 }
 
 function buildDashboardPayload(db, userId, month, baseCurrency) {
   const year = String(month || "").slice(0, 4) || new Date().toISOString().slice(0, 4);
-  const accountRows = db
-    .prepare("SELECT id, name, balance, currency, type FROM accounts WHERE user_id = ?")
-    .all(userId);
+  const accountRows = listAccessibleAccounts(db, userId, { analyticsOnly: true });
   let netWorth = 0;
   let liquidCash = 0;
   let restrictedCashTotal = 0;
@@ -2823,15 +3504,18 @@ function buildDashboardPayload(db, userId, month, baseCurrency) {
       liquidCash += valueBase;
     }
   }
+  const monthParams = [];
+  pushAnalyticsTransactionParams(monthParams, userId);
+  monthParams.push(month);
   const monthRows = db
     .prepare(
       `
-        SELECT type, amount_base, category_l1
-        FROM transactions
-        WHERE user_id = ? AND substr(tx_date, 1, 7) = ?
+        SELECT t.type, t.amount_base, t.category_l1
+        FROM transactions t
+        WHERE ${analyticsTransactionCondition("t")} AND substr(t.tx_date, 1, 7) = ?
       `
     )
-    .all(userId, month);
+    .all(...monthParams);
   let monthlyIncome = 0;
   let monthlyExpense = 0;
   const spentByCategory = new Map();
@@ -2871,15 +3555,20 @@ function buildDashboardPayload(db, userId, month, baseCurrency) {
     };
   });
 
+  const yearParams = [];
+  pushAnalyticsTransactionParams(yearParams, userId);
+  yearParams.push(year);
   const yearExpenseRows = db
     .prepare(
       `
-        SELECT category_l1, amount_base
-        FROM transactions
-        WHERE user_id = ? AND type = 'expense' AND substr(tx_date, 1, 4) = ?
+        SELECT t.category_l1, t.amount_base
+        FROM transactions t
+        WHERE ${analyticsTransactionCondition("t")}
+          AND t.type = 'expense'
+          AND substr(t.tx_date, 1, 4) = ?
       `
     )
-    .all(userId, year);
+    .all(...yearParams);
   const spentByCategoryYearly = new Map();
   for (const tx of yearExpenseRows) {
     const converted = Number(tx.amount_base || 0);
@@ -2935,16 +3624,18 @@ function buildDashboardPayload(db, userId, month, baseCurrency) {
 }
 
 function computeBurnRate(db, userId) {
+  const params = [];
+  pushAnalyticsTransactionParams(params, userId);
   const rows = db
     .prepare(
       `
-        SELECT substr(tx_date, 1, 7) AS month, type, amount_base
-        FROM transactions
-        WHERE user_id = ? AND type IN ('income', 'expense')
+        SELECT substr(t.tx_date, 1, 7) AS month, t.type, t.amount_base
+        FROM transactions t
+        WHERE ${analyticsTransactionCondition("t")} AND t.type IN ('income', 'expense')
         ORDER BY month DESC
       `
     )
-    .all(userId);
+    .all(...params);
   if (!rows.length) return 0;
   const byMonth = new Map();
   for (const row of rows) {
@@ -2967,9 +3658,7 @@ function computeBurnRate(db, userId) {
 
 function buildRiskPayload(db, userId, month) {
   const baseCurrency = getUserSettings(db, userId).base_currency;
-  const accountRows = db
-    .prepare("SELECT balance, currency, type FROM accounts WHERE user_id = ?")
-    .all(userId);
+  const accountRows = listAccessibleAccounts(db, userId, { analyticsOnly: true });
   let netWorth = 0;
   let positiveAssetValue = 0;
   let cryptoPositiveAssetValue = 0;
@@ -2997,15 +3686,17 @@ function buildRiskPayload(db, userId, month) {
   const rawCryptoOverNetWorth =
     netWorth !== 0 ? Number((cryptoPositiveAssetValue / Math.abs(netWorth)).toFixed(4)) : 0;
 
+  const incomeParams = [];
+  pushAnalyticsTransactionParams(incomeParams, userId);
   const incomeTxRows = db
     .prepare(
       `
-        SELECT substr(tx_date, 1, 7) AS month, amount_base
-        FROM transactions
-        WHERE user_id = ? AND type = 'income'
+        SELECT substr(t.tx_date, 1, 7) AS month, t.amount_base
+        FROM transactions t
+        WHERE ${analyticsTransactionCondition("t")} AND t.type = 'income'
       `
     )
-    .all(userId);
+    .all(...incomeParams);
   const incomeByMonth = new Map();
   for (const row of incomeTxRows) {
     const converted = Number(row.amount_base || 0);
@@ -3025,15 +3716,20 @@ function buildRiskPayload(db, userId, month) {
       : 0;
   const incomeVolatility = avgIncome > 0 ? Math.sqrt(variance) / avgIncome : 0;
 
+  const expenseParams = [];
+  pushAnalyticsTransactionParams(expenseParams, userId);
+  expenseParams.push(month);
   const expenseRows = db
     .prepare(
       `
-        SELECT category_l2, amount_base
-        FROM transactions
-        WHERE user_id = ? AND type = 'expense' AND substr(tx_date, 1, 7) = ?
+        SELECT t.category_l2, t.amount_base
+        FROM transactions t
+        WHERE ${analyticsTransactionCondition("t")}
+          AND t.type = 'expense'
+          AND substr(t.tx_date, 1, 7) = ?
       `
     )
-    .all(userId, month);
+    .all(...expenseParams);
   let fixedCostInMonth = 0;
   let totalExpenseInMonth = 0;
   for (const row of expenseRows) {
@@ -3059,15 +3755,18 @@ function buildRiskPayload(db, userId, month) {
 }
 
 function buildMonthlyReviewPayload(db, userId, month, baseCurrency = "USD") {
+  const params = [];
+  pushAnalyticsTransactionParams(params, userId);
+  params.push(month);
   const rows = db
     .prepare(
       `
-        SELECT id, tx_date, type, amount_base, category_l1, category_l2, note
-        FROM transactions
-        WHERE user_id = ? AND substr(tx_date, 1, 7) = ?
+        SELECT t.id, t.tx_date, t.type, t.amount_base, t.category_l1, t.category_l2, t.note
+        FROM transactions t
+        WHERE ${analyticsTransactionCondition("t")} AND substr(t.tx_date, 1, 7) = ?
       `
     )
-    .all(userId, month);
+    .all(...params);
 
   const byL1 = new Map();
   const byL2 = new Map();
@@ -3145,23 +3844,7 @@ function enrichBudgetRow(row) {
 }
 
 function getTransactionWithTags(db, userId, txId) {
-  const row = db
-    .prepare(
-      `
-        SELECT t.*, GROUP_CONCAT(tg.name, '|') AS tag_names
-        FROM transactions t
-        LEFT JOIN transaction_tags tt ON tt.transaction_id = t.id
-        LEFT JOIN tags tg ON tg.id = tt.tag_id
-        WHERE t.user_id = ? AND t.id = ?
-        GROUP BY t.id
-      `
-    )
-    .get(userId, txId);
-  return {
-    ...row,
-    amount_base: Number(row.amount_base),
-    tags: row.tag_names ? row.tag_names.split("|") : []
-  };
+  return getAccessibleTransactionWithTags(db, userId, txId);
 }
 
 function normalizeDate(value) {
@@ -3383,7 +4066,7 @@ async function ensureFxPairsLoaded(pairs) {
 
 function collectAllUserCurrencies(db, userId) {
   const currencies = new Set();
-  for (const row of db.prepare("SELECT DISTINCT currency FROM accounts WHERE user_id = ?").all(userId)) {
+  for (const row of listAccessibleAccounts(db, userId, { analyticsOnly: true })) {
     currencies.add(normalizeCurrency(row.currency || "USD"));
   }
   for (const row of db.prepare("SELECT DISTINCT budget_currency FROM budgets WHERE user_id = ?").all(userId)) {
@@ -3422,10 +4105,26 @@ async function ensureCryptoPortfolioFxCoverage(db, userId, baseCurrency) {
 }
 
 async function ensureRebuildFxCoverage(db, userId) {
-  const accountRows = db.prepare("SELECT DISTINCT currency FROM accounts WHERE user_id = ?").all(userId);
+  const accountIds = listAccessibleAccounts(db, userId).map((row) => row.id);
+  return ensureAccountsRebuildFxCoverage(db, accountIds);
+}
+
+async function ensureAccountsRebuildFxCoverage(db, accountIds) {
+  const ids = uniquePositiveIds(accountIds);
+  if (!ids.length) return;
+  const placeholders = ids.map(() => "?").join(", ");
+  const accountRows = db
+    .prepare(`SELECT DISTINCT currency FROM accounts WHERE id IN (${placeholders})`)
+    .all(...ids);
   const txRows = db
-    .prepare("SELECT DISTINCT currency_original FROM transactions WHERE user_id = ?")
-    .all(userId);
+    .prepare(
+      `
+        SELECT DISTINCT currency_original
+        FROM transactions
+        WHERE account_from_id IN (${placeholders}) OR account_to_id IN (${placeholders})
+      `
+    )
+    .all(...ids, ...ids);
   const accountCurrencies = new Set(accountRows.map((row) => normalizeCurrency(row.currency || "USD")));
   const txCurrencies = new Set(txRows.map((row) => normalizeCurrency(row.currency_original || "USD")));
   const pairs = [];
@@ -3486,27 +4185,27 @@ async function ensurePayloadFxCoverage(db, userId, payload) {
   const fromId = Number(payload?.account_from_id || 0);
   const toId = Number(payload?.account_to_id || 0);
   if (Number.isInteger(fromId) && fromId > 0) {
-    const from = db.prepare("SELECT currency FROM accounts WHERE user_id = ? AND id = ?").get(userId, fromId);
+    const from = getAccessibleAccount(db, userId, fromId);
     if (from?.currency) pairs.push([source, normalizeCurrency(from.currency)]);
   }
   if (Number.isInteger(toId) && toId > 0) {
-    const to = db.prepare("SELECT currency FROM accounts WHERE user_id = ? AND id = ?").get(userId, toId);
+    const to = getAccessibleAccount(db, userId, toId);
     if (to?.currency) pairs.push([source, normalizeCurrency(to.currency)]);
   }
   await ensureFxPairsLoaded(pairs);
 }
 
-function computeAccountTxDelta(db, userId, accountId, accountCurrency) {
+function computeAccountTxDelta(db, accountId, accountCurrency) {
   const rows = db
     .prepare(
       `
         SELECT type, amount_original, currency_original, account_from_id, account_to_id
         FROM transactions
-        WHERE user_id = ? AND (account_from_id = ? OR account_to_id = ?)
+        WHERE account_from_id = ? OR account_to_id = ?
         ORDER BY id
       `
     )
-    .all(userId, accountId, accountId);
+    .all(accountId, accountId);
   let delta = 0;
   for (const tx of rows) {
     const amountOriginal = Number(tx.amount_original || 0);
@@ -3524,85 +4223,22 @@ function computeAccountTxDelta(db, userId, accountId, accountCurrency) {
   return Number(delta.toFixed(8));
 }
 
-function countLinkedTransactions(db, userId, accountId) {
+function countLinkedTransactions(db, accountId) {
   const row = db
     .prepare(
       `
         SELECT COUNT(*) AS count
         FROM transactions
-        WHERE user_id = ? AND (account_from_id = ? OR account_to_id = ?)
+        WHERE account_from_id = ? OR account_to_id = ?
       `
     )
-    .get(userId, accountId, accountId);
+    .get(accountId, accountId);
   return Number(row?.count || 0);
 }
 
 function rebuildUserBalances(db, userId) {
-  const accounts = db
-    .prepare("SELECT id, currency, opening_balance, balance FROM accounts WHERE user_id = ? ORDER BY id")
-    .all(userId);
-  const accountMap = new Map();
-  for (const account of accounts) {
-    accountMap.set(account.id, {
-      id: account.id,
-      currency: normalizeCurrency(account.currency),
-      opening_balance: Number(account.opening_balance || 0),
-      recalculated: Number(account.opening_balance || 0),
-      previous_balance: Number(account.balance || 0)
-    });
-  }
-
-  const txRows = db
-    .prepare(
-      `
-        SELECT
-          id, type, amount_original, currency_original, account_from_id, account_to_id
-        FROM transactions
-        WHERE user_id = ?
-        ORDER BY id
-      `
-    )
-    .all(userId);
-
-  for (const tx of txRows) {
-    const amountOriginal = Number(tx.amount_original || 0);
-    const sourceCurrency = normalizeCurrency(tx.currency_original || "USD");
-
-    if (tx.type === "expense" && tx.account_from_id && accountMap.has(tx.account_from_id)) {
-      const account = accountMap.get(tx.account_from_id);
-      account.recalculated -= convertCurrency(amountOriginal, sourceCurrency, account.currency);
-    } else if (tx.type === "income" && tx.account_to_id && accountMap.has(tx.account_to_id)) {
-      const account = accountMap.get(tx.account_to_id);
-      account.recalculated += convertCurrency(amountOriginal, sourceCurrency, account.currency);
-    } else if (tx.type === "transfer") {
-      if (tx.account_from_id && accountMap.has(tx.account_from_id)) {
-        const source = accountMap.get(tx.account_from_id);
-        source.recalculated -= convertCurrency(amountOriginal, sourceCurrency, source.currency);
-      }
-      if (tx.account_to_id && accountMap.has(tx.account_to_id)) {
-        const target = accountMap.get(tx.account_to_id);
-        target.recalculated += convertCurrency(amountOriginal, sourceCurrency, target.currency);
-      }
-    }
-  }
-
-  const save = db.transaction(() => {
-    const update = db.prepare("UPDATE accounts SET balance = ? WHERE id = ? AND user_id = ?");
-    for (const account of accountMap.values()) {
-      update.run(Number(account.recalculated.toFixed(8)), account.id, userId);
-    }
-  });
-  save();
-
-  return {
-    ok: true,
-    accounts: [...accountMap.values()].map((row) => ({
-      id: row.id,
-      currency: row.currency,
-      previous_balance: row.previous_balance,
-      recalculated_balance: Number(row.recalculated.toFixed(8))
-    }))
-  };
+  const accountIds = listAccessibleAccounts(db, userId).map((row) => row.id);
+  return rebuildAccountsByIds(db, accountIds);
 }
 
 function parseEnvBoolean(value, fallback = false) {

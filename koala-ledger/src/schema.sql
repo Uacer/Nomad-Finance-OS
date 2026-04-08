@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS accounts (
     name TEXT NOT NULL,
     type TEXT NOT NULL,
     currency TEXT NOT NULL,
+    analytics_mode TEXT NOT NULL DEFAULT 'wallet_only',
     opening_balance NUMERIC NOT NULL DEFAULT 0,
     balance NUMERIC NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -23,6 +24,22 @@ CREATE TABLE IF NOT EXISTS accounts (
 );
 
 CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts(user_id);
+
+CREATE TABLE IF NOT EXISTS account_memberships (
+    account_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    role TEXT NOT NULL DEFAULT 'editor',
+    status TEXT NOT NULL DEFAULT 'active',
+    created_by_user_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (account_id, user_id),
+    FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_account_memberships_user_id ON account_memberships(user_id);
+CREATE INDEX IF NOT EXISTS idx_account_memberships_account_id ON account_memberships(account_id);
 
 CREATE TABLE IF NOT EXISTS crypto_token_prices (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

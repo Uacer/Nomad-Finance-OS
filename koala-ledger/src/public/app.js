@@ -49,6 +49,8 @@ const state = {
   },
   latestAgentTokenPlaintext: "",
   accountPeriod: "7d",
+  accountShares: [],
+  pendingAccountInvitations: [],
   accountPeriodTxs: [],
   recentCompareRows: [],
   trend: {
@@ -70,7 +72,8 @@ const state = {
     currencyModeToggling: false,
     accountCompositionPercent: false,
     hideSensitiveAmounts: false,
-    heroAvatarPaletteSource: ""
+    heroAvatarPaletteSource: "",
+    dismissedNotifications: {}
   },
   debug: {
     requests: [],
@@ -259,6 +262,7 @@ const I18N = {
     tabCategories: "Categories",
     tabSettings: "Settings",
     dashboard: "Summary",
+    dashboardNotifications: "Notifications",
     pinned: "PINNED",
     liquiditySplit: "Liquidity Split",
     runwaySignal: "Runway Signal",
@@ -492,6 +496,32 @@ const I18N = {
     navCategories: "Categories",
     navAgentAccess: "Agent Access",
     budgetPanelTitle: "Budget",
+    notificationDismiss: "Dismiss notification",
+    notificationEmptyTitle: "No urgent notifications",
+    notificationEmptyBody: "Budget, balance, and cash-flow alerts will appear here.",
+    notificationSeverityCritical: "Critical",
+    notificationSeverityAttention: "Attention",
+    notificationSeveritySetup: "Setup",
+    notificationSeverityInvite: "Invite",
+    notificationOverspendTitle: "{category} is over budget",
+    notificationOverspendBody: "Spent {spent} / {total} {currency} for this {period}.",
+    notificationBudgetNearTitle: "{category} is close to its budget cap",
+    notificationBudgetNearBody: "{ratio}% of this {period} budget is already used.",
+    notificationRunwayTitle: "Cash runway is getting short",
+    notificationRunwayBody: "At the current pace, runway is about {months} months.",
+    notificationCashflowTitle: "Net cash flow is negative this month",
+    notificationCashflowBody: "Current monthly net is {amount} {currency}.",
+    notificationAccountNegativeTitle: "{account} balance is below zero",
+    notificationAccountNegativeBody: "Current balance is {amount} {currency}. Check recent transfers or expenses.",
+    notificationBudgetMissingTitle: "No budgets set for this month",
+    notificationBudgetMissingBody: "Add category budgets so the dashboard can surface stronger alerts.",
+    notificationActionBudgets: "Open budgets",
+    notificationActionAccounts: "Open accounts",
+    notificationActionTransactions: "View transactions",
+    notificationAccountInviteTitle: "{inviter} invited you to a shared wallet",
+    notificationAccountInviteBody: "Join {account} as {role}. It will appear in your shared accounts after you accept.",
+    notificationActionAcceptInvite: "Accept",
+    notificationActionDeclineInvite: "Decline",
     reviewSummaryHeading: "Summary",
     reviewExpenseBreakdown: "Expense Breakdown",
     reviewTopExpenses: "Top Expenses",
@@ -552,8 +582,33 @@ const I18N = {
     accountUpdated: "Account updated",
     accountEditCurrencyLabel: "Currency",
     accountEditBalanceHint: "Changing current balance updates this account's starting point while keeping linked transactions intact.",
+    accountEditAdvancedTitle: "Advanced Settings",
+    accountEditAdvancedHint: "Sharing permissions and dashboard inclusion",
+    accountEditAnalyticsToggleLabel: "Include in Dashboard",
+    accountEditAnalyticsToggleHint: "Turn on to include this shared account in each member's dashboard stats.",
     accountDeleted: "Account deleted",
     accountForceDeleted: "Account and linked transactions deleted",
+    accountShareTitle: "Shared Access",
+    accountShareHint: "Invite collaborators by email. They will join after they accept the invitation.",
+    accountShareEmailLabel: "Member Email",
+    accountShareRoleLabel: "Role",
+    accountShareSubmitBtn: "Add Account",
+    accountShareInviteSent: "Invitation sent",
+    accountShareOwnerHint: "Only owners can change sharing, balance, and dashboard inclusion.",
+    accountShareSaved: "Shared access updated",
+    accountShareRemoved: "Shared access removed",
+    accountShareRemoveConfirm: "Remove {name} from this shared account?",
+    accountShareEmpty: "No collaborators yet",
+    accountShareStatusPending: "Pending",
+    accountShareStatusActive: "Active",
+    accountRoleOwner: "Owner",
+    accountRoleEditor: "Editor",
+    accountRoleViewer: "Viewer",
+    accountInviteAccepted: "Shared account added",
+    accountInviteDeclined: "Invitation declined",
+    accountBadgeShared: "Shared",
+    accountManagedBy: "by {name}",
+    transactionActorLabel: "Recorded by {name}",
     metricNetWorth: "Net Worth",
     metricLiquidCash: "Liquid Cash",
     metricRestrictedCash: "Restricted Cash",
@@ -715,6 +770,7 @@ const I18N = {
     tabCategories: "分类",
     tabSettings: "设置",
     dashboard: "摘要",
+    dashboardNotifications: "通知",
     pinned: "置顶",
     liquiditySplit: "流动性结构",
     runwaySignal: "Runway 信号",
@@ -947,6 +1003,32 @@ const I18N = {
     navCategories: "分类管理",
     navAgentAccess: "Agent 接入",
     budgetPanelTitle: "预算",
+    notificationDismiss: "关闭提醒",
+    notificationEmptyTitle: "暂无紧急提醒",
+    notificationEmptyBody: "预算、余额和现金流提醒会显示在这里。",
+    notificationSeverityCritical: "紧急",
+    notificationSeverityAttention: "注意",
+    notificationSeveritySetup: "设置",
+    notificationSeverityInvite: "邀请",
+    notificationOverspendTitle: "{category} 已超预算",
+    notificationOverspendBody: "本{period}已支出 {spent} / {total} {currency}。",
+    notificationBudgetNearTitle: "{category} 快到预算上限了",
+    notificationBudgetNearBody: "本{period}预算已使用 {ratio}%。",
+    notificationRunwayTitle: "现金 runway 偏短",
+    notificationRunwayBody: "按当前速度，预计还能支撑约 {months} 个月。",
+    notificationCashflowTitle: "本月净现金流为负",
+    notificationCashflowBody: "当前本月净额为 {amount} {currency}。",
+    notificationAccountNegativeTitle: "{account} 余额已低于 0",
+    notificationAccountNegativeBody: "当前余额为 {amount} {currency}，建议检查最近转账或支出。",
+    notificationBudgetMissingTitle: "这个月还没有设置预算",
+    notificationBudgetMissingBody: "先补几个分类预算，首页才能给出更强的提醒。",
+    notificationActionBudgets: "去看预算",
+    notificationActionAccounts: "查看账户",
+    notificationActionTransactions: "查看流水",
+    notificationAccountInviteTitle: "{inviter} 邀请你加入共享钱包",
+    notificationAccountInviteBody: "加入 {account}，你的权限是 {role}。同意后才会出现在共同账户里。",
+    notificationActionAcceptInvite: "同意",
+    notificationActionDeclineInvite: "拒绝",
     reviewSummaryHeading: "总览",
     reviewExpenseBreakdown: "支出结构",
     reviewTopExpenses: "最高支出",
@@ -1006,8 +1088,33 @@ const I18N = {
     accountUpdated: "账户已更新",
     accountEditCurrencyLabel: "币种",
     accountEditBalanceHint: "修改当前余额时，系统会调整这个账户的起始点，但会保留已关联交易。",
+    accountEditAdvancedTitle: "高级设置",
+    accountEditAdvancedHint: "共享权限与仪表盘统计",
+    accountEditAnalyticsToggleLabel: "加入仪表盘统计",
+    accountEditAnalyticsToggleHint: "开启后，这个共享账户会计入每位成员的首页仪表盘统计。",
     accountDeleted: "账户已删除",
     accountForceDeleted: "账户及关联交易已删除",
+    accountShareTitle: "共享权限",
+    accountShareHint: "通过邮箱邀请协作者，对方同意后才会加入共同账户。",
+    accountShareEmailLabel: "成员邮箱",
+    accountShareRoleLabel: "角色",
+    accountShareSubmitBtn: "添加账户",
+    accountShareInviteSent: "邀请已发送",
+    accountShareOwnerHint: "只有 owner 可以修改共享、余额和仪表盘统计设置。",
+    accountShareSaved: "共享权限已更新",
+    accountShareRemoved: "共享权限已移除",
+    accountShareRemoveConfirm: "确认将 {name} 从这个共享账户中移除？",
+    accountShareEmpty: "还没有协作者",
+    accountShareStatusPending: "待确认",
+    accountShareStatusActive: "已加入",
+    accountRoleOwner: "所有者",
+    accountRoleEditor: "编辑者",
+    accountRoleViewer: "查看者",
+    accountInviteAccepted: "已加入共享账户",
+    accountInviteDeclined: "已拒绝邀请",
+    accountBadgeShared: "共享",
+    accountManagedBy: "拥有者 {name}",
+    transactionActorLabel: "记录人：{name}",
     metricNetWorth: "净资产",
     metricLiquidCash: "流动现金",
     metricRestrictedCash: "受限现金",
@@ -1150,7 +1257,7 @@ const I18N = {
 const FX_QUOTE_CACHE = new Map();
 const AUTH_RESEND_COOLDOWN_SECONDS = 60;
 const TOPBAR_COMPACT_SCROLL_Y = 56;
-const UI_STATE_VERSION = 3;
+const UI_STATE_VERSION = 4;
 const MONEY_FORMATTER = new Intl.NumberFormat(undefined, {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2
@@ -1211,6 +1318,13 @@ function bindUI() {
   if (quickLogoutBtn) {
     quickLogoutBtn.addEventListener("click", () => {
       void logoutCurrentSession();
+    });
+  }
+  const accountEditAdvancedToggleBtn = $("#accountEditAdvancedToggleBtn");
+  if (accountEditAdvancedToggleBtn) {
+    accountEditAdvancedToggleBtn.addEventListener("click", () => {
+      const expanded = accountEditAdvancedToggleBtn.getAttribute("aria-expanded") === "true";
+      syncAccountEditAdvancedPanel(!expanded);
     });
   }
   const onboardingStep1Form = $("#onboardingStep1Form");
@@ -1542,6 +1656,36 @@ function bindUI() {
       if (state.dashboard) renderPlannedBudgetCard(state.dashboard);
     });
   }
+  const dashboardNotificationsList = $("#dashboardNotificationsList");
+  if (dashboardNotificationsList) {
+    dashboardNotificationsList.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const inviteActionBtn = event.target.closest("[data-notification-action]");
+      if (inviteActionBtn) {
+        const action = String(inviteActionBtn.getAttribute("data-notification-action") || "").trim();
+        const accountId = Number(inviteActionBtn.getAttribute("data-notification-account-id") || 0);
+        if (!Number.isInteger(accountId) || accountId <= 0) return;
+        if (action === "accept-account-invite") {
+          void acceptPendingAccountInvitation(accountId);
+          return;
+        }
+        if (action === "decline-account-invite") {
+          void declinePendingAccountInvitation(accountId);
+          return;
+        }
+      }
+      const dismissBtn = event.target.closest("[data-notification-dismiss]");
+      if (dismissBtn) {
+        dismissDashboardNotification(String(dismissBtn.getAttribute("data-notification-dismiss") || ""));
+        return;
+      }
+      const actionBtn = event.target.closest("[data-notification-panel]");
+      if (!actionBtn) return;
+      const panelId = String(actionBtn.getAttribute("data-notification-panel") || "").trim();
+      if (!panelId) return;
+      openUtilityPanel(panelId);
+    });
+  }
   for (const btn of document.querySelectorAll("[data-quick-type]")) {
     btn.addEventListener("click", () => {
       const type = String(btn.getAttribute("data-quick-type") || "expense");
@@ -1632,6 +1776,29 @@ function bindUI() {
   $("#quickSettingsForm").addEventListener("submit", submitQuickSettingsForm);
   $("#profileSettingsForm").addEventListener("submit", submitProfileSettingsForm);
   $("#accountEditForm").addEventListener("submit", submitAccountEditForm);
+  const accountShareSubmitBtn = $("#accountShareSubmitBtn");
+  if (accountShareSubmitBtn) {
+    accountShareSubmitBtn.addEventListener("click", () => {
+      void submitAccountShare();
+    });
+  }
+  const accountShareList = $("#accountShareList");
+  if (accountShareList) {
+    accountShareList.addEventListener("change", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLSelectElement)) return;
+      const memberUserId = Number(target.getAttribute("data-share-role") || 0);
+      if (!Number.isInteger(memberUserId) || memberUserId <= 0) return;
+      void updateAccountShareRole(memberUserId, target.value);
+    });
+    accountShareList.addEventListener("click", (event) => {
+      const button = event.target instanceof Element ? event.target.closest("button[data-share-remove]") : null;
+      if (!button) return;
+      const memberUserId = Number(button.getAttribute("data-share-remove") || 0);
+      if (!Number.isInteger(memberUserId) || memberUserId <= 0) return;
+      void removeAccountShare(memberUserId);
+    });
+  }
   $("#budgetEditForm").addEventListener("submit", submitBudgetEditForm);
   // Budget list click delegation (monthly + yearly)
   for (const listId of ["budgetList", "yearlyBudgetList"]) {
@@ -3027,10 +3194,14 @@ async function maybeStartOnboardingFlow() {
     return false;
   }
   try {
-    await Promise.all([loadSettings(), loadCategories(), loadAccounts()]);
+    await Promise.all([loadSettings(), loadCategories(), loadAccounts(), loadPendingAccountInvitations()]);
     await initializeOnboardingDraftState();
   } catch (error) {
     showErrorToast(error);
+    return false;
+  }
+  if ((state.pendingAccountInvitations || []).length) {
+    hideOnboardingGate({ keepState: true });
     return false;
   }
   showOnboardingGate();
@@ -3577,7 +3748,7 @@ async function loadAll() {
   try {
     syncControlState();
     loadUiState();
-    await Promise.all([loadSettings(), loadCategories(), loadAccounts(), loadAgentTokens()]);
+    await Promise.all([loadSettings(), loadCategories(), loadAccounts(), loadAgentTokens(), loadPendingAccountInvitations()]);
     await Promise.all([
       loadDashboard(),
       loadTransactions(),
@@ -3822,6 +3993,14 @@ async function loadAccounts() {
   populateAccountSelects();
   populateTransactionEditAccountSelects();
   populateQuickEntryAccounts();
+  renderDashboardNotifications();
+}
+
+async function loadPendingAccountInvitations() {
+  const payload = (await api("/api/v1/account-share-invitations")) || {};
+  state.pendingAccountInvitations = Array.isArray(payload.invitations) ? payload.invitations : [];
+  renderDashboardNotifications();
+  return state.pendingAccountInvitations;
 }
 
 function periodToDateRange(period) {
@@ -3918,9 +4097,10 @@ function populateAccountSelects() {
   for (const select of [from, to]) {
     select.innerHTML = '<option value="">-- none --</option>';
     for (const account of state.accounts || []) {
-      const label = `${account.name} · ${accountTypeLabel(account.type)} · ${formatMoney(account.balance)} ${formatCurrencyUnit(
-        account.currency
-      )}`;
+      const shareMeta = sharedAccountMetaText(account);
+      const label = `${account.name} · ${accountTypeLabel(account.type)}${
+        shareMeta ? ` · ${shareMeta}` : ""
+      } · ${formatMoney(account.balance)} ${formatCurrencyUnit(account.currency)}`;
       select.appendChild(new Option(label, String(account.id)));
     }
   }
@@ -3961,9 +4141,10 @@ function populateTransactionEditAccountSelects() {
     if (!select) continue;
     select.innerHTML = '<option value="">-- none --</option>';
     for (const account of state.accounts || []) {
-      const label = `${account.name} · ${accountTypeLabel(account.type)} · ${formatMoney(account.balance)} ${formatCurrencyUnit(
-        account.currency
-      )}`;
+      const shareMeta = sharedAccountMetaText(account);
+      const label = `${account.name} · ${accountTypeLabel(account.type)}${
+        shareMeta ? ` · ${shareMeta}` : ""
+      } · ${formatMoney(account.balance)} ${formatCurrencyUnit(account.currency)}`;
       select.appendChild(new Option(label, String(account.id)));
     }
   }
@@ -4090,13 +4271,13 @@ function populateQuickEntryAccounts() {
   if (!select) return;
   select.innerHTML = `<option value="">${escapeHtml(t("selectAccount"))}</option>`;
   for (const account of state.accounts || []) {
-    const label = `${account.name}`;
+    const label = `${account.name}${account.is_shared ? ` · ${sharedAccountMetaText(account)}` : ""}`;
     select.appendChild(new Option(label, String(account.id)));
   }
   if (selectTo) {
     selectTo.innerHTML = `<option value="">${escapeHtml(t("selectAccount"))}</option>`;
     for (const account of state.accounts || []) {
-      const label = `${account.name}`;
+      const label = `${account.name}${account.is_shared ? ` · ${sharedAccountMetaText(account)}` : ""}`;
       selectTo.appendChild(new Option(label, String(account.id)));
     }
   }
@@ -5249,6 +5430,7 @@ async function loadDashboard() {
   state.dashboard = dashboard;
   renderHeroSummary(dashboard);
   renderInfographics(dashboard);
+  renderDashboardNotifications();
   if (state.risk) renderRiskMetrics(state.risk);
 }
 
@@ -5267,6 +5449,261 @@ function renderRiskMetrics(risk) {
     }%</span></div></article>
     <article class="list-row"><div class="row-main"><strong>${t("metricRunwayMonths")}</strong><span>${runwayLabel}</span></div></article>
   `;
+}
+
+function makeDashboardNotificationId(...parts) {
+  return parts.map((part) => String(part || "").trim()).join("::");
+}
+
+function getBudgetNotificationRows(dashboard) {
+  return [
+    ...((dashboard?.budget_status || []).map((row) => ({ ...row, _periodLabel: t("periodMonthly") }))),
+    ...((dashboard?.budget_status_yearly || []).map((row) => ({ ...row, _periodLabel: t("periodYearly") })))
+  ].filter((row) => Number(row?.total_amount || 0) > 0);
+}
+
+function getBudgetNotificationCategoryLabel(row) {
+  return withL1Emoji(row?.category_l1, {
+    localizeDefault: true,
+    isDefault: Boolean(state.categories?.[row?.category_l1]?.is_default)
+  });
+}
+
+function buildDashboardNotifications() {
+  const items = [];
+  const dashboard = state.dashboard;
+  const baseCurrency = dashboard?.base_currency || state.settings?.base_currency || "USD";
+  const dismissed = state.ui.dismissedNotifications || {};
+  const pushItem = (item) => {
+    if (!item?.id) return;
+    if (!item.persistent && dismissed[item.id]) return;
+    items.push(item);
+  };
+
+  const pendingInvitations = Array.isArray(state.pendingAccountInvitations) ? state.pendingAccountInvitations : [];
+  for (const invitation of pendingInvitations) {
+    const inviterName = String(
+      invitation.inviter_display_name || invitation.inviter_email || t("accountShareTitle")
+    );
+    pushItem({
+      id: makeDashboardNotificationId("account-invite", invitation.account_id, invitation.created_at),
+      tone: "info",
+      badge: t("notificationSeverityInvite"),
+      priority: 100,
+      persistent: true,
+      dismissible: false,
+      title: t("notificationAccountInviteTitle", { inviter: inviterName }),
+      body: t("notificationAccountInviteBody", {
+        account: invitation.account_name || t("account"),
+        role: accountRoleLabel(invitation.role)
+      }),
+      actions: [
+        {
+          label: t("notificationActionAcceptInvite"),
+          action: "accept-account-invite",
+          accountId: Number(invitation.account_id || 0)
+        },
+        {
+          label: t("notificationActionDeclineInvite"),
+          action: "decline-account-invite",
+          accountId: Number(invitation.account_id || 0),
+          secondary: true
+        }
+      ]
+    });
+  }
+
+  if (dashboard) {
+    const budgetRows = getBudgetNotificationRows(dashboard);
+    const overspendRows = budgetRows
+      .filter((row) => {
+        const total = Number(row?.total_amount || 0);
+        const spent = Number(row?.spent_amount || 0);
+        return total > 0 && (Boolean(row?.overspend) || spent > total);
+      })
+      .sort(
+        (a, b) =>
+          (Number(b?.spent_amount || 0) - Number(b?.total_amount || 0)) -
+          (Number(a?.spent_amount || 0) - Number(a?.total_amount || 0))
+      );
+    if (overspendRows.length) {
+      const row = overspendRows[0];
+      const periodKey = row?.year !== undefined ? row.year : row?.month || state.month;
+      pushItem({
+        id: makeDashboardNotificationId("budget-overspend", state.month, periodKey, row?.category_l1),
+        tone: "danger",
+        badge: t("notificationSeverityCritical"),
+        priority: 90,
+        title: t("notificationOverspendTitle", { category: getBudgetNotificationCategoryLabel(row) }),
+        body: t("notificationOverspendBody", {
+          spent: maskedAmountText(formatMoney(row?.spent_amount || 0)),
+          total: maskedAmountText(formatMoney(row?.total_amount || 0)),
+          currency: formatCurrencyUnit(baseCurrency),
+          period: row?._periodLabel || t("periodMonthly")
+        }),
+        actionLabel: t("notificationActionBudgets"),
+        actionPanel: "budgetsPanel"
+      });
+    }
+
+    const warningRows = budgetRows
+      .filter((row) => {
+        const total = Number(row?.total_amount || 0);
+        const spent = Number(row?.spent_amount || 0);
+        if (total <= 0) return false;
+        const ratio = spent / total;
+        return ratio >= 0.8 && ratio < 1;
+      })
+      .sort(
+        (a, b) =>
+          Number(b?.spent_amount || 0) / Math.max(1, Number(b?.total_amount || 0)) -
+          Number(a?.spent_amount || 0) / Math.max(1, Number(a?.total_amount || 0))
+      );
+    if (warningRows.length) {
+      const row = warningRows[0];
+      const periodKey = row?.year !== undefined ? row.year : row?.month || state.month;
+      const ratio = Math.min(
+        999,
+        Math.round((Number(row?.spent_amount || 0) / Math.max(1, Number(row?.total_amount || 0))) * 100)
+      );
+      pushItem({
+        id: makeDashboardNotificationId("budget-warning", state.month, periodKey, row?.category_l1),
+        tone: "warn",
+        badge: t("notificationSeverityAttention"),
+        priority: 75,
+        title: t("notificationBudgetNearTitle", { category: getBudgetNotificationCategoryLabel(row) }),
+        body: t("notificationBudgetNearBody", {
+          ratio: String(ratio),
+          period: row?._periodLabel || t("periodMonthly")
+        }),
+        actionLabel: t("notificationActionBudgets"),
+        actionPanel: "budgetsPanel"
+      });
+    }
+
+    const runwayMonths = Number(dashboard?.runway_months);
+    if (Number.isFinite(runwayMonths) && runwayMonths > 0 && runwayMonths < 3) {
+      pushItem({
+        id: makeDashboardNotificationId("runway", state.month),
+        tone: "warn",
+        badge: t("notificationSeverityAttention"),
+        priority: 85,
+        title: t("notificationRunwayTitle"),
+        body: t("notificationRunwayBody", {
+          months: new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(runwayMonths)
+        }),
+        actionLabel: t("notificationActionTransactions"),
+        actionPanel: "transactionsPanel"
+      });
+    }
+
+  }
+
+  return items.sort((a, b) => Number(b?.priority || 0) - Number(a?.priority || 0)).slice(0, 4);
+}
+
+function renderDashboardNotifications() {
+  const section = $("#dashboardNotificationsSection");
+  const list = $("#dashboardNotificationsList");
+  const count = $("#dashboardNotificationsCount");
+  if (!section || !list || !count) return;
+  const items = buildDashboardNotifications();
+  section.classList.toggle("hidden", items.length === 0);
+  count.textContent = items.length ? String(items.length) : "";
+  count.classList.toggle("hidden", items.length === 0);
+  if (!items.length) {
+    list.innerHTML = "";
+    return;
+  }
+  list.innerHTML = items
+    .map(
+      (item) => `
+        <article class="notification-card notification-card--${escapeHtml(item.tone || "info")}">
+          <div class="notification-card-top">
+            <span class="notification-pill">${escapeHtml(item.badge || t("notificationSeverityAttention"))}</span>
+            ${
+              item.dismissible === false
+                ? ""
+                : `
+            <button
+              class="notification-dismiss-btn"
+              type="button"
+              data-notification-dismiss="${escapeHtml(item.id)}"
+              aria-label="${escapeHtml(t("notificationDismiss"))}"
+              title="${escapeHtml(t("notificationDismiss"))}"
+            >
+              ×
+            </button>`
+            }
+          </div>
+          <h3 class="notification-title">${escapeHtml(item.title || "")}</h3>
+          <p class="notification-body">${escapeHtml(item.body || "")}</p>
+          <div class="notification-actions">
+            ${
+              Array.isArray(item.actions) && item.actions.length
+                ? item.actions
+                    .map(
+                      (action) => `
+            <button
+              class="notification-action-btn${action.secondary ? " notification-action-btn--secondary" : ""}"
+              type="button"
+              data-notification-action="${escapeHtml(action.action || "")}"
+              data-notification-account-id="${escapeHtml(String(action.accountId || ""))}"
+            >
+              ${escapeHtml(action.label || "")}
+            </button>`
+                    )
+                    .join("")
+                : `
+            <button class="notification-action-btn" type="button" data-notification-panel="${escapeHtml(item.actionPanel || "dashboardPanel")}">
+              ${escapeHtml(item.actionLabel || "")}
+            </button>`
+            }
+          </div>
+        </article>
+      `
+    )
+    .join("");
+}
+
+function dismissDashboardNotification(id) {
+  const notificationId = String(id || "").trim();
+  if (!notificationId) return;
+  state.ui.dismissedNotifications = {
+    ...(state.ui.dismissedNotifications || {}),
+    [notificationId]: Date.now()
+  };
+  persistUiState();
+  renderDashboardNotifications();
+}
+
+async function refreshAfterAccountInvitationDecision() {
+  await Promise.all([
+    loadPendingAccountInvitations(),
+    loadAccounts(),
+    loadDashboard(),
+    loadTransactions()
+  ]);
+}
+
+async function acceptPendingAccountInvitation(accountId) {
+  try {
+    await api(`/api/v1/account-share-invitations/${accountId}/accept`, { method: "POST" });
+    showToast(t("accountInviteAccepted"));
+    await refreshAfterAccountInvitationDecision();
+  } catch (error) {
+    showErrorToast(error);
+  }
+}
+
+async function declinePendingAccountInvitation(accountId) {
+  try {
+    await api(`/api/v1/account-share-invitations/${accountId}/decline`, { method: "POST" });
+    showToast(t("accountInviteDeclined"));
+    await refreshAfterAccountInvitationDecision();
+  } catch (error) {
+    showErrorToast(error);
+  }
 }
 
 async function loadRisk() {
@@ -5694,6 +6131,97 @@ function renderBudgetPieView(monthlyRows, yearlyRows, baseCurrency) {
 }
 
 
+function accountRoleLabel(role) {
+  const normalized = String(role || "").trim().toLowerCase();
+  if (normalized === "owner") return t("accountRoleOwner");
+  if (normalized === "viewer") return t("accountRoleViewer");
+  return t("accountRoleEditor");
+}
+
+function sharedAccountMetaText(account) {
+  if (!account?.is_shared) return "";
+  return `${t("accountBadgeShared")} · ${accountRoleLabel(account.access_role)}`;
+}
+
+function renderSharedAccountAvatarStack(account) {
+  const members = Array.isArray(account?.account_members)
+    ? account.account_members.filter((member) => Number(member?.user_id || 0) > 0).slice(0, 3)
+    : [];
+  if (!account?.is_shared || members.length <= 1) return "";
+  return `
+    <div class="shared-avatar-stack" aria-hidden="true">
+      ${members
+        .map((member, index) => {
+          const avatar = String(member?.hero_avatar_data_url || "").trim() || HERO_AVATAR_DEFAULT_SRC;
+          const content = `<img src="${escapeHtml(avatar)}" alt="" loading="lazy" />`;
+          return `<span class="shared-avatar" style="z-index:${members.length - index};">${content}</span>`;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+function isSharedTransaction(row) {
+  const from = (state.accounts || []).find((item) => Number(item.id) === Number(row?.account_from_id || 0));
+  const to = (state.accounts || []).find((item) => Number(item.id) === Number(row?.account_to_id || 0));
+  return Boolean(from?.is_shared || to?.is_shared);
+}
+
+function resolveActorDisplayName(row) {
+  const raw = String(row?.actor_display_name || "").trim();
+  if (raw) return raw;
+  const actorId = Number(row?.actor_user_id || 0);
+  if (Number.isInteger(actorId) && actorId > 0) {
+    if (actorId === Number(state.auth?.user?.id || 0)) return t("personalAccount");
+    return `User ${actorId}`;
+  }
+  return "";
+}
+
+function resolveActorAvatarSrc(row) {
+  const actorId = Number(row?.actor_user_id || 0);
+  if (Number.isInteger(actorId) && actorId > 0) {
+    if (actorId === Number(state.auth?.user?.id || 0)) {
+      return readHeroAvatarSrc();
+    }
+    const relatedAccounts = (state.accounts || []).filter(
+      (account) => Number(account?.id || 0) === Number(row?.account_from_id || 0) || Number(account?.id || 0) === Number(row?.account_to_id || 0)
+    );
+    for (const account of relatedAccounts) {
+      const member = Array.isArray(account?.account_members)
+        ? account.account_members.find((item) => Number(item?.user_id || 0) === actorId)
+        : null;
+      const avatar = String(member?.hero_avatar_data_url || "").trim();
+      if (avatar) return avatar;
+    }
+  }
+  return HERO_AVATAR_DEFAULT_SRC;
+}
+
+function syncAccountEditAdvancedPanel(open) {
+  const toggleBtn = $("#accountEditAdvancedToggleBtn");
+  const panel = $("#accountEditAdvancedPanel");
+  if (!toggleBtn || !panel) return;
+  const expanded = Boolean(open);
+  toggleBtn.setAttribute("aria-expanded", expanded ? "true" : "false");
+  panel.classList.toggle("hidden", !expanded);
+}
+
+function renderDashboardActorAvatar(row) {
+  if (!isSharedTransaction(row)) return "";
+  const actorId = Number(row?.actor_user_id || 0);
+  if (!Number.isInteger(actorId) || actorId <= 0) return "";
+  if (actorId === Number(state.auth?.user?.id || 0)) return "";
+  return `<img class="tx-actor-avatar" src="${escapeHtml(resolveActorAvatarSrc(row))}" alt="" loading="lazy" />`;
+}
+
+function renderTransactionMetaActorAvatar(row) {
+  const actorId = Number(row?.actor_user_id || 0);
+  if (!Number.isInteger(actorId) || actorId <= 0) return "";
+  if (actorId === Number(state.auth?.user?.id || 0)) return "";
+  return `<img class="tx-actor-avatar tx-actor-avatar--meta" src="${escapeHtml(resolveActorAvatarSrc(row))}" alt="" loading="lazy" />`;
+}
+
 function renderAccounts() {
   const target = $("#accountList");
   if (!state.accounts.length) {
@@ -5713,6 +6241,7 @@ function renderAccounts() {
         row.currency,
         state.settings?.base_currency || "USD"
       );
+      const sharedMeta = sharedAccountMetaText(row);
       const bal = maskedAmountText(formatMoney(row.balance));
       const isNeg = Number(row.balance) < 0;
       return `
@@ -5724,6 +6253,7 @@ function renderAccounts() {
             <div class="account-meta-row">
               <span class="account-meta muted">${escapeHtml(label)}</span>
               <span class="pill">${escapeHtml(formatCurrencyUnit(accountCurrency))}</span>
+              ${sharedMeta ? `<span class="pill">${escapeHtml(sharedMeta)}</span>` : ""}
             </div>
           </div>
           <span class="account-balance mono${isNeg ? " overspend" : ""}">${renderMoneyWithUnit(
@@ -5752,6 +6282,7 @@ function renderDashboardAccountsCard() {
     const icon = accountTypeEmoji(row.type);
     const isNeg = Number(row.balance) < 0;
     const accountCurrency = resolveCurrencyForDisplay(row.currency, baseCurrency);
+    const sharedAvatars = renderSharedAccountAvatarStack(row);
     let net = 0;
     for (const tx of txs) {
       const amt = Number(tx.amount_base || 0);
@@ -5770,7 +6301,10 @@ function renderDashboardAccountsCard() {
     return `
     <div class="account-dash-row clickable" data-action="edit-account" data-id="${row.id}">
       <span class="account-type-icon">${icon}</span>
-      <span class="account-name">${escapeHtml(row.name)}</span>
+      <span class="account-name-wrap">
+        <span class="account-name">${escapeHtml(row.name)}</span>
+        ${sharedAvatars}
+      </span>
       <div class="acct-right">
         <span class="account-balance mono${isNeg ? " overspend" : ""}">${renderMoneyWithUnit(
           fmt(row.balance),
@@ -5794,13 +6328,28 @@ function openAccountEditSheet(accountId) {
   const currencyValue = $("#accountEditCurrencyValue");
   const balanceCurrency = $("#accountEditBalanceCurrency");
   const typeValue = $("#accountEditTypeValue");
+  const ownerHint = $("#accountShareOwnerHint");
   if (!(form instanceof HTMLFormElement)) return;
+  const isOwner = String(account.access_role || "") === "owner";
   form.elements.account_id.value = String(account.id);
   form.elements.name.value = String(account.name || "");
   if (currencyValue) currencyValue.textContent = String(account.currency || "");
   if (balanceCurrency) balanceCurrency.textContent = formatCurrencyUnit(String(account.currency || ""));
   if (typeValue) typeValue.textContent = accountTypeLabel(String(account.type || "bank"));
   form.elements.balance.value = String(Number(account.balance || 0));
+  if (form.elements.analytics_dashboard_rollup) {
+    form.elements.analytics_dashboard_rollup.checked = String(account.analytics_mode || "wallet_only") === "member_rollup";
+  }
+  form.elements.name.disabled = !isOwner;
+  form.elements.balance.disabled = !isOwner;
+  if (form.elements.analytics_dashboard_rollup) form.elements.analytics_dashboard_rollup.disabled = !isOwner;
+  const saveBtn = $("#accountEditSaveBtn");
+  const deleteBtn = $("#accountDeleteBtn");
+  if (saveBtn) saveBtn.disabled = !isOwner;
+  if (deleteBtn) deleteBtn.disabled = !isOwner;
+  if (ownerHint) ownerHint.classList.toggle("hidden", isOwner);
+  syncAccountEditAdvancedPanel(Boolean(account.is_shared || String(account.analytics_mode || "wallet_only") !== "wallet_only"));
+  void loadAccountShares(targetId);
   openSheet("accountEditSheet", { preserveUtility: true });
 }
 
@@ -5812,6 +6361,10 @@ async function submitAccountEditForm(event) {
   const accountId = Number(fd.get("account_id"));
   const name = String(fd.get("name") || "").trim();
   const balance = Number(fd.get("balance"));
+  const analyticsToggle = form.elements.analytics_dashboard_rollup instanceof HTMLInputElement
+    ? form.elements.analytics_dashboard_rollup.checked
+    : false;
+  const analyticsMode = analyticsToggle ? "member_rollup" : "wallet_only";
   if (!Number.isInteger(accountId) || accountId <= 0 || !name || !Number.isFinite(balance)) {
     showToast(t("invalidAmount"), true);
     return;
@@ -5819,7 +6372,7 @@ async function submitAccountEditForm(event) {
   try {
     await api(`/api/v1/accounts/${accountId}`, {
       method: "PATCH",
-      body: JSON.stringify({ name, balance })
+      body: JSON.stringify({ name, balance, analytics_mode: analyticsMode })
     });
     showToast(t("accountUpdated"));
     try {
@@ -5828,6 +6381,134 @@ async function submitAccountEditForm(event) {
     } catch (error) {
       showRefreshFailureToast(error);
     }
+  } catch (error) {
+    showErrorToast(error);
+  }
+}
+
+async function loadAccountShares(accountId) {
+  const list = $("#accountShareList");
+  if (!list) return [];
+  state.accountShares = [];
+  try {
+    const payload = await api(`/api/v1/accounts/${accountId}/shares`);
+    state.accountShares = Array.isArray(payload?.members) ? payload.members : [];
+  } catch (error) {
+    list.innerHTML = `<div class="list-row muted">${escapeHtml(formatErrorForToast(error))}</div>`;
+    return [];
+  }
+  renderAccountShares();
+  return state.accountShares;
+}
+
+function renderAccountShares() {
+  const list = $("#accountShareList");
+  const shareForm = $("#accountShareForm");
+  const account = (state.accounts || []).find((row) => Number(row.id) === Number(state.editingAccountId || 0));
+  if (!list || !shareForm || !account) return;
+  const isOwner = String(account.access_role || "") === "owner";
+  const emailInput = shareForm.querySelector("[name=email]");
+  const roleSelect = shareForm.querySelector("[name=role]");
+  const submitBtn = $("#accountShareSubmitBtn");
+  if (emailInput) emailInput.disabled = !isOwner;
+  if (roleSelect) roleSelect.disabled = !isOwner;
+  if (submitBtn) submitBtn.disabled = !isOwner;
+  if (!state.accountShares.length) {
+    list.innerHTML = `<div class="list-row muted">${escapeHtml(t("accountShareEmpty"))}</div>`;
+    return;
+  }
+  list.innerHTML = state.accountShares
+    .map((member) => {
+      const displayName = String(member.display_name || member.email || `User ${member.user_id}`);
+      const isCurrentUser = Number(member.user_id) === Number(state.auth?.user?.id || 0);
+      const statusLabel =
+        String(member.status || "") === "pending" ? t("accountShareStatusPending") : t("accountShareStatusActive");
+      return `
+        <article class="list-row account-share-row" data-account-share-user-id="${member.user_id}">
+          <button
+            class="account-share-remove-btn"
+            type="button"
+            data-share-remove="${member.user_id}"
+            aria-label="${escapeHtml(t("delete"))}"
+            title="${escapeHtml(t("delete"))}"
+            ${isOwner ? "" : "disabled"}
+          >
+            ×
+          </button>
+          <div class="account-row-inner account-share-row-inner">
+            <div class="account-info">
+              <span class="account-name">${escapeHtml(displayName)}${isCurrentUser ? " · You" : ""}</span>
+              <div class="account-meta-row">
+                <span class="account-meta muted">${escapeHtml(String(member.email || ""))}</span>
+                <span class="pill">${escapeHtml(statusLabel)}</span>
+              </div>
+            </div>
+            <div class="account-meta-row account-share-role-row">
+              <select class="account-share-role-pill" data-share-role="${member.user_id}" ${isOwner ? "" : "disabled"}>
+                <option value="owner" ${member.role === "owner" ? "selected" : ""}>${escapeHtml(t("accountRoleOwner"))}</option>
+                <option value="editor" ${member.role === "editor" ? "selected" : ""}>${escapeHtml(t("accountRoleEditor"))}</option>
+                <option value="viewer" ${member.role === "viewer" ? "selected" : ""}>${escapeHtml(t("accountRoleViewer"))}</option>
+              </select>
+            </div>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+async function submitAccountShare() {
+  const accountId = Number(state.editingAccountId || 0);
+  const shareForm = $("#accountShareForm");
+  if (!Number.isInteger(accountId) || accountId <= 0 || !shareForm) return;
+  const email = String(shareForm.querySelector("[name=email]")?.value || "").trim();
+  const role = String(shareForm.querySelector("[name=role]")?.value || "editor").trim();
+  if (!email) {
+    showToast(t("authRequestFailed"), true);
+    return;
+  }
+  try {
+    const payload = await api(`/api/v1/accounts/${accountId}/shares`, {
+      method: "POST",
+      body: JSON.stringify({ email, role })
+    });
+    if (shareForm.querySelector("[name=email]")) shareForm.querySelector("[name=email]").value = "";
+    const invitedMember = Array.isArray(payload?.members)
+      ? payload.members.find((item) => String(item.email || "").toLowerCase() === email.toLowerCase())
+      : null;
+    showToast(String(invitedMember?.status || "") === "pending" ? t("accountShareInviteSent") : t("accountShareSaved"));
+    await Promise.all([loadAccounts(), loadPendingAccountInvitations(), loadAccountShares(accountId)]);
+  } catch (error) {
+    showErrorToast(error);
+  }
+}
+
+async function updateAccountShareRole(memberUserId, role) {
+  const accountId = Number(state.editingAccountId || 0);
+  if (!Number.isInteger(accountId) || accountId <= 0) return;
+  try {
+    await api(`/api/v1/accounts/${accountId}/shares/${memberUserId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ role })
+    });
+    showToast(t("accountShareSaved"));
+    await Promise.all([loadAccounts(), loadAccountShares(accountId)]);
+  } catch (error) {
+    showErrorToast(error);
+    await loadAccountShares(accountId);
+  }
+}
+
+async function removeAccountShare(memberUserId) {
+  const accountId = Number(state.editingAccountId || 0);
+  if (!Number.isInteger(accountId) || accountId <= 0) return;
+  const member = (state.accountShares || []).find((item) => Number(item.user_id || 0) === Number(memberUserId));
+  const displayName = String(member?.display_name || member?.email || `User ${memberUserId}`);
+  if (!window.confirm(t("accountShareRemoveConfirm", { name: displayName }))) return;
+  try {
+    await api(`/api/v1/accounts/${accountId}/shares/${memberUserId}`, { method: "DELETE" });
+    showToast(t("accountShareRemoved"));
+    await Promise.all([loadAccounts(), loadAccountShares(accountId)]);
   } catch (error) {
     showErrorToast(error);
   }
@@ -6873,16 +7554,6 @@ function renderTransactionList(rows, options = {}) {
         title = `${txTypeLabel("transfer")}${reason}`;
       }
 
-      // account line
-      let accountLine = "";
-      if (isExpense && row.account_from_id) accountLine = escapeHtml(row.account_from_id);
-      else if (isIncome && row.account_to_id) accountLine = escapeHtml(row.account_to_id);
-      else if (isTransfer) {
-        const from = row.account_from_id || "–";
-        const to = row.account_to_id || "–";
-        accountLine = `${escapeHtml(from)} → ${escapeHtml(to)}`;
-      }
-
       const amountClass = isExpense ? "tx-amount expense" : isIncome ? "tx-amount income" : "tx-amount transfer";
       const signedBase = isExpense ? -Math.abs(Number(row.amount_base)) : isIncome ? Math.abs(Number(row.amount_base)) : Number(row.amount_base);
       const signedOrig = isExpense ? -Math.abs(Number(row.amount_original)) : isIncome ? Math.abs(Number(row.amount_original)) : Number(row.amount_original);
@@ -6890,6 +7561,7 @@ function renderTransactionList(rows, options = {}) {
       const tags = row.tags && row.tags.length
         ? `<div class="tx-tags">${row.tags.map((tag) => `<span class="pill">${escapeHtml(tag)}</span>`).join("")}</div>`
         : "";
+      const actorAvatar = renderTransactionMetaActorAvatar(row);
 
       return `
         <article class="list-row tx-row clickable" data-tx-id="${row.id}">
@@ -6900,7 +7572,7 @@ function renderTransactionList(rows, options = {}) {
             )}</span></span>
           </div>
           <div class="tx-row-sub">
-            <span class="tx-row-meta">${accountLine ? `${accountLine} · ` : ""}${escapeHtml(row.tx_date)}</span>
+            <span class="tx-row-meta">${actorAvatar}${escapeHtml(row.tx_date)}</span>
             ${
               showOrig
                 ? `<span class="tx-orig">${escapeHtml(formatMoney(signedOrig))} ${escapeHtml(
@@ -6953,7 +7625,9 @@ function buildTransactionSearchText(row) {
     formatMoney(Number(row.amount_base || 0)),
     formatMoney(Number(row.amount_original || 0)),
     row.currency_original,
-    txTypeLabel(row.type)
+    txTypeLabel(row.type),
+    row.actor_display_name,
+    String(row.actor_user_id || "")
   ]
     .map((value) => String(value || "").toLowerCase())
     .join(" ");
@@ -6998,15 +7672,16 @@ function renderTodayExpensesCard(rows) {
           formatMoney(signedOrig)
         )} ${escapeHtml(formatCurrencyUnit(row.currency_original))}</span></div>`
       : "";
+    const actorAvatar = renderDashboardActorAvatar(row);
     return `
       <article class="incard-row tx-incard-row clickable" data-tx-id="${row.id}">
         <span class="tx-icon">${icon}</span>
         <div class="tx-incard-body">
           <div class="tx-row-main">
             <span class="tx-row-title">${titleText}</span>
-            <span class="tx-amount expense">${escapeHtml(formatMoney(signedBase))}<span class="tx-unit">${escapeHtml(
-              formatCurrencyUnit(base)
-            )}</span></span>
+            <span class="tx-incard-amount">${actorAvatar}<span class="tx-amount expense">${escapeHtml(
+              formatMoney(signedBase)
+            )}<span class="tx-unit">${escapeHtml(formatCurrencyUnit(base))}</span></span></span>
           </div>
           ${origLine}
           ${row.note ? `<div class="tx-note">${escapeHtml(row.note)}</div>` : ''}
@@ -7057,15 +7732,16 @@ function renderRecentExpensesCard(rows) {
         const reason = row.transfer_reason && row.transfer_reason !== "normal" ? ` · ${getTransferReasonLabel(row.transfer_reason)}` : "";
         titleText = escapeHtml(txTypeLabel("transfer") + reason);
       }
+      const actorAvatar = renderDashboardActorAvatar(row);
       return `
       <article class="incard-row tx-incard-row clickable" data-tx-id="${row.id}">
         <span class="tx-icon">${icon}</span>
         <div class="tx-incard-body">
           <div class="tx-row-main">
             <span class="tx-row-title">${titleText}</span>
-            <span class="${amountClass}">${escapeHtml(formatMoney(signedBase))}<span class="tx-unit">${escapeHtml(
-              formatCurrencyUnit(base)
-            )}</span></span>
+            <span class="tx-incard-amount">${actorAvatar}<span class="${amountClass}">${escapeHtml(
+              formatMoney(signedBase)
+            )}<span class="tx-unit">${escapeHtml(formatCurrencyUnit(base))}</span></span></span>
           </div>
           <div class="tx-row-sub">
             <span class="tx-row-meta">${escapeHtml(meta)}</span>
@@ -7689,6 +8365,7 @@ function applyI18n() {
   setText("tabCategoriesBtn", `🧩 ${t("tabCategories")}`);
   setText("tabSettingsBtn", `⚙️ ${t("tabSettings")}`);
   setText("dashboardTitle", t("dashboard"));
+  setText("dashboardNotificationsLabel", t("dashboardNotifications"));
   setText("dashboardPinnedLabel", t("pinned"));
   setText("dashWidgetsEditBtn", t("edit"));
   setText("todayCardTitle", `☀️ ${t("relativeToday")}`);
@@ -7845,6 +8522,19 @@ function applyI18n() {
   setText("accountEditTypeLabel", t("accountType"));
   setText("accountEditBalanceLabel", t("accountBalanceLabel"));
   setText("accountEditBalanceHint", t("accountEditBalanceHint"));
+  setText("accountEditAdvancedTitle", t("accountEditAdvancedTitle"));
+  setText("accountEditAdvancedHint", t("accountEditAdvancedHint"));
+  setText("accountEditAnalyticsToggleLabel", t("accountEditAnalyticsToggleLabel"));
+  setText("accountEditAnalyticsToggleHint", t("accountEditAnalyticsToggleHint"));
+  setText("accountShareTitle", t("accountShareTitle"));
+  setText("accountShareHint", t("accountShareHint"));
+  setText("accountShareEmailLabel", t("accountShareEmailLabel"));
+  setText("accountShareRoleLabel", t("accountShareRoleLabel"));
+  setText("accountShareRoleOwnerOption", t("accountRoleOwner"));
+  setText("accountShareRoleEditorOption", t("accountRoleEditor"));
+  setText("accountShareRoleViewerOption", t("accountRoleViewer"));
+  setText("accountShareSubmitBtn", t("accountShareSubmitBtn"));
+  setText("accountShareOwnerHint", t("accountShareOwnerHint"));
   setText("accountEditSaveBtn", t("saveAccount"));
   setText("accountDeleteBtn", t("delete"));
   setText("budgetEditTitle", t("editBudget"));
@@ -7929,6 +8619,7 @@ function applyI18n() {
   renderRecentExpensesCard(state.transactions || []);
   renderTodayExpensesCard(state.transactions || []);
   renderRecentCompareCard(state.recentCompareRows || []);
+  renderDashboardNotifications();
   renderTransactionListStatus();
   renderTransactionFilterSummary();
   renderAgentTokens();
@@ -7977,6 +8668,8 @@ function loadUiState() {
     state.ui.budgetPieView = Boolean(parsed.budgetPieView);
     state.ui.accountCompositionPercent = Boolean(parsed.accountCompositionPercent);
     state.ui.hideSensitiveAmounts = Boolean(parsed.hideSensitiveAmounts);
+    state.ui.dismissedNotifications =
+      parsed.dismissedNotifications && typeof parsed.dismissedNotifications === "object" ? parsed.dismissedNotifications : {};
     if (parsed.debug) {
       state.debug.onlyFailed = Boolean(parsed.debug.onlyFailed);
       state.debug.filter = String(parsed.debug.filter || "");
@@ -8014,6 +8707,7 @@ function persistUiState() {
         budgetPieView: state.ui.budgetPieView,
         accountCompositionPercent: state.ui.accountCompositionPercent,
         hideSensitiveAmounts: state.ui.hideSensitiveAmounts,
+        dismissedNotifications: state.ui.dismissedNotifications,
         trend: {
           start: state.trend.start,
           end: state.trend.end,
@@ -8147,6 +8841,13 @@ function accountTypeLabel(type) {
   const i18nKey = ACCOUNT_TYPE_META[key]?.i18nKey;
   if (!i18nKey) return key || "-";
   return t(i18nKey);
+}
+
+function accountRoleLabel(role) {
+  const normalized = String(role || "").trim().toLowerCase();
+  if (normalized === "owner") return t("accountRoleOwner");
+  if (normalized === "viewer") return t("accountRoleViewer");
+  return t("accountRoleEditor");
 }
 
 function accountTypeDisplay(type) {
