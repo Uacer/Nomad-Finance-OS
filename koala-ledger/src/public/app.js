@@ -1710,6 +1710,14 @@ function bindUI() {
   if (quickL2Grid) {
     quickL2Grid.addEventListener("click", (event) => {
       if (!(event.target instanceof Element)) return;
+      const addBtn = event.target.closest("button[data-action='add-l2']");
+      if (addBtn) {
+        const encodedL1 = String(addBtn.getAttribute("data-l1") || "");
+        const l1Name = decodeURIComponent(encodedL1 || "").trim();
+        if (!l1Name) return;
+        openCategoryPrompt("l2", l1Name, { selectQuickEntryL2: true });
+        return;
+      }
       const optionBtn = event.target.closest("button[data-l2]");
       if (!optionBtn) return;
       const encoded = String(optionBtn.getAttribute("data-l2") || "");
@@ -4228,6 +4236,11 @@ function renderQuickL2Grid() {
   const l1 = String(l1Select.value || "");
   const rows = (state.categories?.[l1]?.l2 || []).filter((row) => row.active);
   const selected = String(l2Select.value || "");
+  const l1Prompt = t("promptL2Name", {
+    l1: getL1DisplayName(l1, { bilingualDefault: false, localizeDefault: true }) || l1
+  });
+  const remainder = rows.length % 4;
+  const addSlotCount = remainder === 0 ? 1 : 4 - remainder;
   grid.innerHTML = rows
     .map((row) => {
       const label = String(row.name || "");
@@ -4241,7 +4254,18 @@ function renderQuickL2Grid() {
         </button>
       `;
     })
-    .join("");
+    .join("") + Array.from({ length: addSlotCount }, () => `
+        <button
+          class="quick-icon-btn quick-add-icon-btn"
+          type="button"
+          data-action="add-l2"
+          data-l1="${encodeURIComponent(l1)}"
+          aria-label="${escapeHtml(l1Prompt)}"
+          title="${escapeHtml(l1Prompt)}"
+        >
+          <span class="quick-add-icon" aria-hidden="true">+</span>
+        </button>
+      `).join("");
 }
 
 function renderQuickTransferReasonGrid() {
@@ -5151,7 +5175,7 @@ async function submitCategoryPromptForm(event) {
   const emoji = String(form.elements.emoji.value || "").trim();
   if (!name) return;
   if (mode === "l2") {
-    const ok = await createL2CategoryRecord(l1Name, name, null, { emoji });
+    const ok = await createL2CategoryRecord(l1Name, name, null, { emoji, ...(state.categoryPromptContext || {}) });
     if (!ok) return;
   } else if (mode === "edit_l1") {
     const ok = await updateL1CategoryRecord(oldName, name, { emoji });
@@ -5298,6 +5322,17 @@ async function createL2CategoryRecord(l1Name, l2Name, formToReset = null, option
     showToast(t("categoryL2Created"));
     try {
       await loadCategories();
+      if (options.selectQuickEntryL2) {
+        const quickL1Select = $("#quickEntryForm [name=category_l1]");
+        const quickL2Select = $("#quickEntryForm [name=category_l2]");
+        if (quickL1Select && quickL2Select) {
+          quickL1Select.value = safeL1Name;
+          populateQuickEntryL2();
+          quickL2Select.value = safeL2Name;
+          renderQuickL2Grid();
+          void updateQuickEntryFlow();
+        }
+      }
       if (formToReset instanceof HTMLFormElement) formToReset.reset();
       return true;
     } catch (error) {
