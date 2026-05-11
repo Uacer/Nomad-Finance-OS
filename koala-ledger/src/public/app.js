@@ -1751,6 +1751,9 @@ function bindUI() {
     void updateQuickEntryFlow();
   });
   $("#quickEntryForm [name=account_from_id]").addEventListener("change", () => {
+    if (state.quickEntryType === "expense") {
+      syncQuickEntryCurrencyToLedgerBase();
+    }
     rememberQuickEntryPreferences();
     void updateQuickEntryFlow();
   });
@@ -4514,6 +4517,7 @@ function applyQuickEntryPreferencesForType(type) {
   if (mode === "expense") {
     const from = $("#quickEntryForm [name=account_from_id]");
     if (from) setSelectValueIfExists(from, prefs.account_from_id || "");
+    syncQuickEntryCurrencyToLedgerBase();
   } else if (mode === "income") {
     const to = $("#quickEntryForm [name=account_to_id]");
     if (to) setSelectValueIfExists(to, prefs.account_to_id || "");
@@ -4562,6 +4566,13 @@ function setSelectValueIfExists(selectEl, value) {
   if (!text) return;
   const hasOption = Array.from(selectEl.options).some((opt) => String(opt.value) === text);
   if (hasOption) selectEl.value = text;
+}
+
+function syncQuickEntryCurrencyToLedgerBase() {
+  const currencySelect = $("#quickEntryForm [name=currency_original]");
+  if (!(currencySelect instanceof HTMLSelectElement)) return;
+  const ledgerCurrency = ensureUICurrency(state.settings?.base_currency || "USD");
+  setSelectValueIfExists(currencySelect, ledgerCurrency);
 }
 
 function loadQuickEntryPreferences() {
